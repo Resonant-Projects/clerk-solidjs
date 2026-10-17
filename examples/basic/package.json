@@ -10,18 +10,18 @@
     "start": "vinxi start"
   },
   "devDependencies": {
-    "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.13",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.30",
     "solid-devtools": "^0.34.5",
-    "tailwindcss": "^4.2.4",
+    "tailwindcss": "^4.3.3",
     "vinxi": "^0.5.11"
   },
   "dependencies": {
-    "@solid-primitives/resize-observer": "^2.1.5",
-    "@solidjs/router": "^0.16.1",
-    "@solidjs/start": "^1.3.2",
+    "@solid-primitives/resize-observer": "^2.2.0",
+    "@solidjs/router": "^1.0.0",
+    "@solidjs/start": "^2.0.6",
     "clerk-solidjs": "workspace:*",
-    "solid-js": "^1.9.12"
+    "solid-js": "^1.9.17"
   },
   "engines": {
     "node": ">=18"
