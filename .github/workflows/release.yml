@@ -109,6 +109,28 @@ jobs:
         with:
           skip-cache: true
           ignore-scripts: true
+      # TEMPORARY: diagnoses the 404 from the first trusted publish. Prints the OIDC claims npm
+      # matches against and npm's token-exchange response; every token is masked. Remove after.
+      - name: Diagnose npm OIDC exchange
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "node $(node --version), npm $(npm --version), pnpm $(pnpm --version)"
+          id_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" | jq -r '.value')
+          echo "::add-mask::$id_token"
+          payload=$(cut -d. -f2 <<<"$id_token" | tr '_-' '/+')
+          while (( ${#payload} % 4 )); do payload+="="; done
+          echo "OIDC claims:"
+          base64 -d <<<"$payload" | jq '{sub, repository, repository_owner, workflow_ref, job_workflow_ref, environment, ref, event_name, runner_environment}'
+          status=$(curl -sS -o exchange.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $id_token" \
+            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@resonant-projects%2Fclerk-solidjs")
+          token=$(jq -r '.token // empty' exchange.json 2>/dev/null || true)
+          if [[ -n "$token" ]]; then echo "::add-mask::$token"; fi
+          echo "Token exchange HTTP status: $status"
+          jq 'del(.token)' exchange.json 2>/dev/null || cat exchange.json
+          rm -f exchange.json
       - name: Publish packed tarballs
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
