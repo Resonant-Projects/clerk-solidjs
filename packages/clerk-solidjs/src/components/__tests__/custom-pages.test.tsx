@@ -489,4 +489,33 @@ describe('<UserProfileModal />', () => {
     expect(clerk.closeUserProfile).toHaveBeenCalledOnce();
     node.remove();
   });
+
+  it('keeps the pages it opened with until it closes', () => {
+    const clerk = createFakeClerk();
+    const [label, setLabel] = createSignal('Notifications');
+
+    renderWithClerk(clerk, () => (
+      <UserProfileModal>
+        <UserProfileModal.Page
+          label={label()}
+          url="notifications"
+          labelIcon={<Icon name="bell" />}
+        >
+          <p data-testid="snapshot-page">Notification settings</p>
+        </UserProfileModal.Page>
+      </UserProfileModal>
+    ));
+
+    const [page] = clerk.openUserProfile.mock.calls[0]![0]
+      .customPages as CustomPage[];
+    setLabel('Alerts');
+
+    // Clerk keeps the list it was opened with, so its page must still render.
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    page!.mount!(node as HTMLDivElement);
+    expect(node.querySelector('[data-testid="snapshot-page"]')).not.toBeNull();
+    expect(clerk.openUserProfile).toHaveBeenCalledOnce();
+    node.remove();
+  });
 });

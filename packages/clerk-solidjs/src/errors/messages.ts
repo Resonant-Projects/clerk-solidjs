@@ -64,7 +64,7 @@ export const userButtonMenuItemLinkWrongProps =
   'Missing props. <UserButton.Link /> component requires the following props: href, label and labelIcon.';
 
 export const userButtonMenuItemsActionWrongsProps =
-  'Missing props. <UserButton.Action /> component requires the following props: label.';
+  'Missing props. <UserButton.Action /> component requires the following props: label and labelIcon, or only a label of manageAccount or signOut to reorder those items.';
 
 export const userButtonMenuItemActionMissingTarget =
   'Custom menu item must have either onClick or open property';

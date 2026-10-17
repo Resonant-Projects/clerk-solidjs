@@ -441,8 +441,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     } catch (err) {
       // loadClerkJS runs fire-and-forget from the constructor, so rethrowing
       // would only surface as an unhandled rejection. Log it like @clerk/react.
-      const error = err as Error;
-      console.error(error.stack || error.message || error);
+      console.error(err instanceof Error ? err.stack || err.message : err);
       return;
     }
   }
