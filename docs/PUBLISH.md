@@ -36,20 +36,26 @@ version is published by hand.
    ```sh
    pnpm install --frozen-lockfile
    pnpm run prerelease
-   pnpm exec turbo build --filter=./packages/*
+   pnpm exec turbo build --filter='./packages/*'
    cd packages/clerk-solidjs
    npm publish --access public --provenance=false
    ```
 
    Provenance can only be generated in CI, so this one manual publish goes out without it.
 
-4. On npmjs.com, open the package's **Settings → Trusted publishing** and add a GitHub Actions
-   publisher:
-   - Organization or user: `Resonant-Projects`
-   - Repository: `clerk-solidjs`
-   - Workflow filename: `release.yml`
-   - Environment name: `npm`
-   - Allowed actions: allow `npm publish`
+4. Add the GitHub Actions trusted publisher with the npm CLI (11.10 or later), then check what
+   npm stored:
+
+   ```sh
+   npm trust github @resonant-projects/clerk-solidjs --file release.yml \
+     --repository Resonant-Projects/clerk-solidjs --environment npm --allow-publish
+   npm trust list @resonant-projects/clerk-solidjs
+   ```
+
+   npm matches every field case-sensitively against the workflow's OIDC claims, and the
+   npmjs.com form has stored the owner in lowercase, which makes every publish fail with
+   `404 Not Found`. The listing must show `repository: Resonant-Projects/clerk-solidjs` and
+   `environment: npm`.
 
    The configuration expires unless a trusted publish succeeds within two days, so finish the
    next step promptly.
@@ -60,4 +66,8 @@ version is published by hand.
    _Require two-factor authentication and disallow tokens_.
 
 The repository also needs **Settings → Actions → General → Allow GitHub Actions to create and
-approve pull requests** enabled so the `Version packages` job can open its pull request.
+approve pull requests** enabled so the `Version packages` job can open its pull request. The
+organization must allow it first, under the same setting in the organization's Actions settings.
+Keep the repository's **Actions permissions** on _Allow all actions and reusable workflows_
+(every action is pinned to a commit SHA). Allowing only repository-local actions makes every
+workflow fail at startup.
