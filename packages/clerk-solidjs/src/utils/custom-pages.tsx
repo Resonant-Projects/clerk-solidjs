@@ -7,7 +7,12 @@ import {
   resolveTokens,
   type TokenElement
 } from '@solid-primitives/jsx-tokenizer';
-import type { Accessor, JSX, ParentProps } from 'solid-js';
+import {
+  type Accessor,
+  createMemo,
+  type JSX,
+  type ParentProps
+} from 'solid-js';
 import {
   customLinkWrongProps,
   customMenuItemsIgnoredComponent,
@@ -49,24 +54,49 @@ import {
  */
 
 type MenuItemToken =
-  | { kind: 'action'; props: UserButtonActionProps }
-  | { kind: 'link'; props: UserButtonLinkProps };
+  | {
+      kind: 'action';
+      props: UserButtonActionProps;
+      icon: Accessor<JSX.Element>;
+    }
+  | { kind: 'link'; props: UserButtonLinkProps; icon: Accessor<JSX.Element> };
 
 type ResolvedEntries<T> = Accessor<(TokenElement<T> | JSX.Element)[]>;
 
 type CustomChildToken =
-  | { kind: 'userProfilePage'; props: ParentProps<UserProfilePageProps> }
-  | { kind: 'userProfileLink'; props: UserProfileLinkProps }
+  | {
+      kind: 'userProfilePage';
+      props: ParentProps<UserProfilePageProps>;
+      icon: Accessor<JSX.Element>;
+    }
+  | {
+      kind: 'userProfileLink';
+      props: UserProfileLinkProps;
+      icon: Accessor<JSX.Element>;
+    }
   | {
       kind: 'organizationProfilePage';
       props: ParentProps<OrganizationProfilePageProps>;
+      icon: Accessor<JSX.Element>;
     }
-  | { kind: 'organizationProfileLink'; props: OrganizationProfileLinkProps }
+  | {
+      kind: 'organizationProfileLink';
+      props: OrganizationProfileLinkProps;
+      icon: Accessor<JSX.Element>;
+    }
   | {
       kind: 'menuItems';
       props: ParentProps;
       items: ResolvedEntries<MenuItemToken>;
     };
+
+/**
+ * Builds the token's icon once, owned by the token, so validation and the
+ * portal that shows it share one instance. Reading the memo tracks a
+ * reactive icon (`labelIcon={icon()}`) without building it again.
+ */
+const resolveIcon = (props: { labelIcon?: JSX.Element }) =>
+  createMemo(() => props.labelIcon);
 
 const CustomChildrenTokenizer = createTokenizer<CustomChildToken>({
   name: 'Clerk custom pages'
@@ -86,7 +116,7 @@ export const UserProfilePage = createToken<
   CustomChildToken
 >(
   CustomChildrenTokenizer,
-  (props) => ({ kind: 'userProfilePage', props }),
+  (props) => ({ kind: 'userProfilePage', props, icon: resolveIcon(props) }),
   renderedOutsideParent(userProfilePageRenderedError)
 );
 
@@ -95,7 +125,7 @@ export const UserProfileLink = createToken<
   CustomChildToken
 >(
   CustomChildrenTokenizer,
-  (props) => ({ kind: 'userProfileLink', props }),
+  (props) => ({ kind: 'userProfileLink', props, icon: resolveIcon(props) }),
   renderedOutsideParent(userProfileLinkRenderedError)
 );
 
@@ -104,7 +134,11 @@ export const OrganizationProfilePage = createToken<
   CustomChildToken
 >(
   CustomChildrenTokenizer,
-  (props) => ({ kind: 'organizationProfilePage', props }),
+  (props) => ({
+    kind: 'organizationProfilePage',
+    props,
+    icon: resolveIcon(props)
+  }),
   renderedOutsideParent(organizationProfilePageRenderedError)
 );
 
@@ -113,7 +147,11 @@ export const OrganizationProfileLink = createToken<
   CustomChildToken
 >(
   CustomChildrenTokenizer,
-  (props) => ({ kind: 'organizationProfileLink', props }),
+  (props) => ({
+    kind: 'organizationProfileLink',
+    props,
+    icon: resolveIcon(props)
+  }),
   renderedOutsideParent(organizationProfileLinkRenderedError)
 );
 
@@ -131,13 +169,13 @@ export const MenuItems = createToken<ParentProps, CustomChildToken>(
 
 export const MenuAction = createToken<UserButtonActionProps, MenuItemToken>(
   MenuItemTokenizer,
-  (props) => ({ kind: 'action', props }),
+  (props) => ({ kind: 'action', props, icon: resolveIcon(props) }),
   renderedOutsideParent(userButtonMenuActionRenderedError)
 );
 
 export const MenuLink = createToken<UserButtonLinkProps, MenuItemToken>(
   MenuItemTokenizer,
-  (props) => ({ kind: 'link', props }),
+  (props) => ({ kind: 'link', props, icon: resolveIcon(props) }),
   renderedOutsideParent(userButtonMenuLinkRenderedError)
 );
 
@@ -245,7 +283,7 @@ export const buildCustomPages = (
 
     if (token.kind === options.pageKind) {
       const props = token.props as ParentProps<UserProfilePageProps>;
-      const hasIcon = resolvesToJSX(props, 'labelIcon');
+      const hasIcon = isRenderable(token.icon());
 
       if (
         !props.url &&
@@ -273,7 +311,7 @@ export const buildCustomPages = (
         });
         elements.push(
           { id: `content:${id}`, render: renderProp(props, 'children') },
-          { id: `icon:${id}`, render: renderProp(props, 'labelIcon') }
+          { id: `icon:${id}`, render: token.icon }
         );
       } else {
         logErrorInDevMode(customPageWrongProps(options.componentName));
@@ -285,7 +323,7 @@ export const buildCustomPages = (
       const props = token.props as UserProfileLinkProps;
       if (
         props.url &&
-        resolvesToJSX(props, 'labelIcon') &&
+        isRenderable(token.icon()) &&
         !resolvesToJSX(props, 'children') &&
         props.label
       ) {
@@ -299,7 +337,7 @@ export const buildCustomPages = (
         });
         elements.push({
           id: `icon:${id}`,
-          render: renderProp(props, 'labelIcon')
+          render: token.icon
         });
       } else {
         logErrorInDevMode(customLinkWrongProps(options.componentName));
@@ -340,7 +378,7 @@ export const buildUserButtonMenuItems = (
       }
 
       const token = item.data;
-      const hasIcon = resolvesToJSX(token.props, 'labelIcon');
+      const hasIcon = isRenderable(token.icon());
 
       if (token.kind === 'action') {
         const props = token.props;
@@ -381,7 +419,7 @@ export const buildUserButtonMenuItems = (
         customMenuItems.push(menuItem);
         elements.push({
           id: `icon:${id}`,
-          render: renderProp(props, 'labelIcon')
+          render: token.icon
         });
         continue;
       }
@@ -398,7 +436,7 @@ export const buildUserButtonMenuItems = (
         });
         elements.push({
           id: `icon:${id}`,
-          render: renderProp(props, 'labelIcon')
+          render: token.icon
         });
       } else {
         logErrorInDevMode(userButtonMenuItemLinkWrongProps);

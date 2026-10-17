@@ -399,6 +399,46 @@ describe('custom pages edge cases', () => {
     expect(items.map((item) => item.label)).toEqual(['Help']);
   });
 
+  it('builds each icon once and reuses it for validation and rendering', () => {
+    const clerk = createFakeClerk();
+    const [siblingLabel, setSiblingLabel] = createSignal('Second');
+    let instances = 0;
+    const CountingIcon = () => {
+      instances++;
+      return <svg data-testid="counting-icon" />;
+    };
+
+    renderWithClerk(clerk, () => (
+      <UserProfile>
+        <UserProfile.Page
+          label="First"
+          url="first"
+          labelIcon={<CountingIcon />}
+        >
+          <p>First</p>
+        </UserProfile.Page>
+        <UserProfile.Page
+          label={siblingLabel()}
+          url="second"
+          labelIcon={<Icon name="two" />}
+        >
+          <p>Second</p>
+        </UserProfile.Page>
+      </UserProfile>
+    ));
+
+    const [first] = latestProps(clerk, 'mountUserProfile')
+      .customPages as CustomPage[];
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    first!.mountIcon!(node as HTMLDivElement);
+    expect(node.querySelector('[data-testid="counting-icon"]')).not.toBeNull();
+
+    setSiblingLabel('Renamed');
+    expect(instances).toBe(1);
+    node.remove();
+  });
+
   it('keeps a mounted page body when a sibling page changes', () => {
     const clerk = createFakeClerk();
     const [siblingLabel, setSiblingLabel] = createSignal('Second');
