@@ -490,7 +490,45 @@ describe('<UserProfileModal />', () => {
     node.remove();
   });
 
-  it('keeps the pages it opened with until it closes', () => {
+  it('sends page changes to the open modal without moving the user', () => {
+    const clerk = createFakeClerk();
+    const [label, setLabel] = createSignal('Notifications');
+
+    renderWithClerk(clerk, () => (
+      <UserProfileModal __experimental_startPath="/notifications">
+        <UserProfileModal.Page
+          label={label()}
+          url="notifications"
+          labelIcon={<Icon name="bell" />}
+        >
+          <p data-testid="live-page">Notification settings</p>
+        </UserProfileModal.Page>
+      </UserProfileModal>
+    ));
+
+    // Clerk shows the sidebar icon while the modal is open.
+    const [opened] = clerk.openUserProfile.mock.calls[0]![0]
+      .customPages as CustomPage[];
+    const iconNode = document.createElement('div');
+    document.body.appendChild(iconNode);
+    opened!.mountIcon!(iconNode as HTMLDivElement);
+
+    setLabel('Alerts');
+    expect(clerk.openUserProfile).toHaveBeenCalledTimes(2);
+    const update = clerk.openUserProfile.mock.calls[1]![0];
+    expect(update).not.toHaveProperty('__experimental_startPath');
+    const [renamed] = update.customPages as CustomPage[];
+    expect(renamed!.label).toBe('Alerts');
+
+    const pageNode = document.createElement('div');
+    document.body.appendChild(pageNode);
+    renamed!.mount!(pageNode as HTMLDivElement);
+    expect(pageNode.querySelector('[data-testid="live-page"]')).not.toBeNull();
+    iconNode.remove();
+    pageNode.remove();
+  });
+
+  it('does not reopen a closed modal when its pages change', () => {
     const clerk = createFakeClerk();
     const [label, setLabel] = createSignal('Notifications');
 
@@ -501,21 +539,50 @@ describe('<UserProfileModal />', () => {
           url="notifications"
           labelIcon={<Icon name="bell" />}
         >
-          <p data-testid="snapshot-page">Notification settings</p>
+          <p>Notification settings</p>
         </UserProfileModal.Page>
+      </UserProfileModal>
+    ));
+
+    // No icon is mounted: the user closed the modal (or Clerk has not shown it).
+    setLabel('Alerts');
+    expect(clerk.openUserProfile).toHaveBeenCalledOnce();
+  });
+
+  it('drops a conditional page from the open modal without touching its stale scope', () => {
+    const clerk = createFakeClerk();
+    const [selected, setSelected] = createSignal<{ text: string }>();
+    setSelected({ text: 'Selected body' });
+
+    renderWithClerk(clerk, () => (
+      <UserProfileModal>
+        <Show when={selected()}>
+          {(item) => (
+            <UserProfileModal.Page
+              label="Selected"
+              url="selected"
+              labelIcon={<Icon name="sel" />}
+            >
+              <p data-testid="selected-body">{item().text}</p>
+            </UserProfileModal.Page>
+          )}
+        </Show>
       </UserProfileModal>
     ));
 
     const [page] = clerk.openUserProfile.mock.calls[0]![0]
       .customPages as CustomPage[];
-    setLabel('Alerts');
+    const iconNode = document.createElement('div');
+    const pageNode = document.createElement('div');
+    document.body.append(iconNode, pageNode);
+    page!.mountIcon!(iconNode as HTMLDivElement);
+    page!.mount!(pageNode as HTMLDivElement);
+    expect(pageNode.textContent).toBe('Selected body');
 
-    // Clerk keeps the list it was opened with, so its page must still render.
-    const node = document.createElement('div');
-    document.body.appendChild(node);
-    page!.mount!(node as HTMLDivElement);
-    expect(node.querySelector('[data-testid="snapshot-page"]')).not.toBeNull();
-    expect(clerk.openUserProfile).toHaveBeenCalledOnce();
-    node.remove();
+    expect(() => setSelected(undefined)).not.toThrow();
+    expect(pageNode.querySelector('[data-testid="selected-body"]')).toBeNull();
+    expect(clerk.openUserProfile.mock.calls[1]![0].customPages).toEqual([]);
+    iconNode.remove();
+    pageNode.remove();
   });
 });

@@ -72,8 +72,9 @@ export default function Home() {
           >
             Open preferences
           </button>
+          {/* The callback takes the key, so each click mounts a new modal (a zero-argument child is an accessor). */}
           <Show when={modalKey()} keyed>
-            {() => (
+            {(_key) => (
               <UserProfileModal __experimental_startPath="/preferences">
                 <PreferencesPage />
               </UserProfileModal>

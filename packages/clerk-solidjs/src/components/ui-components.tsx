@@ -16,6 +16,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  on,
   onCleanup,
   onMount,
   ParentProps,
@@ -397,15 +398,30 @@ const _UserProfileModal = withClerk(
     >
   ) => {
     const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const [, updateProps] = splitProps(clerkProps, [
+      '__experimental_startPath'
+    ]);
     const portals = createCustomElementPortals();
     const entries = resolveCustomChildren(() => local.children);
-    // Clerk takes the modal's pages once, when it opens, and offers no update for an open modal. Keep rendering that
-    // same list until the modal closes; changes apply the next time it opens.
-    const pages = untrack(() =>
+    const pages = createMemo(() =>
       buildCustomPages(
         entries(),
         userProfileCustomPagesOptions,
         portals.handlersFor
+      )
+    );
+
+    // Clerk reads customPages when the modal opens. While it stays open, calling openUserProfile again updates its
+    // pages in place and keeps the user on their current page, as long as no start path is passed. Skip the update
+    // once Clerk has unmounted the pages (the user closed the modal), or it would reopen.
+    createEffect(
+      on(
+        () => pages().customPages,
+        (customPages) => {
+          if (!untrack(portals.hasMountedNode)) return;
+          local.clerk().openUserProfile({ ...updateProps, customPages });
+        },
+        { defer: true }
       )
     );
 
@@ -414,9 +430,9 @@ const _UserProfileModal = withClerk(
         <Portal
           open={local.clerk().openUserProfile}
           close={local.clerk().closeUserProfile}
-          props={{ ...clerkProps, customPages: pages.customPages }}
+          props={{ ...clerkProps, customPages: pages().customPages }}
         />
-        <portals.CustomElements elements={pages.elements} />
+        <portals.CustomElements elements={pages().elements} />
       </>
     );
   },
@@ -427,8 +443,9 @@ const _UserProfileModal = withClerk(
  * Opens Clerk's user profile modal while mounted and closes it on unmount.
  * Takes the same `UserProfile.Page` / `UserProfile.Link` children as
  * `<UserProfile />`, so an app can open the modal on one of its own pages,
- * for example with `__experimental_startPath="/notifications"`. The pages are
- * read when the modal opens; remount it to open with a different set.
+ * for example with `__experimental_startPath="/notifications"`. Page changes
+ * reach the open modal without moving the user; remount the component to open
+ * the modal again after the user closed it.
  */
 export const UserProfileModal: UserProfileModalExportType = Object.assign(
   _UserProfileModal,

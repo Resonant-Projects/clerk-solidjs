@@ -102,7 +102,10 @@ export const createCustomElementPortals = () => {
     );
   };
 
-  return { handlersFor, CustomElements };
+  /** True while Clerk has any of these elements mounted, i.e. while its component or modal shows them. */
+  const hasMountedNode = () => Object.values(nodes).some(Boolean);
+
+  return { handlersFor, hasMountedNode, CustomElements };
 };
 
 /**
