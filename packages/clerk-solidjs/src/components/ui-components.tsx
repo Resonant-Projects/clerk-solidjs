@@ -10,33 +10,34 @@ import type {
   UserProfileProps,
   Without
 } from '@clerk/shared/types';
-import { logErrorInDevMode } from '@clerk/shared/utils';
 import {
-  children,
   Component,
   createEffect,
+  createMemo,
   createSignal,
   onCleanup,
   onMount,
   ParentProps,
   splitProps
 } from 'solid-js';
-import {
-  organizationProfileLinkRenderedError,
-  organizationProfilePageRenderedError,
-  userProfileLinkRenderedError,
-  userProfilePageRenderedError
-} from '../errors/messages';
 import { IsomorphicClerk } from '../isomorphic-clerk';
-import type {
-  MountProps,
-  OpenProps,
-  OrganizationProfileLinkProps,
-  OrganizationProfilePageProps,
-  UserProfileLinkProps,
-  UserProfilePageProps,
-  WithClerkProp
-} from '../types';
+import type { MountProps, OpenProps, WithClerkProp } from '../types';
+import { createCustomElementPortals } from '../utils/custom-element-portals';
+import {
+  buildCustomPages,
+  buildUserButtonMenuItems,
+  MenuAction,
+  MenuItems,
+  MenuLink,
+  organizationProfileCustomPagesOptions,
+  OrganizationProfileLink,
+  OrganizationProfilePage,
+  resolveCustomChildren,
+  userButtonCustomPagesOptions,
+  userProfileCustomPagesOptions,
+  UserProfileLink,
+  UserProfilePage
+} from '../utils/custom-pages';
 import { withClerk } from './with-clerk';
 
 type UserProfileExportType = typeof _UserProfile & {
@@ -47,6 +48,9 @@ type UserProfileExportType = typeof _UserProfile & {
 type UserButtonExportType = typeof _UserButton & {
   UserProfilePage: typeof UserProfilePage;
   UserProfileLink: typeof UserProfileLink;
+  MenuItems: typeof MenuItems;
+  Action: typeof MenuAction;
+  Link: typeof MenuLink;
 };
 
 type UserButtonPropsWithoutCustomPages = Without<
@@ -166,30 +170,34 @@ export const SignUp = withClerk((props: WithClerkProp<SignUpProps>) => {
   );
 }, 'SignUp');
 
-export function UserProfilePage(props: ParentProps<UserProfilePageProps>) {
-  logErrorInDevMode(userProfilePageRenderedError);
-  return children(() => props.children);
-}
-
-export function UserProfileLink(props: ParentProps<UserProfileLinkProps>) {
-  logErrorInDevMode(userProfileLinkRenderedError);
-  return children(() => props.children);
-}
-
 const _UserProfile = withClerk(
   (
     props: WithClerkProp<ParentProps<Without<UserProfileProps, 'customPages'>>>
   ) => {
-    const [local, rest] = splitProps(props, ['clerk']);
+    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const portals = createCustomElementPortals();
+    const entries = resolveCustomChildren(() => local.children);
+    const pages = createMemo(() =>
+      buildCustomPages(
+        entries(),
+        userProfileCustomPagesOptions,
+        portals.handlersFor
+      )
+    );
+
     return (
-      <Portal
-        mount={local.clerk().mountUserProfile}
-        unmount={local.clerk().unmountUserProfile}
-        updateProps={
-          (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
-        }
-        props={rest}
-      />
+      <>
+        <Portal
+          mount={local.clerk().mountUserProfile}
+          unmount={local.clerk().unmountUserProfile}
+          updateProps={
+            (local.clerk() as unknown as IsomorphicClerk)
+              .__unstable__updateProps
+          }
+          props={{ ...clerkProps, customPages: pages().customPages }}
+        />
+        <portals.CustomElements elements={pages().elements} />
+      </>
     );
   },
   'UserProfile'
@@ -202,16 +210,42 @@ export const UserProfile: UserProfileExportType = Object.assign(_UserProfile, {
 
 const _UserButton = withClerk(
   (props: WithClerkProp<ParentProps<UserButtonPropsWithoutCustomPages>>) => {
-    const [local, rest] = splitProps(props, ['clerk']);
+    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const portals = createCustomElementPortals();
+    const entries = resolveCustomChildren(() => local.children);
+    const pages = createMemo(() =>
+      buildCustomPages(
+        entries(),
+        userButtonCustomPagesOptions,
+        portals.handlersFor
+      )
+    );
+    const menu = createMemo(() =>
+      buildUserButtonMenuItems(entries(), portals.handlersFor)
+    );
+
     return (
-      <Portal
-        mount={local.clerk().mountUserButton}
-        unmount={local.clerk().unmountUserButton}
-        updateProps={
-          (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
-        }
-        props={rest}
-      />
+      <>
+        <Portal
+          mount={local.clerk().mountUserButton}
+          unmount={local.clerk().unmountUserButton}
+          updateProps={
+            (local.clerk() as unknown as IsomorphicClerk)
+              .__unstable__updateProps
+          }
+          props={{
+            ...clerkProps,
+            userProfileProps: {
+              ...clerkProps.userProfileProps,
+              customPages: pages().customPages
+            },
+            customMenuItems: menu().customMenuItems
+          }}
+        />
+        <portals.CustomElements
+          elements={[...pages().elements, ...menu().elements]}
+        />
+      </>
     );
   },
   'UserButton'
@@ -219,22 +253,11 @@ const _UserButton = withClerk(
 
 export const UserButton: UserButtonExportType = Object.assign(_UserButton, {
   UserProfilePage,
-  UserProfileLink
+  UserProfileLink,
+  MenuItems,
+  Action: MenuAction,
+  Link: MenuLink
 });
-
-export function OrganizationProfilePage(
-  props: ParentProps<OrganizationProfilePageProps>
-) {
-  logErrorInDevMode(organizationProfilePageRenderedError);
-  return children(() => props.children);
-}
-
-export function OrganizationProfileLink(
-  props: ParentProps<OrganizationProfileLinkProps>
-) {
-  logErrorInDevMode(organizationProfileLinkRenderedError);
-  return children(() => props.children);
-}
 
 const _OrganizationProfile = withClerk(
   (
@@ -242,16 +265,30 @@ const _OrganizationProfile = withClerk(
       ParentProps<Without<OrganizationProfileProps, 'customPages'>>
     >
   ) => {
-    const [local, rest] = splitProps(props, ['clerk']);
+    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const portals = createCustomElementPortals();
+    const entries = resolveCustomChildren(() => local.children);
+    const pages = createMemo(() =>
+      buildCustomPages(
+        entries(),
+        organizationProfileCustomPagesOptions,
+        portals.handlersFor
+      )
+    );
+
     return (
-      <Portal
-        mount={local.clerk().mountOrganizationProfile}
-        unmount={local.clerk().unmountOrganizationProfile}
-        updateProps={
-          (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
-        }
-        props={rest}
-      />
+      <>
+        <Portal
+          mount={local.clerk().mountOrganizationProfile}
+          unmount={local.clerk().unmountOrganizationProfile}
+          updateProps={
+            (local.clerk() as unknown as IsomorphicClerk)
+              .__unstable__updateProps
+          }
+          props={{ ...clerkProps, customPages: pages().customPages }}
+        />
+        <portals.CustomElements elements={pages().elements} />
+      </>
     );
   },
   'OrganizationProfile'
@@ -288,17 +325,36 @@ const _OrganizationSwitcher = withClerk(
       ParentProps<OrganizationSwitcherPropsWithoutCustomPages>
     >
   ) => {
-    const [local, rest] = splitProps(props, ['clerk']);
+    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const portals = createCustomElementPortals();
+    const entries = resolveCustomChildren(() => local.children);
+    const pages = createMemo(() =>
+      buildCustomPages(
+        entries(),
+        organizationProfileCustomPagesOptions,
+        portals.handlersFor
+      )
+    );
 
     return (
-      <Portal
-        mount={local.clerk().mountOrganizationSwitcher}
-        unmount={local.clerk().unmountOrganizationSwitcher}
-        updateProps={
-          (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
-        }
-        props={rest}
-      />
+      <>
+        <Portal
+          mount={local.clerk().mountOrganizationSwitcher}
+          unmount={local.clerk().unmountOrganizationSwitcher}
+          updateProps={
+            (local.clerk() as unknown as IsomorphicClerk)
+              .__unstable__updateProps
+          }
+          props={{
+            ...clerkProps,
+            organizationProfileProps: {
+              ...clerkProps.organizationProfileProps,
+              customPages: pages().customPages
+            }
+          }}
+        />
+        <portals.CustomElements elements={pages().elements} />
+      </>
     );
   },
   'OrganizationSwitcher'

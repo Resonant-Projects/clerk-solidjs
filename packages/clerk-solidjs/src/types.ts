@@ -143,7 +143,9 @@ type PageProps<T extends string> =
       labelIcon?: never;
     };
 
-export type UserProfilePageProps = PageProps<'account' | 'security'>;
+export type UserProfilePageProps = PageProps<
+  'account' | 'security' | 'billing' | 'apiKeys'
+>;
 
 export type UserProfileLinkProps = {
   url: string;
@@ -151,8 +153,40 @@ export type UserProfileLinkProps = {
   labelIcon: JSXElement;
 };
 
-export type OrganizationProfilePageProps = PageProps<'general' | 'members'>;
+export type OrganizationProfilePageProps = PageProps<
+  'general' | 'members' | 'billing' | 'apiKeys'
+>;
 export type OrganizationProfileLinkProps = UserProfileLinkProps;
+
+type ButtonActionProps<T extends string> =
+  | {
+      label: string;
+      labelIcon: JSXElement;
+      onClick: () => void;
+      open?: never;
+    }
+  | {
+      label: T;
+      labelIcon?: never;
+      onClick?: never;
+      open?: never;
+    }
+  | {
+      label: string;
+      labelIcon: JSXElement;
+      onClick?: never;
+      open: string;
+    };
+
+export type UserButtonActionProps = ButtonActionProps<
+  'manageAccount' | 'signOut'
+>;
+
+export type UserButtonLinkProps = {
+  href: string;
+  label: string;
+  labelIcon: JSXElement;
+};
 
 import type { ClerkAPIResponseError } from '@clerk/shared/types';
 

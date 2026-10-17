@@ -40,13 +40,12 @@ Clerk is the easiest way to add authentication and user management to your appli
 
 ## Features
 
-This project has near-complete feature parity with @clerk/clerk-react:  
+This project tracks [Clerk Core 3](https://clerk.com/docs) and `@clerk/react`:  
 &#10004; SSR support  
-&#10004; [Components](https://clerk.com/docs/components/overview)  
+&#10004; [Components](https://clerk.com/docs/components/overview), with the prebuilt UI loaded from `@clerk/ui`  
+&#10004; [Custom menu items](#custom-menu-items-and-pages) in `<UserButton />`  
+&#10004; [Custom pages](#custom-menu-items-and-pages) in `<UserProfile />`, `<UserButton />`, `<OrganizationProfile />` and `<OrganizationSwitcher />`  
 &#10004; [Hooks](https://clerk.com/docs/references/react/use-user)\*
-
-Missing features for SolidJS:  
-&#10006; [Custom pages for UI components](https://clerk.com/docs/components/customization/user-profile)
 
 Plus additional features for SolidStart:  
 &#10004; [Middleware](#middleware)  
@@ -157,6 +156,52 @@ export default function MyComponent() {
   );
 }
 ```
+
+### Custom menu items and pages
+
+The components take the same children as `@clerk/react`. Icons and page bodies render
+through Solid's `<Portal>` from inside the Clerk component, so your app's context
+(router, theme, data clients) is available in them.
+
+```tsx
+import { UserButton } from '@resonant-projects/clerk-solidjs';
+
+<UserButton userProfileMode="modal">
+  <UserButton.MenuItems>
+    <UserButton.Action
+      label="Notifications"
+      labelIcon={<BellIcon />}
+      open="notifications"
+    />
+    <UserButton.Link label="Docs" labelIcon={<BookIcon />} href="/docs" />
+    <UserButton.Action label="manageAccount" />
+    <UserButton.Action label="signOut" />
+  </UserButton.MenuItems>
+  <UserButton.UserProfilePage
+    label="Notifications"
+    url="notifications"
+    labelIcon={<BellIcon />}
+  >
+    <NotificationSettings />
+  </UserButton.UserProfilePage>
+  <UserButton.UserProfilePage label="account" />
+</UserButton>;
+```
+
+- `UserButton.Action` with `open` opens that profile page in the modal; with `onClick` it runs your handler.
+  A bare `label` of `manageAccount` or `signOut` reorders Clerk's own items.
+- `UserProfile.Page` / `UserProfile.Link`, `OrganizationProfile.Page` / `OrganizationProfile.Link` and
+  `OrganizationSwitcher.OrganizationProfilePage` / `.OrganizationProfileLink` work the same way.
+  A bare `label` (`account`, `security`, `billing`, `apiKeys`, or `general`, `members` for organizations)
+  reorders Clerk's own pages.
+
+### Clerk UI script
+
+Clerk Core 3 loads the prebuilt components from `@clerk/ui`. The provider loads it from Clerk's CDN
+after `clerk-js`. To bundle it instead, pass `ui` from `@clerk/ui`; to skip it (for example when you
+only use hooks and control components), pass `prefetchUI={false}`. With the SolidStart provider,
+`CLERK_JS_URL`, `CLERK_JS_VERSION`, `CLERK_UI_URL`, `CLERK_UI_VERSION` and `CLERK_PREFETCH_UI=false`
+configure the scripts.
 
 ### Middleware
 
