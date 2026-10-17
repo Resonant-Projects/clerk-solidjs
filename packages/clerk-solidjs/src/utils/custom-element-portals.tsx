@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX, Show, untrack } from 'solid-js';
+import { createMemo, For, type JSX, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { Portal } from 'solid-js/web';
 
@@ -67,7 +67,8 @@ export const createCustomElementPortals = () => {
                   wrapper.style.display = 'contents';
                 }}
               >
-                {untrack(() => renderers.get(id)?.())}
+                {/* Track like `props.children` does, so bare reactive text in a page body updates. */}
+                {renderers.get(id)?.()}
               </Portal>
             )}
           </Show>

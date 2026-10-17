@@ -378,4 +378,32 @@ describe('custom pages edge cases', () => {
     expect(mounts).toBe(1);
     node.remove();
   });
+
+  it('keeps bare reactive text in a mounted page body reactive', () => {
+    const clerk = createFakeClerk();
+    const [message, setMessage] = createSignal('first');
+
+    renderWithClerk(clerk, () => (
+      <UserProfile>
+        <UserProfile.Page
+          label="Messages"
+          url="messages"
+          labelIcon={<Icon name="msg" />}
+        >
+          {message()}
+        </UserProfile.Page>
+      </UserProfile>
+    ));
+
+    const [page] = latestProps(clerk, 'mountUserProfile')
+      .customPages as CustomPage[];
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    page!.mount!(node as HTMLDivElement);
+    expect(node.textContent).toBe('first');
+
+    setMessage('second');
+    expect(node.textContent).toBe('second');
+    node.remove();
+  });
 });
