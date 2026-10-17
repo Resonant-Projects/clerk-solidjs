@@ -5,10 +5,16 @@ import {
   createSignal,
   For,
   type JSX,
+  Show,
   useContext
 } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { OrganizationSwitcher, UserButton, UserProfile } from '..';
+import {
+  OrganizationSwitcher,
+  UserButton,
+  UserProfile,
+  UserProfileModal
+} from '..';
 import { ClerkInstanceContextProvider } from '../../contexts/clerk-instance';
 
 const createFakeClerk = () => ({
@@ -19,6 +25,8 @@ const createFakeClerk = () => ({
   unmountUserProfile: vi.fn(),
   mountOrganizationSwitcher: vi.fn(),
   unmountOrganizationSwitcher: vi.fn(),
+  openUserProfile: vi.fn(),
+  closeUserProfile: vi.fn(),
   __unstable__updateProps: vi.fn()
 });
 
@@ -442,6 +450,43 @@ describe('custom pages edge cases', () => {
 
     setPages([{ body: 'new body' }]);
     expect(node.textContent).toBe('new body');
+    node.remove();
+  });
+});
+
+describe('<UserProfileModal />', () => {
+  it('opens the profile modal on a custom page and closes it on unmount', () => {
+    const clerk = createFakeClerk();
+    const [open, setOpen] = createSignal(true);
+
+    renderWithClerk(clerk, () => (
+      <Show when={open()}>
+        <UserProfileModal __experimental_startPath="/notifications">
+          <UserProfileModal.Page
+            label="Notifications"
+            url="notifications"
+            labelIcon={<Icon name="bell" />}
+          >
+            <p data-testid="modal-page">Notification settings</p>
+          </UserProfileModal.Page>
+        </UserProfileModal>
+      </Show>
+    ));
+
+    expect(clerk.openUserProfile).toHaveBeenCalledOnce();
+    const props = clerk.openUserProfile.mock.calls[0]![0];
+    expect(props.__experimental_startPath).toBe('/notifications');
+    expect(props).not.toHaveProperty('children');
+    const [page] = props.customPages as CustomPage[];
+    expect(page!.label).toBe('Notifications');
+
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    page!.mount!(node as HTMLDivElement);
+    expect(node.querySelector('[data-testid="modal-page"]')).not.toBeNull();
+
+    setOpen(false);
+    expect(clerk.closeUserProfile).toHaveBeenCalledOnce();
     node.remove();
   });
 });

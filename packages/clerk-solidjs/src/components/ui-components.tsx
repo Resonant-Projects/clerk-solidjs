@@ -7,6 +7,7 @@ import type {
   SignInProps,
   SignUpProps,
   UserButtonProps,
+  UserProfileModalProps,
   UserProfileProps,
   Without
 } from '@clerk/shared/types';
@@ -41,6 +42,11 @@ import {
 import { withClerk } from './with-clerk';
 
 type UserProfileExportType = typeof _UserProfile & {
+  Page: typeof UserProfilePage;
+  Link: typeof UserProfileLink;
+};
+
+type UserProfileModalExportType = typeof _UserProfileModal & {
   Page: typeof UserProfilePage;
   Link: typeof UserProfileLink;
 };
@@ -381,6 +387,51 @@ export const OrganizationList = withClerk(
     );
   },
   'OrganizationList'
+);
+
+const _UserProfileModal = withClerk(
+  (
+    props: WithClerkProp<
+      ParentProps<Without<UserProfileModalProps, 'customPages'>>
+    >
+  ) => {
+    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const portals = createCustomElementPortals();
+    const entries = resolveCustomChildren(() => local.children);
+    const pages = createMemo(() =>
+      buildCustomPages(
+        entries(),
+        userProfileCustomPagesOptions,
+        portals.handlersFor
+      )
+    );
+
+    return (
+      <>
+        <Portal
+          open={local.clerk().openUserProfile}
+          close={local.clerk().closeUserProfile}
+          props={{ ...clerkProps, customPages: pages().customPages }}
+        />
+        <portals.CustomElements elements={pages().elements} />
+      </>
+    );
+  },
+  'UserProfileModal'
+);
+
+/**
+ * Opens Clerk's user profile modal while mounted and closes it on unmount.
+ * Takes the same `UserProfile.Page` / `UserProfile.Link` children as
+ * `<UserProfile />`, so an app can open the modal on one of its own pages,
+ * for example with `__experimental_startPath="/notifications"`.
+ */
+export const UserProfileModal: UserProfileModalExportType = Object.assign(
+  _UserProfileModal,
+  {
+    Page: UserProfilePage,
+    Link: UserProfileLink
+  }
 );
 
 export const GoogleOneTap = withClerk(

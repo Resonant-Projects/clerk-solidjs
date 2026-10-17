@@ -195,6 +195,20 @@ import { UserButton } from '@resonant-projects/clerk-solidjs';
   A bare `label` (`account`, `security`, `billing`, `apiKeys`, or `general`, `members` for organizations)
   reorders Clerk's own pages.
 
+To open the profile modal on one of your pages from app code (for example from an old URL), mount
+`<UserProfileModal>` with the same page children. It opens Clerk's modal while mounted and closes it
+on unmount:
+
+```tsx
+<Show when={openAt()} keyed>
+  {(path) => (
+    <UserProfileModal __experimental_startPath={path}>
+      <AccountPages />
+    </UserProfileModal>
+  )}
+</Show>
+```
+
 ### Clerk UI script
 
 Clerk Core 3 loads the prebuilt components from `@clerk/ui`. The provider loads it from Clerk's CDN

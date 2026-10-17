@@ -8,7 +8,9 @@ import {
   SignInButton,
   SignOutButton,
   UserButton,
+  UserProfileModal,
 } from "@resonant-projects/clerk-solidjs";
+import { createSignal, Show } from "solid-js";
 
 const DotIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -18,6 +20,21 @@ const DotIcon = () => (
 
 export default function Home() {
   const size = useWindowSize();
+  const [modalKey, setModalKey] = createSignal<number>();
+
+  // Defined once and used by both UserButton and UserProfileModal.
+  const PreferencesPage = () => (
+    <UserButton.UserProfilePage
+      label="Preferences"
+      url="preferences"
+      labelIcon={<DotIcon />}
+    >
+      <div data-testid="preferences-page">
+        <h2 class="text-lg font-semibold">Preferences</h2>
+        <p>This page is Solid JSX. The window is {size.width}px wide.</p>
+      </div>
+    </UserButton.UserProfilePage>
+  );
 
   return (
     <div class="flex flex-col w-screen h-screen items-center justify-center gap-2">
@@ -47,19 +64,21 @@ export default function Home() {
               <UserButton.Action label="manageAccount" />
               <UserButton.Action label="signOut" />
             </UserButton.MenuItems>
-            <UserButton.UserProfilePage
-              label="Preferences"
-              url="preferences"
-              labelIcon={<DotIcon />}
-            >
-              <div data-testid="preferences-page">
-                <h2 class="text-lg font-semibold">Preferences</h2>
-                <p>
-                  This page is Solid JSX. The window is {size.width}px wide.
-                </p>
-              </div>
-            </UserButton.UserProfilePage>
+            <PreferencesPage />
           </UserButton>
+          <button
+            class="bg-slate-200 rounded-md px-3 py-1"
+            onClick={() => setModalKey(Date.now())}
+          >
+            Open preferences
+          </button>
+          <Show when={modalKey()} keyed>
+            {() => (
+              <UserProfileModal __experimental_startPath="/preferences">
+                <PreferencesPage />
+              </UserProfileModal>
+            )}
+          </Show>
           <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
         </SignedIn>
       </ClerkLoaded>
