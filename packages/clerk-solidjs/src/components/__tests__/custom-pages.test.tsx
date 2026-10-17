@@ -310,3 +310,72 @@ describe('custom profile pages', () => {
     consoleError.mockRestore();
   });
 });
+
+describe('custom pages edge cases', () => {
+  it('accepts items whose props come from a reactive spread', () => {
+    const clerk = createFakeClerk();
+    const [link] = createSignal({
+      label: 'Home',
+      url: '/',
+      labelIcon: <Icon name="home" />
+    });
+    const [reorder] = createSignal({ label: 'account' as const });
+
+    renderWithClerk(clerk, () => (
+      <UserProfile>
+        <UserProfile.Link {...link()} />
+        <UserProfile.Page {...reorder()} />
+      </UserProfile>
+    ));
+
+    const pages = latestProps(clerk, 'mountUserProfile')
+      .customPages as CustomPage[];
+    expect(pages.map((page) => page.label)).toEqual(['Home', 'account']);
+    expect(pages[1]).toEqual({ label: 'account' });
+  });
+
+  it('keeps a mounted page body when a sibling page changes', () => {
+    const clerk = createFakeClerk();
+    const [siblingLabel, setSiblingLabel] = createSignal('Second');
+    let mounts = 0;
+    const Body = () => {
+      mounts++;
+      return <p data-testid="first-body">First</p>;
+    };
+
+    renderWithClerk(clerk, () => (
+      <UserProfile>
+        <UserProfile.Page
+          label="First"
+          url="first"
+          labelIcon={<Icon name="one" />}
+        >
+          <Body />
+        </UserProfile.Page>
+        <UserProfile.Page
+          label={siblingLabel()}
+          url="second"
+          labelIcon={<Icon name="two" />}
+        >
+          <p>Second</p>
+        </UserProfile.Page>
+      </UserProfile>
+    ));
+
+    const [first] = latestProps(clerk, 'mountUserProfile')
+      .customPages as CustomPage[];
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    first!.mount!(node as HTMLDivElement);
+    expect(mounts).toBe(1);
+
+    setSiblingLabel('Renamed');
+    const pages = latestProps(clerk, 'mountUserProfile')
+      .customPages as CustomPage[];
+    expect(pages[1]!.label).toBe('Renamed');
+    expect(pages[0]!.mount).toBe(first!.mount);
+    expect(node.querySelector('[data-testid="first-body"]')).not.toBeNull();
+    expect(mounts).toBe(1);
+    node.remove();
+  });
+});

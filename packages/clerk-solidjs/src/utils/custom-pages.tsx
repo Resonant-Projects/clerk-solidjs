@@ -154,6 +154,11 @@ const isEmptyChild = (value: unknown) =>
 
 /** True when a prop holds JSX, without evaluating the JSX getter. */
 const hasJSXProp = (props: object, key: string) => {
+  // Solid's spread-props proxy describes every key, present or not, but its
+  // `has` trap is exact, so check membership first.
+  if (!(key in props)) {
+    return false;
+  }
   const descriptor = Object.getOwnPropertyDescriptor(props, key);
   return (
     !!descriptor &&

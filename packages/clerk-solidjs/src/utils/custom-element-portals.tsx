@@ -1,4 +1,4 @@
-import { For, type JSX, Show } from 'solid-js';
+import { createMemo, For, type JSX, Show, untrack } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { Portal } from 'solid-js/web';
 
@@ -43,25 +43,38 @@ export const createCustomElementPortals = () => {
     return entry;
   };
 
-  const CustomElements = (props: { elements: CustomElement[] }) => (
-    <For each={props.elements}>
-      {(element) => (
-        <Show when={nodes[element.id]} keyed>
-          {(node) => (
-            <Portal
-              mount={node}
-              // Portal wraps its content in a div; keep it out of Clerk's layout.
-              ref={(wrapper: HTMLElement) => {
-                wrapper.style.display = 'contents';
-              }}
-            >
-              {element.render()}
-            </Portal>
-          )}
-        </Show>
-      )}
-    </For>
-  );
+  const CustomElements = (props: { elements: CustomElement[] }) => {
+    // Key the portals by id, not by element object: rebuilding the elements
+    // (a sibling page renamed or added) must not remount content that Clerk
+    // is showing, or it loses local state such as a half-filled form.
+    let renderers = new Map<string, () => JSX.Element>();
+    const ids = createMemo(() => {
+      renderers = new Map(
+        props.elements.map((element) => [element.id, element.render])
+      );
+      return [...renderers.keys()];
+    });
+
+    return (
+      <For each={ids()}>
+        {(id) => (
+          <Show when={nodes[id]} keyed>
+            {(node) => (
+              <Portal
+                mount={node}
+                // Portal wraps its content in a div; keep it out of Clerk's layout.
+                ref={(wrapper: HTMLElement) => {
+                  wrapper.style.display = 'contents';
+                }}
+              >
+                {untrack(() => renderers.get(id)?.())}
+              </Portal>
+            )}
+          </Show>
+        )}
+      </For>
+    );
+  };
 
   return { handlersFor, CustomElements };
 };
