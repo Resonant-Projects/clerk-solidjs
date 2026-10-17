@@ -21,14 +21,11 @@ import {
 
 type UseOrganizationListParams = {
   userMemberships?:
-    | true
-    | PaginatedHookConfig<GetUserOrganizationMembershipParams>;
+    true | PaginatedHookConfig<GetUserOrganizationMembershipParams>;
   userInvitations?:
-    | true
-    | PaginatedHookConfig<GetUserOrganizationInvitationsParams>;
+    true | PaginatedHookConfig<GetUserOrganizationInvitationsParams>;
   userSuggestions?:
-    | true
-    | PaginatedHookConfig<GetUserOrganizationSuggestionsParams>;
+    true | PaginatedHookConfig<GetUserOrganizationSuggestionsParams>;
 };
 
 export const useOrganizationList = (

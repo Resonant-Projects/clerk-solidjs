@@ -1,6 +1,6 @@
 import { Router } from "@solidjs/router";
 import { FileRoutes } from "@solidjs/start/router";
-import { ClerkProvider } from "clerk-solidjs/start";
+import { ClerkProvider } from "@resonant-projects/clerk-solidjs/start";
 import { Suspense } from "solid-js/web";
 
 import "./app.css";

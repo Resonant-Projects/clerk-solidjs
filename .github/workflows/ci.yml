@@ -6,15 +6,50 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build:
+  build-test:
     name: Build & Test
-    timeout-minutes: 20
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: CI setup
         uses: ./.github/actions/ci-setup
+      - name: Build
+        run: pnpm run build
       - name: Test
         run: pnpm run test
+
+  quality:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Prettier
+            script: format:check
+          - name: ESLint
+            script: lint
+          - name: TypeScript
+            script: type-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Run ${{ matrix.script }}
+        run: pnpm run ${{ matrix.script }}
