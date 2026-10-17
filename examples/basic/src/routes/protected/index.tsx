@@ -5,8 +5,8 @@ import {
   SignOutButton,
   useAuth,
   useUser,
-} from "clerk-solidjs";
-import { auth } from "clerk-solidjs/start/server";
+} from "@resonant-projects/clerk-solidjs";
+import { auth } from "@resonant-projects/clerk-solidjs/start/server";
 import { createResource, Show } from "solid-js";
 import { getRequestEvent } from "solid-js/web";
 

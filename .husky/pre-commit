@@ -1,5 +1,6 @@
 pnpm run format
 pnpm run lint:fix
-git add .
+# Re-stage only files that were already staged, picking up formatter fixes.
+git update-index --again
 
 pnpm run test

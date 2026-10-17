@@ -1,51 +1,63 @@
 # Publishing packages
 
-_Note: Only maintainers can trigger the actions described below._
+_Only maintainers can publish._
 
-## Publishing stable package versions (`@latest`)
+Releases run through [Changesets](https://github.com/changesets/changesets) and the
+[`Release` workflow](../.github/workflows/release.yml). npm authenticates the publish job with
+[trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), so no npm token is stored
+in GitHub. Every published version carries a provenance attestation.
 
-We are using [changesets](https://github.com/changesets/changesets), so our CICD is using [`changesets/action`](https://github.com/changesets/action) to automate the release process when releasing stable package versions targeting the `@latest` tag.
+## Day-to-day releases
 
-Every time a PR is merged into `main`, the changesets action parses all changesets found in `.changeset` and updates the "ci(repo): Version packages" PR with the new package versions and the changelog for the next stable release.
+1. Add a changeset to each pull request that changes published code: `pnpm changeset`.
+2. When changesets land on `master`, the `Version packages` job opens or updates a
+   **Version Packages** pull request that bumps versions and writes the changelog.
+3. Merging that pull request runs the `Build & pack` job, which verifies, builds and packs the
+   tarballs, and then the `Publish to npm` job, which publishes them, pushes the release tag and
+   creates the GitHub release.
 
-To release a new stable version of all Clerk packages, find the "ci(repo): Version packages" PR, verify the changes, and merge it.
+The `Version packages` job opens its pull request with the default `GITHUB_TOKEN`, and GitHub does
+not start workflow runs for events that token creates. CI therefore does not run on the Version
+Packages pull request by itself. To see checks there, close and reopen the pull request. Either
+way, the `Build & pack` job runs the full `prerelease` verification before anything is published.
 
-## Publishing canary package versions (`@canary`)
+The publish job is the only job with `id-token: write`. It installs with `--ignore-scripts`, does
+not build, and publishes only the tarballs packed by the previous job.
 
-An automated canary release will be take place every time a PR gets merged into `main`.
+## One-time setup
 
-- Staging versions use the following format: `clerk-solidjs@x.y.z-canary.commit`, where `package` is the package name, `x`,`y`,`z` are the major, minor and patch versions respectively, `canary` is a stable prerelease mame and `commit` is the id of the last commit in the branch.
-- Currently, canary version changes are _not_ committed to the repo and no git tags will be generated. Using this strategy, we avoid merge conflicts, allowing us to constantly deploy canary versions without switching the repo to a "prerelease" mode.
-- During a canary release, `clerk-solidjs` will also be released. If needed, use the `clerkJSVersion` prop to use a specific version, eg: `<ClerkProvider clerkJSVersion='4.1.1-canary.90012' />`
-- A package will not be published if it's not affected by a changeset.
+Trusted publishing can only be configured for a package that already exists on npm, so the first
+version is published by hand.
 
-**Note:** If the `main` branch is in [prerelease mode](https://github.com/changesets/changesets/blob/main/docs/prereleases.md) merges into the latest `release/` branch will be released under the `@canary` tag.
+1. Sign in to npm as a maintainer: `npm login`.
+2. If the package is scoped, make sure the npm organization for the scope exists.
+3. Build and publish the first version from a clean checkout of `master`:
 
-## Publishing snapshot package versions (`@snapshot`)
+   ```sh
+   pnpm install --frozen-lockfile
+   pnpm run prerelease
+   pnpm exec turbo build --filter=./packages/*
+   cd packages/clerk-solidjs
+   npm publish --access public --provenance=false
+   ```
 
-Snapshot releases are a way to release your changes for testing without updating the versions or waiting for your PR to be merged into `main`. This is especially useful when you want to test your changes in a cloud environment that does not offer a way to upload prebuilt artifacts of your app or if you want to test the end-to-end flow as a user, without relying on local linking to test. Snapshot releases can also be used as a tool for customers to verify a fix on their machines.
+   Provenance can only be generated in CI, so this one manual publish goes out without it.
 
-**Important:** Before requesting a snapshot release, ensure that your Clerk organization membership status is set to "Public". Otherwise, the snapshot release will fail. To set your status to "Public", follow [these steps](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-your-membership-in-organizations/publicizing-or-hiding-organization-membership).
+4. On npmjs.com, open the package's **Settings → Trusted publishing** and add a GitHub Actions
+   publisher:
+   - Organization or user: `Resonant-Projects`
+   - Repository: `clerk-solidjs`
+   - Workflow filename: `release.yml`
+   - Environment name: `npm`
+   - Allowed actions: allow `npm publish`
 
-**Important:** When using a snapshot release, it's highly recommended you install a specific version directly (eg `npm i @clerk/nextjs@4.27.0-snapshot.v609cd23`). Do not use the `@snapshot` tag to get the most recent snapshot release, as this will result in unexpected behavior when another member publishes their own snapshot.
+   The configuration expires unless a trusted publish succeeds within two days, so finish the
+   next step promptly.
 
-To perform a snapshot release, simply comment `!snapshot` in your PR. Once the packages are built and published (~2mins), [clerk-cookie](https://github.com/clerk-cookie) will post a reply with the published versions ([example](https://github.com/clerk/javascript/pull/1329#issuecomment-1586970784)). Simply install the snap version using `npm install` as usual.
+5. In the GitHub repository settings, set the Actions variable `NPM_PUBLISH_ENABLED` to `true`.
+   Until it is set, the `Build & pack` and `Publish to npm` jobs are skipped.
+6. After the first trusted publish succeeds, set the package's **Publishing access** to
+   _Require two-factor authentication and disallow tokens_.
 
-Notes:
-
-- Snapshot versions use the following format: `clerk-solidjs@x.y.z-snapshot.commit`, where `package` is the package name, `x`,`y`,`z` are the major, minor and patch versions respectively, `snapshot` is a stable prerelease mame and `commit` is the id of the last commit in the branch.
-- If you want to name your snapshot release, you can pass an argument to the snapshot comment, eg `!snapshot myname` will use `myname` instead of `snapshot`, eg: `clerk-solidjs@4.1.1-myname.90012`. Please note: When using a custom name, the underlying id stays the same and only the tag changes. This has the consequence that npm resolves versions alphabetically. You should pin your versions and not rely on resolving through `^` or `~`.
-- Snapshot version changes are _not_ committed to the repo and no git tags will be generated - they are meant to be used as "snapshots" of the repo at a particular state for testing purposes.
-- During a snapshot release, `clerk-solidjs` will also be released. If needed, use the `clerkJSVersion` prop to use a specific version, eg: `<ClerkProvider clerkJSVersion='4.1.1-snapshot.90012' />`
-- To make iterations faster, tests will not run for snapshot versions.
-- A package will not be published if it's not affected by a changeset.
-
-## Previewing PRs
-
-Deploy previews enable you to give yourself and others reviewing the PR a chance to see your changes deployed in a live environment. Your changes are applied to a test site and deployed to a URL one can visit. This is especially helpful for e.g. visual changes made inside the UI components.
-
-**Important:** Before requesting a deploy preview, ensure that your Clerk organization membership status is set to "Public". Otherwise, the preview will fail. To set your status to "Public", follow [these steps](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-your-membership-in-organizations/publicizing-or-hiding-organization-membership).
-
-You can request a deploy preview by commenting `!preview` in your PR. A GitHub workflow will take your current PR, install the current state of the packages into a test site, and deploy that test site to Vercel. Once the deployment is done, a GitHub comment will point you to the deployed URL.
-
-**Important:** In order for you (or others) to visit the preview URL, you’ll need to be part of the Clerk Vercel team and logged into Vercel.
+The repository also needs **Settings → Actions → General → Allow GitHub Actions to create and
+approve pull requests** enabled so the `Version packages` job can open its pull request.

@@ -1,29 +1,31 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/spirit-led-software/clerk-solidjs/master/assets/images/icon.svg" alt="clerk-solidjs">
+<img src="https://raw.githubusercontent.com/Resonant-Projects/clerk-solidjs/master/assets/images/icon.svg" alt="clerk-solidjs">
 
 ---
 
-_This is an unofficial community-led port of the [Clerk React SDK](https://www.npmjs.com/package/@clerk/clerk-react) for [SolidJS](https://solidjs.com) and [SolidStart](https://start.solidjs.com)._
+_This is an unofficial community-led port of the [Clerk React SDK](https://www.npmjs.com/package/@clerk/react) for [SolidJS](https://solidjs.com) and [SolidStart](https://start.solidjs.com)._
+
+_Maintained by Resonant Projects as a hard fork of [`clerk-solidjs`](https://github.com/spiritledsoftware/clerk-solidjs) by Ian Pascoe, which is no longer published._
 
 [![Clerk documentation](https://img.shields.io/badge/documentation-clerk-lavender.svg?style=for-the-badge&logo=clerk)](https://clerk.com/docs?utm_source=github&utm_medium=clerk_solidjs)
 
 ### Released on NPM
 
-[![NPM version](https://img.shields.io/npm/v/clerk-solidjs.svg?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/clerk-solidjs)
-[![NPM Downloads](https://img.shields.io/npm/dm/clerk-solidjs?style=for-the-badge)
-](https://www.npmjs.com/package/clerk-solidjs)
+[![NPM version](https://img.shields.io/npm/v/@resonant-projects/clerk-solidjs.svg?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/@resonant-projects/clerk-solidjs)
+[![NPM Downloads](https://img.shields.io/npm/dm/@resonant-projects/clerk-solidjs?style=for-the-badge)
+](https://www.npmjs.com/package/@resonant-projects/clerk-solidjs)
 
 ### Maintained on GitHub
 
-[![GitHub stars](https://img.shields.io/github/stars/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/stargazers)
-[![GitHub watchers](https://img.shields.io/github/watchers/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/watchers)
-[![GitHub license](https://img.shields.io/github/license/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/blob/master/LICENSE)
-[![GitHub forks](https://img.shields.io/github/forks/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/forks)
-[![GitHub issues](https://img.shields.io/github/issues/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/pulls)
-[![GitHub contributors](https://img.shields.io/github/contributors/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)](https://github.com/spirit-led-software/clerk-solidjs/graphs/contributors)
-![GitHub last commit](https://img.shields.io/github/last-commit/spirit-led-software/clerk-solidjs.svg?style=for-the-badge)
+[![GitHub stars](https://img.shields.io/github/stars/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/stargazers)
+[![GitHub watchers](https://img.shields.io/github/watchers/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/watchers)
+[![GitHub license](https://img.shields.io/github/license/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/blob/master/LICENSE)
+[![GitHub forks](https://img.shields.io/github/forks/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/forks)
+[![GitHub issues](https://img.shields.io/github/issues/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/pulls)
+[![GitHub contributors](https://img.shields.io/github/contributors/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)](https://github.com/Resonant-Projects/clerk-solidjs/graphs/contributors)
+![GitHub last commit](https://img.shields.io/github/last-commit/Resonant-Projects/clerk-solidjs.svg?style=for-the-badge)
 
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-yellow.svg?style=for-the-badge&logo=pnpm)](https://pnpm.io/)
 [![turborepo](https://img.shields.io/badge/built%20with-turborepo-cc00ff.svg?style=for-the-badge&logo=turborepo)](https://turborepo.org/)
@@ -62,18 +64,18 @@ useOrganizationList(() => ({ userMemberships: { infinite: true } }));
 
 - SolidJS `>=1`
 - SolidStart `>=1`
-- Node.js `>=18` or later
+- Node.js `>=22`
 
 ### Installation
 
 ```sh
-npm install clerk-solidjs
+npm install @resonant-projects/clerk-solidjs
 # or
-yarn add clerk-solidjs
+yarn add @resonant-projects/clerk-solidjs
 # or
-pnpm add clerk-solidjs
+pnpm add @resonant-projects/clerk-solidjs
 # or
-bun add clerk-solidjs
+bun add @resonant-projects/clerk-solidjs
 ```
 
 ### Build
@@ -100,7 +102,7 @@ If using Vite, set `VITE_CLERK_PUBLISHABLE_KEY` to your Publishable key in your 
 import { Router } from '@solidjs/router';
 import { FileRoutes } from '@solidjs/start/router';
 import { Suspense } from 'solid-js/web';
-import { ClerkProvider } from 'clerk-solidjs';
+import { ClerkProvider } from '@resonant-projects/clerk-solidjs';
 
 import './app.css';
 
@@ -132,7 +134,7 @@ import {
   useAuth,
   ClerkLoading,
   ClerkLoaded
-} from 'clerk-solidjs';
+} from '@resonant-projects/clerk-solidjs';
 
 export default function MyComponent() {
   const { userId } = useAuth();
@@ -166,7 +168,7 @@ See [SolidStart middleware](https://docs.solidjs.com/solid-start/advanced/middle
 // middleware.ts
 
 import { createMiddleware } from '@solidjs/start/middleware';
-import { clerkMiddleware } from 'clerk-solidjs/start/server';
+import { clerkMiddleware } from '@resonant-projects/clerk-solidjs/start/server';
 
 export default createMiddleware({
   onRequest: [
@@ -184,7 +186,7 @@ export default createMiddleware({
 Once your have the `clerkMiddleware` middleware enabled, you can use the `auth()` helper to access the `AuthReturn` object.
 
 ```ts
-import { auth } from 'clerk-solidjs/start/server';
+import { auth } from '@resonant-projects/clerk-solidjs/start/server';
 
 async function myProtectedServerFunction() {
   'use server';
@@ -222,12 +224,12 @@ export {};
 
 You can get in touch in any of the following ways:
 
-- Create a [GitHub Issue](https://github.com/spirit-led-software/clerk-solidjs/issues)
-- Create a [GitHub Discussion](https://github.com/spirit-led-software/clerk-solidjs/discussions)
+- Create a [GitHub Issue](https://github.com/Resonant-Projects/clerk-solidjs/issues)
+- Create a [GitHub Discussion](https://github.com/Resonant-Projects/clerk-solidjs/discussions)
 
 ## Contributing
 
-We're open to all community contributions! If you'd like to contribute in any way, please read [our contribution guidelines](https://github.com/spirit-led-software/clerk-solidjs/blob/master/docs/CONTRIBUTING.md).
+We're open to all community contributions! If you'd like to contribute in any way, please read [our contribution guidelines](https://github.com/Resonant-Projects/clerk-solidjs/blob/master/docs/CONTRIBUTING.md).
 
 ## Security
 
@@ -235,10 +237,10 @@ We're open to all community contributions! If you'd like to contribute in any wa
 
 `clerk-solidjs` is provided **"as is"** without any **warranty**. Use at your own risk.
 
-_For more information and to report security issues, please refer to our [security documentation](https://github.com/spirit-led-software/clerk-solidjs/blob/master/docs/SECURITY.md)._
+_For more information and to report security issues, please refer to our [security documentation](https://github.com/Resonant-Projects/clerk-solidjs/blob/master/docs/SECURITY.md)._
 
 ## License
 
 This project is licensed under the **MIT license**.
 
-See [LICENSE](https://github.com/spirit-led-software/clerk-solidjs/blob/master/LICENSE) for more information.
+See [LICENSE](https://github.com/Resonant-Projects/clerk-solidjs/blob/master/LICENSE) for more information.

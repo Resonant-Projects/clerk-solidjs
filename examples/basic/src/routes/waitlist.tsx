@@ -8,7 +8,7 @@ import {
   SignOutButton,
   UserButton,
   Waitlist
-} from "clerk-solidjs";
+} from "@resonant-projects/clerk-solidjs";
 
 export default function Home() {
   const size = useWindowSize();

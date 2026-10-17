@@ -14,7 +14,7 @@ import {
   trTR,
   ukUA
 } from '@clerk/localizations';
-import { dark } from '@clerk/themes';
+import { dark } from '@clerk/ui/themes';
 import { expectTypeOf } from 'expect-type';
 
 import { describe, it } from 'vitest';
