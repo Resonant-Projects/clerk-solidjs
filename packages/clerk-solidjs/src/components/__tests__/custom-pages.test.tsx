@@ -374,6 +374,29 @@ describe('custom pages edge cases', () => {
     expect(props.customMenuItems).toEqual([{ label: 'signOut' }]);
   });
 
+  it('adds an item once its reactive icon becomes available', () => {
+    const clerk = createFakeClerk();
+    const [icon, setIcon] = createSignal<JSX.Element>();
+
+    renderWithClerk(clerk, () => (
+      <UserButton>
+        <UserButton.MenuItems>
+          <UserButton.Action
+            label="Help"
+            labelIcon={icon()}
+            onClick={() => {}}
+          />
+        </UserButton.MenuItems>
+      </UserButton>
+    ));
+
+    expect(latestProps(clerk, 'mountUserButton').customMenuItems).toEqual([]);
+    setIcon(<Icon name="help" />);
+    const items = latestProps(clerk, 'mountUserButton')
+      .customMenuItems as CustomMenuItem[];
+    expect(items.map((item) => item.label)).toEqual(['Help']);
+  });
+
   it('keeps a mounted page body when a sibling page changes', () => {
     const clerk = createFakeClerk();
     const [siblingLabel, setSiblingLabel] = createSignal('Second');

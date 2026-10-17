@@ -7,13 +7,7 @@ import {
   resolveTokens,
   type TokenElement
 } from '@solid-primitives/jsx-tokenizer';
-import {
-  type Accessor,
-  createRoot,
-  type JSX,
-  type ParentProps,
-  untrack
-} from 'solid-js';
+import type { Accessor, JSX, ParentProps } from 'solid-js';
 import {
   customLinkWrongProps,
   customMenuItemsIgnoredComponent,
@@ -181,18 +175,16 @@ const isRenderable = (value: unknown) =>
 
 /**
  * True when a prop resolves to something renderable, as React's checks see
- * it. A spread can set a key to `undefined`, which only resolving shows. The
- * value is built in a throwaway root, so use it only for cheap JSX (icons) or
- * where the prop should be empty (reorder items).
+ * it; a spread can set a key to `undefined`, which only resolving shows.
+ * Read in the builder memo so a reactive value (`labelIcon={icon()}`)
+ * re-runs validation when it changes. Component bodies stay untracked
+ * (createComponent untracks them), and anything built here belongs to the
+ * memo and is disposed when it re-runs. Use it only for cheap JSX (icons) or
+ * where the prop should be empty (reorder items, links).
  */
-const resolvesToJSX = (props: object, key: string) => {
-  if (!hasJSXProp(props, key)) return false;
-  return createRoot((dispose) => {
-    const value = untrack(() => (props as Record<string, unknown>)[key]);
-    dispose();
-    return isRenderable(value);
-  });
-};
+const resolvesToJSX = (props: object, key: string) =>
+  hasJSXProp(props, key) &&
+  isRenderable((props as Record<string, unknown>)[key]);
 
 type PortalHandlersFor = (id: string) => CustomElementHandlers;
 
