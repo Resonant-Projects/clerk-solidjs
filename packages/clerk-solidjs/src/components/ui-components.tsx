@@ -391,6 +391,11 @@ export const OrganizationList = withClerk(
   'OrganizationList'
 );
 
+/** Clerk's profile modal is open; `cl-` classes are Clerk's stable appearance hooks. */
+const isUserProfileModalOpen = () =>
+  typeof document !== 'undefined' &&
+  document.querySelector('.cl-modalContent .cl-userProfile-root') !== null;
+
 const _UserProfileModal = withClerk(
   (
     props: WithClerkProp<
@@ -413,12 +418,14 @@ const _UserProfileModal = withClerk(
 
     // Clerk reads customPages when the modal opens. While it stays open, calling openUserProfile again updates its
     // pages in place and keeps the user on their current page, as long as no start path is passed. Skip the update
-    // once Clerk has unmounted the pages (the user closed the modal), or it would reopen.
+    // once the modal is closed, or it would reopen. Clerk reports no open state, so a mounted custom element or
+    // Clerk's profile modal in the DOM (when no custom element is showing) counts as open.
     createEffect(
       on(
         () => pages().customPages,
         (customPages) => {
-          if (!untrack(portals.hasMountedNode)) return;
+          if (!untrack(portals.hasMountedNode) && !isUserProfileModalOpen())
+            return;
           local.clerk().openUserProfile({ ...updateProps, customPages });
         },
         { defer: true }

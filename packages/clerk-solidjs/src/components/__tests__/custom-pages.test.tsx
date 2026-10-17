@@ -195,9 +195,11 @@ describe('<UserButton.MenuItems />', () => {
     ));
 
     const messages = consoleError.mock.calls.map((call) => String(call[0]));
-    expect(messages.some((m) => m.includes('either onClick or open'))).toBe(
-      true
-    );
+    expect(
+      messages.some((m) =>
+        m.includes('either an onClick function or an open string')
+      )
+    ).toBe(true);
     expect(
       messages.some((m) => m.includes('can only accept <UserButton.Action />'))
     ).toBe(true);
@@ -633,5 +635,38 @@ describe('<UserProfileModal />', () => {
     expect(clerk.openUserProfile.mock.calls[1]![0].customPages).toEqual([]);
     iconNode.remove();
     pageNode.remove();
+  });
+
+  it('sends a first custom page to an open modal that had none', () => {
+    const clerk = createFakeClerk();
+    const [show, setShow] = createSignal(false);
+    // Clerk's open profile modal, with no custom page icons mounted yet.
+    const clerkModal = document.createElement('div');
+    clerkModal.className = 'cl-modalContent';
+    clerkModal.innerHTML = '<div class="cl-userProfile-root"></div>';
+    document.body.appendChild(clerkModal);
+
+    renderWithClerk(clerk, () => (
+      <UserProfileModal>
+        <Show when={show()}>
+          <UserProfileModal.Page
+            label="Added"
+            url="added"
+            labelIcon={<Icon name="added" />}
+          >
+            <p>Added</p>
+          </UserProfileModal.Page>
+        </Show>
+      </UserProfileModal>
+    ));
+
+    setShow(true);
+    expect(clerk.openUserProfile).toHaveBeenCalledTimes(2);
+    expect(
+      (clerk.openUserProfile.mock.calls[1]![0].customPages as CustomPage[]).map(
+        (page) => page.label
+      )
+    ).toEqual(['Added']);
+    clerkModal.remove();
   });
 });
