@@ -1,6 +1,5 @@
 import { defineConfig } from 'tsup';
 import * as preset from 'tsup-preset-solid';
-import clerkJsPackage from './node_modules/@clerk/clerk-js/package.json' with { type: 'json' };
 import thisPackage from './package.json' with { type: 'json' };
 
 const CI =
@@ -51,7 +50,6 @@ export default defineConfig((config) => {
           ...options.define,
           PACKAGE_NAME: `"${thisPackage.name}"`,
           PACKAGE_VERSION: `"${thisPackage.version}"`,
-          JS_PACKAGE_VERSION: `"${clerkJsPackage.version}"`,
           __DEV__: `${watching}`
         };
 

@@ -1,5 +1,8 @@
 import { inBrowser } from '@clerk/shared/browser';
-import { loadClerkJsScript } from '@clerk/shared/loadClerkJsScript';
+import {
+  loadClerkJSScript,
+  loadClerkUIScript
+} from '@clerk/shared/loadClerkJsScript';
 import type {
   __internal_UserVerificationModalProps,
   __internal_UserVerificationProps,
@@ -10,6 +13,7 @@ import type {
   Clerk,
   ClerkAuthenticateWithWeb3Params,
   ClerkOptions,
+  ClerkUIConstructor,
   ClientResource,
   CreateOrganizationParams,
   CreateOrganizationProps,
@@ -64,6 +68,7 @@ const SDK_METADATA = {
 
 declare global {
   var Clerk: HeadlessBrowserClerk | BrowserClerk | undefined;
+  var __internal_ClerkUICtor: ClerkUIConstructor | undefined;
 }
 
 type GenericFunction<TArgs = never> = (...args: TArgs[]) => unknown;
@@ -412,69 +417,104 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     }
 
     try {
-      if (this.Clerk) {
-        // Set a fixed Clerk version
-        let c: ClerkProp;
+      const clerk = await this.#getClerkJsEntryChunk();
 
-        if (
-          isConstructor<
-            BrowserClerkConstructor | HeadlessBrowserClerkConstructor
-          >(this.Clerk)
-        ) {
-          // Construct a new Clerk object if a constructor is passed
-          c = new this.Clerk(this.#publishableKey, {
-            proxyUrl: this.proxyUrl,
-            domain: this.domain
-          } as any);
-
-          await c.load(this.options);
-        } else {
-          // Otherwise use the instantiated Clerk object
-          c = this.Clerk;
-
-          if (!c.loaded) {
-            await c.load(this.options);
-          }
-        }
-
-        globalThis.Clerk = c;
-      } else if (!__BUILD_DISABLE_RHC__) {
-        // Hot-load latest ClerkJS from Clerk CDN
-        if (!globalThis.Clerk) {
-          await loadClerkJsScript({
-            ...this.options,
-            publishableKey: this.#publishableKey,
-            proxyUrl: this.proxyUrl,
-            domain: this.domain,
-            nonce: this.options.nonce
-          });
-        }
-
-        if (!globalThis.Clerk) {
-          throw new Error(
-            'Failed to download latest ClerkJS. Contact support@clerk.com.'
-          );
-        }
-
-        await globalThis.Clerk.load(this.options);
+      if (!clerk.loaded) {
+        // Clerk Core 3 ships the prebuilt components separately from clerk-js.
+        // Load them when the app uses the CDN build, or when it bundles ClerkUI itself.
+        const shouldLoadUi =
+          (this.options.standardBrowser !== false && !this.Clerk) ||
+          !!this.options.ui?.ClerkUI;
+        const ClerkUI = shouldLoadUi
+          ? await this.#getClerkUIEntryChunk()
+          : undefined;
+        await clerk.load({
+          ...this.options,
+          ui: { ...this.options.ui, ClerkUI }
+        });
       }
 
-      if (globalThis.Clerk?.loaded) {
-        return this.hydrateClerkJS(globalThis.Clerk);
+      if (clerk.loaded) {
+        return this.hydrateClerkJS(clerk);
       }
       return;
     } catch (err) {
-      const error = err as Error;
-      // In Next.js we can throw a full screen error in development mode.
-      // However, in production throwing an error results in an infinite loop.
-      // More info at: https://github.com/vercel/next.js/issues/6973
-      if (process.env.NODE_ENV === 'production') {
-        console.error(error.stack || error.message || error);
-      } else {
-        throw err;
-      }
+      // loadClerkJS runs fire-and-forget from the constructor, so rethrowing
+      // would only surface as an unhandled rejection. Log it like @clerk/react.
+      console.error(err instanceof Error ? err.stack || err.message : err);
       return;
     }
+  }
+
+  async #getClerkJsEntryChunk(): Promise<HeadlessBrowserClerk | BrowserClerk> {
+    // Hot-load clerk-js from the Clerk CDN unless the app passes its own Clerk.
+    if (
+      (!this.Clerk || this.options.__internal_clerkJSUrl) &&
+      !__BUILD_DISABLE_RHC__ &&
+      !globalThis.Clerk
+    ) {
+      await loadClerkJSScript({
+        ...this.options,
+        publishableKey: this.#publishableKey,
+        proxyUrl: this.proxyUrl,
+        domain: this.domain,
+        nonce: this.options.nonce
+      });
+    }
+
+    if (this.Clerk && !this.options.__internal_clerkJSUrl) {
+      globalThis.Clerk = isConstructor<
+        BrowserClerkConstructor | HeadlessBrowserClerkConstructor
+      >(this.Clerk)
+        ? new this.Clerk(this.#publishableKey, {
+            proxyUrl: this.proxyUrl,
+            domain: this.domain
+          } as DomainOrProxyUrl)
+        : this.Clerk;
+    }
+
+    if (!globalThis.Clerk) {
+      throw new Error(
+        'Failed to download latest ClerkJS. Contact support@clerk.com.'
+      );
+    }
+
+    return globalThis.Clerk;
+  }
+
+  async #getClerkUIEntryChunk(): Promise<ClerkUIConstructor | undefined> {
+    const ui = this.options.ui;
+    const hasInternalUrl = !!this.options.__internal_clerkUIUrl;
+
+    // A bundled ClerkUI from `@clerk/ui` wins over the CDN.
+    if (ui?.ClerkUI && !hasInternalUrl) {
+      return ui.ClerkUI;
+    }
+
+    // An explicit `ui` prop without ClerkUI, or prefetchUI={false}, opts out of the CDN.
+    if ((ui || this.options.prefetchUI === false) && !hasInternalUrl) {
+      return undefined;
+    }
+
+    if (__BUILD_DISABLE_RHC__) {
+      return undefined;
+    }
+
+    await loadClerkUIScript({
+      ...this.options,
+      publishableKey: this.#publishableKey,
+      proxyUrl: this.proxyUrl,
+      domain: this.domain,
+      nonce: this.options.nonce
+    });
+
+    if (!globalThis.__internal_ClerkUICtor) {
+      throw new Error(
+        'Failed to download latest Clerk UI. Contact support@clerk.com.'
+      );
+    }
+
+    return globalThis.__internal_ClerkUICtor;
   }
 
   public addOnLoaded = (cb: () => void) => {

@@ -2,12 +2,14 @@ import type {
   Clerk,
   ClerkOptions,
   ClerkPaginatedResponse,
+  ClerkUIConstructor,
   ClientResource,
   DomainOrProxyUrl,
   InitialState,
+  InternalClerkScriptProps,
   LoadedClerk,
-  MultiDomainAndOrProxy,
   RedirectUrlProp,
+  IsomorphicClerkOptions as SharedIsomorphicClerkOptions,
   SignInProps,
   SignInRedirectOptions,
   SignOutOptions,
@@ -22,6 +24,7 @@ declare global {
     __clerk_publishable_key?: string;
     __clerk_proxy_url?: Clerk['proxyUrl'];
     __clerk_domain?: Clerk['domain'];
+    __internal_ClerkUICtor?: ClerkUIConstructor;
   }
 }
 
@@ -34,34 +37,19 @@ type LegacyRedirectProps = {
   afterSignUpUrl?: string;
 };
 
-export type IsomorphicClerkOptions = Without<ClerkOptions, 'isSatellite'> & {
-  Clerk?: ClerkProp;
-  /**
-   * Define the URL that `@clerk/clerk-js` should be hot-loaded from
-   */
-  clerkJSUrl?: string;
-  /**
-   * If your web application only uses Control components, you can set this value to `'headless'` and load a minimal ClerkJS bundle for optimal page performance.
-   */
-  clerkJSVariant?: 'headless' | '';
-  /**
-   * Define the npm version for `@clerk/clerk-js`
-   */
-  clerkJSVersion?: string;
-  /**
-   * The Clerk publishable key for your instance
-   * @note This can be found in your Clerk Dashboard on the [API Keys](https://dashboard.clerk.com/last-active?path=api-keys) page
-   */
-  publishableKey: string;
-  /**
-   * This nonce value will be passed through to the `@clerk/clerk-js` script tag.
-   * @note You can use this to implement [strict-dynamic CSP](https://clerk.com/docs/security/clerk-csp#implementing-a-strict-dynamic-csp)
-   */
-  nonce?: string;
-} & MultiDomainAndOrProxy &
+export type IsomorphicClerkOptions = SharedIsomorphicClerkOptions &
   LegacyRedirectProps;
 
-export type ClerkProviderProps = IsomorphicClerkOptions & {
+// Distributes over the unions inside ClerkOptions (navigation, domain/proxy)
+// instead of flattening them like a plain Omit would.
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+
+export type ClerkProviderProps = DistributiveOmit<
+  IsomorphicClerkOptions,
+  keyof InternalClerkScriptProps
+> & {
   children: JSX.Element;
   initialState?: InitialState;
 };
@@ -155,7 +143,9 @@ type PageProps<T extends string> =
       labelIcon?: never;
     };
 
-export type UserProfilePageProps = PageProps<'account' | 'security'>;
+export type UserProfilePageProps = PageProps<
+  'account' | 'security' | 'billing' | 'apiKeys'
+>;
 
 export type UserProfileLinkProps = {
   url: string;
@@ -163,8 +153,40 @@ export type UserProfileLinkProps = {
   labelIcon: JSXElement;
 };
 
-export type OrganizationProfilePageProps = PageProps<'general' | 'members'>;
+export type OrganizationProfilePageProps = PageProps<
+  'general' | 'members' | 'billing' | 'apiKeys'
+>;
 export type OrganizationProfileLinkProps = UserProfileLinkProps;
+
+type ButtonActionProps<T extends string> =
+  | {
+      label: string;
+      labelIcon: JSXElement;
+      onClick: () => void;
+      open?: never;
+    }
+  | {
+      label: T;
+      labelIcon?: never;
+      onClick?: never;
+      open?: never;
+    }
+  | {
+      label: string;
+      labelIcon: JSXElement;
+      onClick?: never;
+      open: string;
+    };
+
+export type UserButtonActionProps = ButtonActionProps<
+  'manageAccount' | 'signOut'
+>;
+
+export type UserButtonLinkProps = {
+  href: string;
+  label: string;
+  labelIcon: JSXElement;
+};
 
 import type { ClerkAPIResponseError } from '@clerk/shared/types';
 

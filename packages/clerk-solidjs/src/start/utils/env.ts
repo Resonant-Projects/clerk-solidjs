@@ -60,12 +60,22 @@ export const getPublicEnvVariables = () => {
       getEnvVariable('VITE_CLERK_SIGN_UP_URL') ||
       getEnvVariable('CLERK_SIGN_UP_URL'),
     clerkJsUrl:
-      getEnvVariable('VITE_CLERK_JS_URL') || getEnvVariable('CLERK_JS'),
-    clerkJsVariant: (getEnvVariable('VITE_CLERK_JS_VARIANT') ||
-      getEnvVariable('CLERK_JS_VARIANT')) as '' | 'headless' | undefined,
+      getEnvVariable('VITE_CLERK_JS_URL') ||
+      getEnvVariable('CLERK_JS_URL') ||
+      getEnvVariable('CLERK_JS'),
     clerkJsVersion:
       getEnvVariable('VITE_CLERK_JS_VERSION') ||
       getEnvVariable('CLERK_JS_VERSION'),
+    clerkUIUrl:
+      getEnvVariable('VITE_CLERK_UI_URL') || getEnvVariable('CLERK_UI_URL'),
+    clerkUIVersion:
+      getEnvVariable('VITE_CLERK_UI_VERSION') ||
+      getEnvVariable('CLERK_UI_VERSION'),
+    prefetchUI:
+      (getEnvVariable('VITE_CLERK_PREFETCH_UI') ||
+        getEnvVariable('CLERK_PREFETCH_UI')) === 'false'
+        ? false
+        : undefined,
     telemetryDisabled:
       isTruthy(getEnvVariable('VITE_CLERK_TELEMETRY_DISABLED')) ||
       isTruthy(getEnvVariable('CLERK_TELEMETRY_DISABLED')),

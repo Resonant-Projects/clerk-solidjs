@@ -5,16 +5,12 @@ import { defineConfig } from 'vitest/config';
 
 const require = createRequire(import.meta.url);
 const { name, version } = require('./package.json');
-const {
-  version: clerkJsVersion
-} = require('./node_modules/@clerk/clerk-js/package.json');
 
 export default defineConfig({
   plugins: [tsconfigPaths(), solid()],
   define: {
     PACKAGE_NAME: `"${name}"`,
-    PACKAGE_VERSION: `"${version}"`,
-    JS_PACKAGE_VERSION: `"${clerkJsVersion}"`
+    PACKAGE_VERSION: `"${version}"`
   },
   test: {
     environment: 'jsdom',

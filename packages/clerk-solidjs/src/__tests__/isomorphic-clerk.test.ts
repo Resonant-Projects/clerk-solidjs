@@ -5,11 +5,14 @@ describe('isomorphicClerk', () => {
   beforeAll(() => {
     vitest.useFakeTimers();
     (globalThis as any).__BUILD_DISABLE_RHC__ = true;
+    // With hot-loading disabled and no Clerk instance, loading logs an error.
+    vitest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterAll(() => {
     (globalThis as any).__BUILD_DISABLE_RHC__ = false;
     vitest.useRealTimers();
+    vitest.restoreAllMocks();
   });
 
   it('instantiates a IsomorphicClerk instance', () => {
