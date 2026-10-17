@@ -11,6 +11,29 @@ export type CustomElement = {
   render: () => JSX.Element;
 };
 
+const renderCache = new WeakMap<object, Map<string, () => JSX.Element>>();
+
+/**
+ * Returns one render function per token props object and key, so rebuilding
+ * the elements keeps the same function for a token that did not change.
+ */
+export const renderProp = (
+  props: object,
+  key: 'children' | 'labelIcon'
+): (() => JSX.Element) => {
+  let byKey = renderCache.get(props);
+  if (!byKey) {
+    byKey = new Map();
+    renderCache.set(props, byKey);
+  }
+  let render = byKey.get(key);
+  if (!render) {
+    render = () => (props as Record<string, JSX.Element>)[key];
+    byKey.set(key, render);
+  }
+  return render;
+};
+
 export type CustomElementHandlers = {
   mount: (node: Element) => void;
   unmount: () => void;
@@ -44,16 +67,14 @@ export const createCustomElementPortals = () => {
   };
 
   const CustomElements = (props: { elements: CustomElement[] }) => {
+    const renderers = createMemo(
+      () =>
+        new Map(props.elements.map((element) => [element.id, element.render]))
+    );
     // Key the portals by id, not by element object: rebuilding the elements
     // (a sibling page renamed or added) must not remount content that Clerk
     // is showing, or it loses local state such as a half-filled form.
-    let renderers = new Map<string, () => JSX.Element>();
-    const ids = createMemo(() => {
-      renderers = new Map(
-        props.elements.map((element) => [element.id, element.render])
-      );
-      return [...renderers.keys()];
-    });
+    const ids = createMemo(() => [...renderers().keys()]);
 
     return (
       <For each={ids()}>
@@ -67,8 +88,12 @@ export const createCustomElementPortals = () => {
                   wrapper.style.display = 'contents';
                 }}
               >
-                {/* Track like `props.children` does, so bare reactive text in a page body updates. */}
-                {renderers.get(id)?.()}
+                {/* Render functions are stable per token, so this remounts only when
+                    the token itself is replaced. The fragment keeps bare reactive
+                    text in the body tracked, like props.children. */}
+                <Show when={renderers().get(id)} keyed>
+                  {(render) => <>{render()}</>}
+                </Show>
               </Portal>
             )}
           </Show>

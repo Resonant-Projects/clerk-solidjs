@@ -1,6 +1,12 @@
 import type { CustomMenuItem, CustomPage } from '@clerk/shared/types';
 import { render } from '@solidjs/testing-library';
-import { createContext, createSignal, type JSX, useContext } from 'solid-js';
+import {
+  createContext,
+  createSignal,
+  For,
+  type JSX,
+  useContext
+} from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OrganizationSwitcher, UserButton, UserProfile } from '..';
 import { ClerkInstanceContextProvider } from '../../contexts/clerk-instance';
@@ -404,6 +410,38 @@ describe('custom pages edge cases', () => {
 
     setMessage('second');
     expect(node.textContent).toBe('second');
+    node.remove();
+  });
+
+  it('shows the new body when a page token is replaced under the same id', () => {
+    const clerk = createFakeClerk();
+    const [pages, setPages] = createSignal([{ body: 'old body' }]);
+
+    renderWithClerk(clerk, () => (
+      <UserProfile>
+        <For each={pages()}>
+          {(page) => (
+            <UserProfile.Page
+              label="Notes"
+              url="notes"
+              labelIcon={<Icon name="notes" />}
+            >
+              <p>{page.body}</p>
+            </UserProfile.Page>
+          )}
+        </For>
+      </UserProfile>
+    ));
+
+    const [page] = latestProps(clerk, 'mountUserProfile')
+      .customPages as CustomPage[];
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    page!.mount!(node as HTMLDivElement);
+    expect(node.textContent).toBe('old body');
+
+    setPages([{ body: 'new body' }]);
+    expect(node.textContent).toBe('new body');
     node.remove();
   });
 });

@@ -36,7 +36,8 @@ import type {
 import {
   createPortalIdFactory,
   type CustomElement,
-  type CustomElementHandlers
+  type CustomElementHandlers,
+  renderProp
 } from './custom-element-portals';
 
 /*
@@ -248,8 +249,8 @@ export const buildCustomPages = (
           unmountIcon: icon.unmount
         });
         elements.push(
-          { id: `content:${id}`, render: () => props.children },
-          { id: `icon:${id}`, render: () => props.labelIcon }
+          { id: `content:${id}`, render: renderProp(props, 'children') },
+          { id: `icon:${id}`, render: renderProp(props, 'labelIcon') }
         );
       } else {
         logErrorInDevMode(customPageWrongProps(options.componentName));
@@ -273,7 +274,10 @@ export const buildCustomPages = (
           mountIcon: icon.mount,
           unmountIcon: icon.unmount
         });
-        elements.push({ id: `icon:${id}`, render: () => props.labelIcon });
+        elements.push({
+          id: `icon:${id}`,
+          render: renderProp(props, 'labelIcon')
+        });
       } else {
         logErrorInDevMode(customLinkWrongProps(options.componentName));
       }
@@ -352,7 +356,10 @@ export const buildUserButtonMenuItems = (
           menuItem.open = open.startsWith('/') ? open : `/${open}`;
         }
         customMenuItems.push(menuItem);
-        elements.push({ id: `icon:${id}`, render: () => props.labelIcon });
+        elements.push({
+          id: `icon:${id}`,
+          render: renderProp(props, 'labelIcon')
+        });
         continue;
       }
 
@@ -366,7 +373,10 @@ export const buildUserButtonMenuItems = (
           mountIcon: icon.mount,
           unmountIcon: icon.unmount
         });
-        elements.push({ id: `icon:${id}`, render: () => props.labelIcon });
+        elements.push({
+          id: `icon:${id}`,
+          render: renderProp(props, 'labelIcon')
+        });
       } else {
         logErrorInDevMode(userButtonMenuItemLinkWrongProps);
       }
