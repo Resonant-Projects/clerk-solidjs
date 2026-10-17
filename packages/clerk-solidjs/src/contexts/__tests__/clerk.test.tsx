@@ -96,26 +96,27 @@ describe('ClerkProvider', () => {
     });
   });
 
-  describe('clerkJSVariant', () => {
+  describe('Clerk UI script options', () => {
     const defaultProps = { publishableKey: 'test', children: '' };
 
-    it('is either headless or empty', () => {
+    it('accepts prefetchUI and a bundled ui', () => {
       expectTypeOf({
         ...defaultProps,
-        clerkJSVariant: 'headless' as const
+        prefetchUI: false
       }).toMatchTypeOf<ClerkProviderProps>();
       expectTypeOf({
         ...defaultProps,
-        clerkJSVariant: '' as const
+        ui: { ClerkUI: undefined }
       }).toMatchTypeOf<ClerkProviderProps>();
-      expectTypeOf({
-        ...defaultProps,
-        clerkJSVariant: undefined
-      }).toMatchTypeOf<ClerkProviderProps>();
-      expectTypeOf({
-        ...defaultProps,
-        clerkJSVariant: 'test'
-      }).not.toMatchTypeOf<ClerkProviderProps>();
+    });
+
+    it('does not expose internal script props', () => {
+      expectTypeOf<ClerkProviderProps>().not.toHaveProperty(
+        '__internal_clerkJSUrl'
+      );
+      expectTypeOf<ClerkProviderProps>().not.toHaveProperty(
+        '__internal_clerkUIVersion'
+      );
     });
   });
 

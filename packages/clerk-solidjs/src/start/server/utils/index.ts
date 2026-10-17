@@ -14,6 +14,18 @@ export const wrapWithClerkState = (data: any) => {
 };
 
 /**
+ * Returns the prefetchUI config from environment variables.
+ *
+ * @internal
+ */
+function getPrefetchUIFromEnv(): boolean | undefined {
+  if (getEnvVariable('CLERK_PREFETCH_UI') === 'false') {
+    return false;
+  }
+  return undefined;
+}
+
+/**
  * Returns the clerk state object and observability headers to be injected into a context.
  *
  * @internal
@@ -33,8 +45,11 @@ export function getResponseClerkState(
     __afterSignInUrl: requestState.afterSignInUrl,
     __afterSignUpUrl: requestState.afterSignUpUrl,
     __clerk_debug: debugRequestState(requestState),
-    __clerkJSUrl: getEnvVariable('CLERK_JS'),
+    __clerkJSUrl: getEnvVariable('CLERK_JS') || getEnvVariable('CLERK_JS_URL'),
     __clerkJSVersion: getEnvVariable('CLERK_JS_VERSION'),
+    __clerkUIUrl: getEnvVariable('CLERK_UI_URL'),
+    __clerkUIVersion: getEnvVariable('CLERK_UI_VERSION'),
+    __prefetchUI: getPrefetchUIFromEnv(),
     __telemetryDisabled: isTruthy(getEnvVariable('CLERK_TELEMETRY_DISABLED')),
     __telemetryDebug: isTruthy(getEnvVariable('CLERK_TELEMETRY_DEBUG')),
     __signInForceRedirectUrl:

@@ -1,3 +1,4 @@
+import type { InternalClerkScriptProps } from '@clerk/shared/types';
 import { getPublicEnvVariables } from '../utils/env';
 import { SolidStartClerkProviderProps } from './types';
 
@@ -8,9 +9,10 @@ type SolidStartProviderAndInitialProps = Omit<
 
 export const pickFromClerkInitState = (
   clerkInitState: any
-): SolidStartProviderAndInitialProps & {
-  clerkSsrState: any;
-} => {
+): SolidStartProviderAndInitialProps &
+  InternalClerkScriptProps & {
+    clerkSsrState: any;
+  } => {
   const {
     __clerk_ssr_state,
     __publishableKey,
@@ -23,6 +25,9 @@ export const pickFromClerkInitState = (
     __afterSignUpUrl,
     __clerkJSUrl,
     __clerkJSVersion,
+    __clerkUIUrl,
+    __clerkUIVersion,
+    __prefetchUI,
     __telemetryDisabled,
     __telemetryDebug,
     __signInForceRedirectUrl,
@@ -41,8 +46,11 @@ export const pickFromClerkInitState = (
     signUpUrl: __signUpUrl,
     afterSignInUrl: __afterSignInUrl,
     afterSignUpUrl: __afterSignUpUrl,
-    clerkJSUrl: __clerkJSUrl,
-    clerkJSVersion: __clerkJSVersion,
+    __internal_clerkJSUrl: __clerkJSUrl,
+    __internal_clerkJSVersion: __clerkJSVersion,
+    __internal_clerkUIUrl: __clerkUIUrl,
+    __internal_clerkUIVersion: __clerkUIVersion,
+    prefetchUI: __prefetchUI,
     telemetry: {
       disabled: __telemetryDisabled,
       debug: __telemetryDebug
@@ -68,11 +76,17 @@ export const mergeWithPublicEnvs = (restInitState: any) => {
       restInitState.afterSignInUrl || publicEnvVariables.afterSignInUrl,
     afterSignUpUrl:
       restInitState.afterSignUpUrl || publicEnvVariables.afterSignUpUrl,
-    clerkJSUrl: restInitState.clerkJSUrl || publicEnvVariables.clerkJsUrl,
-    clerkJSVersion:
-      restInitState.clerkJSVersion || publicEnvVariables.clerkJsVersion,
+    __internal_clerkJSUrl:
+      restInitState.__internal_clerkJSUrl || publicEnvVariables.clerkJsUrl,
+    __internal_clerkJSVersion:
+      restInitState.__internal_clerkJSVersion ||
+      publicEnvVariables.clerkJsVersion,
+    __internal_clerkUIUrl:
+      restInitState.__internal_clerkUIUrl || publicEnvVariables.clerkUIUrl,
+    __internal_clerkUIVersion:
+      restInitState.__internal_clerkUIVersion ||
+      publicEnvVariables.clerkUIVersion,
     signInForceRedirectUrl: restInitState.signInForceRedirectUrl,
-    clerkJSVariant:
-      restInitState.clerkJSVariant || publicEnvVariables.clerkJsVariant
+    prefetchUI: restInitState.prefetchUI ?? publicEnvVariables.prefetchUI
   };
 };

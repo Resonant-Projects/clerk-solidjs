@@ -213,7 +213,6 @@
     "@tanstack/solid-query": "^5.104.3"
   },
   "devDependencies": {
-    "@clerk/clerk-js": "^6.39.0",
     "@clerk/localizations": "^4.23.0",
     "@clerk/ui": "^1.40.2",
     "@eslint/js": "^10.0.1",

@@ -1,4 +1,4 @@
-import { ClerkAPIResponseError } from '@clerk/clerk-js';
+import type { ClerkAPIResponseError } from '@clerk/shared/error';
 import { createWritableMemo } from '@solid-primitives/memo';
 import {
   createInfiniteQuery,
