@@ -16,6 +16,11 @@ in GitHub. Every published version carries a provenance attestation.
    tarballs, and then the `Publish to npm` job, which publishes them, pushes the release tag and
    creates the GitHub release.
 
+The `Version packages` job opens its pull request with the default `GITHUB_TOKEN`, and GitHub does
+not start workflow runs for events that token creates. CI therefore does not run on the Version
+Packages pull request by itself. To see checks there, close and reopen the pull request. Either
+way, the `Build & pack` job runs the full `prerelease` verification before anything is published.
+
 The publish job is the only job with `id-token: write`. It installs with `--ignore-scripts`, does
 not build, and publishes only the tarballs packed by the previous job.
 
