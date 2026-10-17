@@ -348,6 +348,32 @@ describe('custom pages edge cases', () => {
     expect(pages[1]).toEqual({ label: 'account' });
   });
 
+  it('treats an undefined spread icon as absent for reorder items', () => {
+    const clerk = createFakeClerk();
+    const [page] = createSignal({
+      label: 'account' as const,
+      labelIcon: undefined,
+      children: undefined
+    });
+    const [action] = createSignal({
+      label: 'signOut' as const,
+      labelIcon: undefined
+    });
+
+    renderWithClerk(clerk, () => (
+      <UserButton>
+        <UserButton.MenuItems>
+          <UserButton.Action {...action()} />
+        </UserButton.MenuItems>
+        <UserButton.UserProfilePage {...page()} />
+      </UserButton>
+    ));
+
+    const props = latestProps(clerk, 'mountUserButton');
+    expect(props.userProfileProps.customPages).toEqual([{ label: 'account' }]);
+    expect(props.customMenuItems).toEqual([{ label: 'signOut' }]);
+  });
+
   it('keeps a mounted page body when a sibling page changes', () => {
     const clerk = createFakeClerk();
     const [siblingLabel, setSiblingLabel] = createSignal('Second');

@@ -7,7 +7,13 @@ import {
   resolveTokens,
   type TokenElement
 } from '@solid-primitives/jsx-tokenizer';
-import type { Accessor, JSX, ParentProps } from 'solid-js';
+import {
+  type Accessor,
+  createRoot,
+  type JSX,
+  type ParentProps,
+  untrack
+} from 'solid-js';
 import {
   customLinkWrongProps,
   customMenuItemsIgnoredComponent,
@@ -153,7 +159,10 @@ export const resolveCustomChildren = (children: Accessor<JSX.Element>) =>
 const isEmptyChild = (value: unknown) =>
   value == null || value === false || value === true || value === '';
 
-/** True when a prop holds JSX, without evaluating the JSX getter. */
+/**
+ * True when a prop is set, without evaluating a JSX getter. Use it where
+ * evaluating would build real content (a custom page body).
+ */
 const hasJSXProp = (props: object, key: string) => {
   // Solid's spread-props proxy describes every key, present or not, but its
   // `has` trap is exact, so check membership first.
@@ -163,8 +172,26 @@ const hasJSXProp = (props: object, key: string) => {
   const descriptor = Object.getOwnPropertyDescriptor(props, key);
   return (
     !!descriptor &&
-    (typeof descriptor.get === 'function' || descriptor.value != null)
+    (typeof descriptor.get === 'function' || isRenderable(descriptor.value))
   );
+};
+
+const isRenderable = (value: unknown) =>
+  value != null && value !== false && value !== '';
+
+/**
+ * True when a prop resolves to something renderable, as React's checks see
+ * it. A spread can set a key to `undefined`, which only resolving shows. The
+ * value is built in a throwaway root, so use it only for cheap JSX (icons) or
+ * where the prop should be empty (reorder items).
+ */
+const resolvesToJSX = (props: object, key: string) => {
+  if (!hasJSXProp(props, key)) return false;
+  return createRoot((dispose) => {
+    const value = untrack(() => (props as Record<string, unknown>)[key]);
+    dispose();
+    return isRenderable(value);
+  });
 };
 
 type PortalHandlersFor = (id: string) => CustomElementHandlers;
@@ -226,17 +253,21 @@ export const buildCustomPages = (
 
     if (token.kind === options.pageKind) {
       const props = token.props as ParentProps<UserProfilePageProps>;
-      const hasChildren = hasJSXProp(props, 'children');
-      const hasIcon = hasJSXProp(props, 'labelIcon');
+      const hasIcon = resolvesToJSX(props, 'labelIcon');
 
       if (
-        !hasChildren &&
         !props.url &&
         !hasIcon &&
-        options.reorderItemsLabels.includes(props.label)
+        options.reorderItemsLabels.includes(props.label) &&
+        !resolvesToJSX(props, 'children')
       ) {
         customPages.push({ label: props.label });
-      } else if (hasChildren && props.url && hasIcon && props.label) {
+      } else if (
+        props.url &&
+        hasIcon &&
+        props.label &&
+        hasJSXProp(props, 'children')
+      ) {
         const id = nextId('page', props.label, props.url);
         const content = handlersFor(`content:${id}`);
         const icon = handlersFor(`icon:${id}`);
@@ -261,9 +292,9 @@ export const buildCustomPages = (
     if (token.kind === options.linkKind) {
       const props = token.props as UserProfileLinkProps;
       if (
-        !hasJSXProp(props, 'children') &&
         props.url &&
-        hasJSXProp(props, 'labelIcon') &&
+        resolvesToJSX(props, 'labelIcon') &&
+        !resolvesToJSX(props, 'children') &&
         props.label
       ) {
         const id = nextId('link', props.label, props.url);
@@ -317,15 +348,15 @@ export const buildUserButtonMenuItems = (
       }
 
       const token = item.data;
-      const hasIcon = hasJSXProp(token.props, 'labelIcon');
+      const hasIcon = resolvesToJSX(token.props, 'labelIcon');
 
       if (token.kind === 'action') {
         const props = token.props;
         if (
           !hasIcon &&
           !props.onClick &&
-          !hasJSXProp(props, 'children') &&
-          USER_BUTTON_REORDER_LABELS.includes(props.label)
+          USER_BUTTON_REORDER_LABELS.includes(props.label) &&
+          !resolvesToJSX(props, 'children')
         ) {
           customMenuItems.push({ label: props.label });
           continue;
