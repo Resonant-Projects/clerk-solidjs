@@ -10,6 +10,12 @@ import {
   UserButton,
 } from "@resonant-projects/clerk-solidjs";
 
+const DotIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="5" fill="currentColor" />
+  </svg>
+);
+
 export default function Home() {
   const size = useWindowSize();
 
@@ -26,7 +32,34 @@ export default function Home() {
           <SignInButton class="bg-slate-200 rounded-md px-3 py-1" />
         </SignedOut>
         <SignedIn>
-          <UserButton showName={size.width > 768} />
+          <UserButton showName={size.width > 768} userProfileMode="modal">
+            <UserButton.MenuItems>
+              <UserButton.Action
+                label="Preferences"
+                labelIcon={<DotIcon />}
+                open="preferences"
+              />
+              <UserButton.Link
+                label="Protected page"
+                labelIcon={<DotIcon />}
+                href="/protected"
+              />
+              <UserButton.Action label="manageAccount" />
+              <UserButton.Action label="signOut" />
+            </UserButton.MenuItems>
+            <UserButton.UserProfilePage
+              label="Preferences"
+              url="preferences"
+              labelIcon={<DotIcon />}
+            >
+              <div data-testid="preferences-page">
+                <h2 class="text-lg font-semibold">Preferences</h2>
+                <p>
+                  This page is Solid JSX. The window is {size.width}px wide.
+                </p>
+              </div>
+            </UserButton.UserProfilePage>
+          </UserButton>
           <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
         </SignedIn>
       </ClerkLoaded>
