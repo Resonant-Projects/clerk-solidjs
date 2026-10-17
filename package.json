@@ -17,7 +17,7 @@
     "test:watch": "turbo test:watch",
     "test": "turbo test",
     "type-check": "turbo type-check",
-    "version": "changeset version && pnpm install --no-frozen-lockfile"
+    "version": "changeset version && pnpm install --no-frozen-lockfile && pnpm run format"
   },
   "author": "Resonant Projects",
   "license": "MIT",
