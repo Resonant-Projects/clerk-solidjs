@@ -1,92 +1,51 @@
+import { getEnvVariable as getSharedEnvVariable } from '@clerk/shared/getEnvVariable';
 import { isTruthy } from '@clerk/shared/underscore';
 
 /**
- *
- * Utility function to get env variables.
- *
- * @param name env variable name
- * @param defaultVaue default value to return if the env variable is not set
- * @returns string
+ * Reads an environment variable from `process.env`, Vite's `import.meta.env`,
+ * a Cloudflare-style `context.env`, or `globalThis`, through
+ * `@clerk/shared/getEnvVariable`. Read it when it is needed, not at import:
+ * some runtimes only provide bindings once a request arrives.
  *
  * @internal
  */
 export const getEnvVariable = (
   name: string,
-  defaultVaue: string = ''
-): string => {
-  // Node envs
-  if (
-    typeof process !== 'undefined' &&
-    process.env &&
-    typeof process.env[name] === 'string'
-  ) {
-    return (process.env[name] as string) || defaultVaue;
-  }
+  defaultValue = '',
+  context?: Record<string, any>
+): string => getSharedEnvVariable(name, context) || defaultValue;
 
-  if (
-    typeof import.meta !== 'undefined' &&
-    // @ts-expect-error - Vite specific
-    import.meta.env &&
-    // @ts-expect-error - Vite specific
-    typeof import.meta.env[name] === 'string'
-  ) {
-    // @ts-expect-error - Vite specific
-    return import.meta.env[name];
-  }
+/** `VITE_<name>` (exposed to the browser by Vite), then `<name>`. */
+const getPublicEnvVariable = (name: string, context?: Record<string, any>) =>
+  getEnvVariable(`VITE_${name}`, '', context) ||
+  getEnvVariable(name, '', context);
 
-  return defaultVaue;
-};
-
-export const getPublicEnvVariables = () => {
+export const getPublicEnvVariables = (context?: Record<string, any>) => {
+  const get = (name: string) => getPublicEnvVariable(name, context);
+  const unsafeDisableDevelopmentModeConsoleWarning = get(
+    'CLERK_UNSAFE_DISABLE_DEVELOPMENT_MODE_CONSOLE_WARNING'
+  );
   return {
-    publishableKey:
-      getEnvVariable('VITE_CLERK_PUBLISHABLE_KEY') ||
-      getEnvVariable('CLERK_PUBLISHABLE_KEY'),
-    domain:
-      getEnvVariable('VITE_CLERK_DOMAIN') || getEnvVariable('CLERK_DOMAIN'),
-    isSatellite:
-      isTruthy(getEnvVariable('VITE_CLERK_IS_SATELLITE')) ||
-      isTruthy(getEnvVariable('CLERK_IS_SATELLITE')),
-    proxyUrl:
-      getEnvVariable('VITE_CLERK_PROXY_URL') ||
-      getEnvVariable('CLERK_PROXY_URL'),
-    pk:
-      getEnvVariable('VITE_CLERK_PUBLISHABLE_KEY') ||
-      getEnvVariable('CLERK_PUBLISHABLE_KEY'),
-    signInUrl:
-      getEnvVariable('VITE_CLERK_SIGN_IN_URL') ||
-      getEnvVariable('CLERK_SIGN_IN_URL'),
-    signUpUrl:
-      getEnvVariable('VITE_CLERK_SIGN_UP_URL') ||
-      getEnvVariable('CLERK_SIGN_UP_URL'),
-    clerkJsUrl:
-      getEnvVariable('VITE_CLERK_JS_URL') ||
-      getEnvVariable('CLERK_JS_URL') ||
-      getEnvVariable('CLERK_JS'),
-    clerkJsVersion:
-      getEnvVariable('VITE_CLERK_JS_VERSION') ||
-      getEnvVariable('CLERK_JS_VERSION'),
-    clerkUIUrl:
-      getEnvVariable('VITE_CLERK_UI_URL') || getEnvVariable('CLERK_UI_URL'),
-    clerkUIVersion:
-      getEnvVariable('VITE_CLERK_UI_VERSION') ||
-      getEnvVariable('CLERK_UI_VERSION'),
-    prefetchUI:
-      (getEnvVariable('VITE_CLERK_PREFETCH_UI') ||
-        getEnvVariable('CLERK_PREFETCH_UI')) === 'false'
-        ? false
+    publishableKey: get('CLERK_PUBLISHABLE_KEY'),
+    domain: get('CLERK_DOMAIN'),
+    isSatellite: isTruthy(get('CLERK_IS_SATELLITE')),
+    proxyUrl: get('CLERK_PROXY_URL'),
+    pk: get('CLERK_PUBLISHABLE_KEY'),
+    signInUrl: get('CLERK_SIGN_IN_URL'),
+    signUpUrl: get('CLERK_SIGN_UP_URL'),
+    clerkJsUrl: get('CLERK_JS_URL') || getEnvVariable('CLERK_JS', '', context),
+    clerkJsVersion: get('CLERK_JS_VERSION'),
+    clerkUIUrl: get('CLERK_UI_URL'),
+    clerkUIVersion: get('CLERK_UI_VERSION'),
+    prefetchUI: get('CLERK_PREFETCH_UI') === 'false' ? false : undefined,
+    telemetryDisabled: isTruthy(get('CLERK_TELEMETRY_DISABLED')),
+    telemetryDebug: isTruthy(get('CLERK_TELEMETRY_DEBUG')),
+    unsafeDisableDevelopmentModeConsoleWarning:
+      unsafeDisableDevelopmentModeConsoleWarning
+        ? isTruthy(unsafeDisableDevelopmentModeConsoleWarning)
         : undefined,
-    telemetryDisabled:
-      isTruthy(getEnvVariable('VITE_CLERK_TELEMETRY_DISABLED')) ||
-      isTruthy(getEnvVariable('CLERK_TELEMETRY_DISABLED')),
-    telemetryDebug:
-      isTruthy(getEnvVariable('VITE_CLERK_TELEMETRY_DEBUG')) ||
-      isTruthy(getEnvVariable('CLERK_TELEMETRY_DEBUG')),
-    afterSignInUrl:
-      getEnvVariable('VITE_CLERK_AFTER_SIGN_IN_URL') ||
-      getEnvVariable('CLERK_AFTER_SIGN_IN_URL'),
-    afterSignUpUrl:
-      getEnvVariable('VITE_CLERK_AFTER_SIGN_UP_URL') ||
-      getEnvVariable('CLERK_AFTER_SIGN_UP_URL')
+    newSubscriptionRedirectUrl: get('CLERK_CHECKOUT_CONTINUE_URL'),
+    afterSignInUrl: get('CLERK_AFTER_SIGN_IN_URL'),
+    afterSignUpUrl: get('CLERK_AFTER_SIGN_UP_URL')
   };
 };

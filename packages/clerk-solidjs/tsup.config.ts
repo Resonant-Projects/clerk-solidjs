@@ -35,6 +35,10 @@ export default defineConfig((config) => {
         {
           name: 'start/server',
           entry: 'src/start/server/index.ts'
+        },
+        {
+          name: 'webhooks',
+          entry: 'src/webhooks.ts'
         }
       ],
       cjs: true,

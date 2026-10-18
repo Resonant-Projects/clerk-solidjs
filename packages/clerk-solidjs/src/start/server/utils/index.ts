@@ -1,7 +1,8 @@
-import { debugRequestState, RequestState } from '@clerk/backend/internal';
+import type { RequestState } from '@clerk/backend/internal';
+import { debugRequestState } from '@clerk/backend/internal';
 import { isTruthy } from '@clerk/shared/underscore';
-import { getEnvVariable } from '../../utils/env';
-import { AdditionalStateOptions } from '../types';
+import { getEnvVariable, getPublicEnvVariables } from '../../utils/env';
+import type { AdditionalStateOptions, AnyRequestState } from '../types';
 
 /**
  * Wraps obscured clerk internals with a readable `clerkState` key.
@@ -31,7 +32,7 @@ function getPrefetchUIFromEnv(): boolean | undefined {
  * @internal
  */
 export function getResponseClerkState(
-  requestState: RequestState,
+  requestState: AnyRequestState,
   additionalStateOptions: AdditionalStateOptions = {}
 ) {
   const clerkInitialState = wrapWithClerkState({
@@ -44,7 +45,7 @@ export function getResponseClerkState(
     __signUpUrl: requestState.signUpUrl,
     __afterSignInUrl: requestState.afterSignInUrl,
     __afterSignUpUrl: requestState.afterSignUpUrl,
-    __clerk_debug: debugRequestState(requestState),
+    __clerk_debug: debugRequestState(requestState as RequestState),
     __clerkJSUrl: getEnvVariable('CLERK_JS') || getEnvVariable('CLERK_JS_URL'),
     __clerkJSVersion: getEnvVariable('CLERK_JS_VERSION'),
     __clerkUIUrl: getEnvVariable('CLERK_UI_URL'),
@@ -52,6 +53,8 @@ export function getResponseClerkState(
     __prefetchUI: getPrefetchUIFromEnv(),
     __telemetryDisabled: isTruthy(getEnvVariable('CLERK_TELEMETRY_DISABLED')),
     __telemetryDebug: isTruthy(getEnvVariable('CLERK_TELEMETRY_DEBUG')),
+    __unsafeDisableDevelopmentModeConsoleWarning:
+      getPublicEnvVariables().unsafeDisableDevelopmentModeConsoleWarning,
     __signInForceRedirectUrl:
       additionalStateOptions.signInForceRedirectUrl ||
       getEnvVariable('CLERK_SIGN_IN_FORCE_REDIRECT_URL') ||
@@ -75,31 +78,3 @@ export function getResponseClerkState(
     headers: requestState.headers
   };
 }
-
-/**
- * Patches request to avoid duplex issues with unidici
- * For more information, see:
- * https://github.com/nodejs/node/issues/46221
- * https://github.com/whatwg/fetch/pull/1457
- * @internal
- */
-export const patchRequest = (request: Request) => {
-  const clonedRequest = new Request(request.url, {
-    headers: request.headers,
-    method: request.method,
-    redirect: request.redirect,
-    cache: request.cache,
-    signal: request.signal
-  });
-
-  // If duplex is not set, set it to 'half' to avoid duplex issues with unidici
-  if (
-    clonedRequest.method !== 'GET' &&
-    clonedRequest.body !== null &&
-    !('duplex' in clonedRequest)
-  ) {
-    (clonedRequest as unknown as { duplex: 'half' }).duplex = 'half';
-  }
-
-  return clonedRequest;
-};

@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js';
 import type { ClerkProviderProps } from '../../types';
 
 export type ClerkState = {
-  __type: 'clerkState';
+  __type?: 'clerkState';
   __internal_clerk_state: {
     __clerk_ssr_state: InitialState;
     __publishableKey: string | undefined;
@@ -22,6 +22,11 @@ export type ClerkState = {
     __prefetchUI: boolean | undefined;
     __telemetryDisabled: boolean | undefined;
     __telemetryDebug: boolean | undefined;
+    __unsafeDisableDevelopmentModeConsoleWarning: boolean | undefined;
+    __signInForceRedirectUrl: string | undefined;
+    __signUpForceRedirectUrl: string | undefined;
+    __signInFallbackRedirectUrl: string | undefined;
+    __signUpFallbackRedirectUrl: string | undefined;
   };
 };
 

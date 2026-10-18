@@ -37,6 +37,9 @@
       ],
       "start/server": [
         "./dist/start/server/index.d.ts"
+      ],
+      "webhooks": [
+        "./dist/webhooks/index.d.ts"
       ]
     }
   },
@@ -255,6 +258,16 @@
         "default": "./dist/start/server/index.cjs"
       }
     },
+    "./webhooks": {
+      "import": {
+        "types": "./dist/webhooks/index.d.ts",
+        "default": "./dist/webhooks/index.js"
+      },
+      "require": {
+        "types": "./dist/webhooks/index.d.cts",
+        "default": "./dist/webhooks/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "browser": {
@@ -283,7 +296,7 @@
     "vendor:clerk-ui-types": "node scripts/vendor-clerk-ui-types.mjs"
   },
   "dependencies": {
-    "@clerk/backend": "^3.24.0",
+    "@clerk/backend": "^3.25.0",
     "@clerk/shared": "^4.40.0",
     "@solid-primitives/context": "^0.3.2",
     "@solid-primitives/destructure": "^0.2.4",

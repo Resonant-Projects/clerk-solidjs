@@ -1,4 +1,5 @@
-import { auth, clerkMiddleware } from '../start/server';
+import { auth } from '../start/server/auth';
+import { clerkMiddleware } from '../start/server/middleware';
 
 export {
   /**
