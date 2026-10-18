@@ -204,6 +204,35 @@ describe('useOrganization', () => {
     ).toEqual([1, 2, 3]);
   });
 
+  it('accepts setData on an infinite list before its first fetch finishes', async () => {
+    const pending = vi.fn(() => new Promise<never>(() => {}));
+    const { clerkJS } = createFakeClerkJS(signedInFixtures(pending as any));
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({
+        memberships: { pageSize: 10, infinite: true }
+      }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() => expect(pending).toHaveBeenCalled());
+    const memberships = result.memberships()!;
+
+    await memberships.setData([
+      {
+        data: [{ id: 'seeded' } as unknown as OrganizationMembershipResource],
+        total_count: 25
+      }
+    ] as any);
+
+    await vi.waitFor(() =>
+      expect(memberships.data()).toEqual([{ id: 'seeded' }])
+    );
+    // The observer reports the seeded page, with its page param, a tick later.
+    await vi.waitFor(() => expect(memberships.hasNextPage()).toBe(true));
+  });
+
   it('writes setData to the cache and refetches on revalidate', async () => {
     const getMemberships = pagedFetcher(3, 'mem');
     const { clerkJS } = createFakeClerkJS(signedInFixtures(getMemberships));

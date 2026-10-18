@@ -333,7 +333,18 @@ export function usePagesOrInfinite<Args, Data>(
             : [];
           const nextPages =
             typeof value === 'function' ? value(previousPages) : value;
-          return { ...previous, pages: nextPages };
+          // query-core reads pageParams[i] for page i, so a list seeded
+          // before its first fetch needs one param per page.
+          const previousParams: unknown[] = Array.isArray(previous?.pageParams)
+            ? previous.pageParams
+            : [];
+          const pageParams = Array.isArray(nextPages)
+            ? nextPages.map(
+                (_page: unknown, index: number) =>
+                  previousParams[index] ?? initialPage + index
+              )
+            : previousParams;
+          return { ...previous, pages: nextPages, pageParams };
         });
       } else {
         client.setQueryData(
