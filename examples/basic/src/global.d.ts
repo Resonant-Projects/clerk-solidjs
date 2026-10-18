@@ -1,11 +1,3 @@
 /// <reference types="@solidjs/start/env" />
-/// <reference types="@solidjs/start/server" />
-import { AuthReturn } from "@resonant-projects/clerk-solidjs/server";
 
-declare module "@solidjs/start/server" {
-  export interface RequestEventLocals {
-    auth: AuthReturn;
-  }
-}
-
-export {};
+// `event.locals.auth` is typed by @resonant-projects/clerk-solidjs/start/server.

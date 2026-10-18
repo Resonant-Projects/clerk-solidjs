@@ -144,6 +144,40 @@ async function runChecks(baseUrl) {
     !/<button[^>]*>\s*<button/.test(html)
   );
 
+  const meResponse = await fetch(new URL('/api/me', baseUrl), {
+    redirect: 'manual',
+    headers: { accept: 'application/json' }
+  });
+  check(
+    "an API route rejects a signed-out request, with Clerk's headers on its 401",
+    meResponse.status === 401 && meResponse.headers.get('x-clerk-auth-status') === 'signed-out',
+    `status ${meResponse.status}, x-clerk-auth-status=${meResponse.headers.get('x-clerk-auth-status')}`
+  );
+
+  const webhookResponse = await fetch(new URL('/api/webhooks', baseUrl), {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'user.created', data: {} })
+  });
+  check(
+    'verifyWebhook rejects an unsigned webhook',
+    webhookResponse.status === 400,
+    `status ${webhookResponse.status}`
+  );
+
+  const signInHtml = await (
+    await fetch(new URL('/sign-in', baseUrl), {
+      redirect: 'manual',
+      headers: { accept: '*/*' }
+    })
+  ).text();
+  check(
+    'the sign-in route renders the SignIn host and fallback on the server',
+    signInHtml.includes('data-clerk-component="SignIn"') &&
+      signInHtml.includes('Loading sign-in...')
+  );
+
   const waitlistHtml = await (
     await fetch(new URL('/waitlist', baseUrl), {
       redirect: 'manual',
@@ -195,10 +229,27 @@ async function runChecks(baseUrl) {
       .catch(() => false);
     check('SignInButton redirects to the sign-in page', redirected, page.url().replace(/\?.*$/, ''));
 
+    // The page's "use server" query throws auth().redirectToSignIn().
     await page.goto(new URL('/protected', baseUrl).href, { waitUntil: 'networkidle' });
+    const afterProtected = new URL(page.url());
     check(
-      'a server function sees the signed-out auth state',
-      await page.getByText('You are not signed in').isVisible()
+      'a query throwing redirectToSignIn() sends a signed-out visitor to sign-in and back',
+      afterProtected.pathname.startsWith('/sign-in') &&
+        (afterProtected.searchParams.get('redirect_url') ?? '').endsWith('/protected'),
+      page.url().replace(/__clerk_db_jwt=[^&]+/, '__clerk_db_jwt=***')
+    );
+    const signInRendered = await page
+      .waitForFunction(
+        () =>
+          (document.querySelector('[data-clerk-component="SignIn"]')?.childElementCount ?? 0) > 0,
+        null,
+        { timeout: 30_000 }
+      )
+      .then(() => true)
+      .catch(() => false);
+    check(
+      'the /start SignIn renders on its catch-all route without a path prop',
+      signInRendered && !(await page.getByText('Loading sign-in...').isVisible())
     );
 
     await page.goto(new URL('/waitlist', baseUrl).href, { waitUntil: 'networkidle' });

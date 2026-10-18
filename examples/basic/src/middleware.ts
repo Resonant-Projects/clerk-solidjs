@@ -1,11 +1,8 @@
 import { createMiddleware } from "@solidjs/start/middleware";
 import { clerkMiddleware } from "@resonant-projects/clerk-solidjs/start/server";
 
-export default createMiddleware({
-  onRequest: [
-    clerkMiddleware({
-      publishableKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-      secretKey: import.meta.env.CLERK_SECRET_KEY,
-    }),
-  ],
-});
+// SolidStart 2's h3 middleware form. The keys come from VITE_CLERK_PUBLISHABLE_KEY
+// and CLERK_SECRET_KEY, read per request; the sign-in and sign-up routes are below.
+export default createMiddleware([
+  clerkMiddleware({ signInUrl: "/sign-in", signUpUrl: "/sign-up" }),
+]);

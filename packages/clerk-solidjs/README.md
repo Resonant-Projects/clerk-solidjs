@@ -299,59 +299,116 @@ configure the scripts.
 
 ### Middleware
 
-Clerk provides the `clerkMiddleware` helper function which can be used in `solid-start` middleware.
-
-See [SolidStart middleware](https://docs.solidjs.com/solid-start/advanced/middleware) for how to enable middleware.
+`clerkMiddleware()` authenticates every request on the server. Register it in
+your [SolidStart middleware](https://docs.solidjs.com/solid-start/advanced/middleware)
+with `createMiddleware`, and point your config at the file with
+`solidStart({ middleware: './src/middleware.ts' })`:
 
 ```ts
-// middleware.ts
-
+// src/middleware.ts
 import { createMiddleware } from '@solidjs/start/middleware';
 import { clerkMiddleware } from '@resonant-projects/clerk-solidjs/start/server';
 
-export default createMiddleware({
-  onRequest: [
-    clerkMiddleware({
-      publishableKey: process.env.VITE_CLERK_PUBLISHABLE_KEY,
-      secretKey: process.env.CLERK_SECRET_KEY
-    })
-    // ... other middleware
-  ]
-});
+export default createMiddleware([clerkMiddleware()]);
 ```
 
-### The `auth()` Helper
-
-Once your have the `clerkMiddleware` middleware enabled, you can use the `auth()` helper to access the `AuthReturn` object.
+It reads `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` (or
+`CLERK_PUBLISHABLE_KEY`) and the other `CLERK_*` variables on each request.
+Pass options to override them. Every `authenticateRequest()` option is accepted,
+such as `authorizedParties`, `organizationSyncOptions`, `satelliteAutoSync` and
+`jwtKey`. When options depend on the request, for example per-tenant keys or
+runtime bindings, pass a function. It receives the request's `url` and the
+SolidStart `event`:
 
 ```ts
-import { auth } from '@resonant-projects/clerk-solidjs/start/server';
+export default createMiddleware([
+  clerkMiddleware(async ({ url }) => ({
+    secretKey: await secretKeyForTenant(url.hostname)
+  }))
+]);
+```
 
-async function myProtectedServerFunction() {
+The middleware puts Clerk's response headers on every response, including
+session-refresh cookies and `x-clerk-auth-*` diagnostics, and hands the request's
+auth state to the browser so the first render matches the server. The older
+`createMiddleware({ onRequest: [clerkMiddleware()] })` form still works.
+
+### The `auth()` helper
+
+With the middleware in place, `auth()` returns the request's auth object on the
+server: in `"use server"` functions and queries, API routes, and middleware
+that runs after `clerkMiddleware()`. `event.locals.auth` holds the same session
+object and is typed for you.
+
+```ts
+import { createAsync, query } from '@solidjs/router';
+import {
+  auth,
+  clerkClient
+} from '@resonant-projects/clerk-solidjs/start/server';
+
+const getProfile = query(async () => {
   'use server';
-  const { userId } = auth();
-  if (!userId) {
-    throw new Error('You must be signed in');
-  }
+  const { userId, redirectToSignIn } = auth();
+  // A 307 to sign-in that comes back to this page afterwards.
+  if (!userId) throw redirectToSignIn();
+  return clerkClient().users.getUser(userId);
+}, 'profile');
 
+export default function Profile() {
+  const user = createAsync(() => getProfile());
   // ...
 }
 ```
 
-If you would like the access the auth object from `event.locals` directly, you must add this to your globals.d.ts file:
+A session with pending tasks counts as signed out unless you pass
+`auth({ treatPendingAsSignedOut: false })`. API routes can also accept machine
+tokens: API keys, M2M tokens and OAuth access tokens. Set
+`CLERK_MACHINE_SECRET_KEY` for M2M tokens.
 
 ```ts
-/// <reference types="@solidjs/start/server" />
-import { AuthObject } from '@clerk/backend';
+// src/routes/api/data.ts
+import { auth } from '@resonant-projects/clerk-solidjs/start/server';
 
-declare module '@solidjs/start/server' {
-  export interface RequestEventLocals {
-    auth: AuthObject;
+export function GET() {
+  const { isAuthenticated, tokenType } = auth({
+    acceptsToken: ['session_token', 'api_key']
+  });
+  if (!isAuthenticated) return new Response(null, { status: 401 });
+  // ...
+}
+```
+
+`clerkClient()` is a Backend API client configured from the same env.
+`verifyToken`, `createClerkClient`, `reverificationError` and
+`reverificationErrorResponse` are exported from `/start/server` too.
+
+### Webhooks
+
+```ts
+// src/routes/api/webhooks.ts
+import type { APIEvent } from '@solidjs/start/server';
+import { verifyWebhook } from '@resonant-projects/clerk-solidjs/webhooks';
+
+export async function POST({ request }: APIEvent) {
+  try {
+    const event = await verifyWebhook(request); // uses CLERK_WEBHOOK_SIGNING_SECRET
+    // event.type, event.data
+    return new Response(null, { status: 204 });
+  } catch {
+    return new Response('Invalid webhook signature', { status: 400 });
   }
 }
-
-export {};
 ```
+
+### Routing
+
+`@resonant-projects/clerk-solidjs/start` exports `SignIn`, `SignUp`,
+`UserProfile`, `OrganizationProfile` and `OrganizationList` with path routing
+taken from the current route. Put them on a catch-all route, such as
+`src/routes/sign-in/[...rest].tsx`, and they need no `path` prop. The SolidStart
+`ClerkProvider` also makes Clerk's navigation wait until the router has finished
+each navigation.
 
 ## Examples
 
