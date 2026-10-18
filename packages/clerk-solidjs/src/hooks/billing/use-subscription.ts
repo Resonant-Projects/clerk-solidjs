@@ -11,6 +11,7 @@ import { getClerkQueryClient } from '../../query/clerk-query-client';
 import { createClerkQuery } from '../../query/create-clerk-query';
 import { createCacheKeys, STABLE_KEYS } from '../../query/keys';
 import { useAssertWrappedByClerkProvider } from '../use-assert-wrapped-by-clerk-provider';
+import { keepPreviousDataOf } from '../use-pages-or-infinite';
 import { recordTelemetryOnce } from '../utils';
 import { useBillingIsEnabled } from './use-billing-is-enabled';
 
@@ -71,9 +72,13 @@ export function useSubscription(
         ),
       staleTime: 60_000,
       enabled,
+      // Only the same owner's previous subscription, and only while cached.
       placeholderData:
         (params().keepPreviousData ?? false) && enabled
-          ? (previous: BillingSubscriptionResource | undefined) => previous
+          ? keepPreviousDataOf<BillingSubscriptionResource>(
+              getClerkQueryClient(),
+              keys().queryKey
+            )
           : undefined
     };
   });

@@ -215,6 +215,63 @@ describe('billing hooks', () => {
   });
 });
 
+describe('useSubscription across accounts', () => {
+  it("does not keep the previous user's subscription for the next one", async () => {
+    let finishSecond!: (value: unknown) => void;
+    const getSubscription = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'sub_user_1' })
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishSecond = resolve))
+      );
+    const user = {
+      id: 'user_1',
+      organizationMemberships: []
+    } as unknown as UserResource;
+    const { clerkJS, emit } = createFakeClerkJS({
+      user,
+      session: {
+        id: 'sess_1',
+        status: 'active',
+        user,
+        lastActiveToken: { jwt: { claims: {} } }
+      } as any
+    });
+    Object.assign(clerkJS, billingEnvironment(), {
+      billing: { getSubscription }
+    });
+    let subscription!: ReturnType<typeof useSubscription>;
+    renderInProvider(clerkJS, () => {
+      subscription = useSubscription(() => ({ keepPreviousData: true }));
+      return null;
+    });
+    await vi.waitFor(() =>
+      expect(subscription.data()).toEqual({ id: 'sub_user_1' })
+    );
+
+    const nextUser = {
+      id: 'user_2',
+      organizationMemberships: []
+    } as unknown as UserResource;
+    emit({
+      user: nextUser,
+      session: {
+        id: 'sess_2',
+        status: 'active',
+        user: nextUser,
+        lastActiveToken: { jwt: { claims: {} } }
+      } as any
+    });
+    await vi.waitFor(() => expect(getSubscription).toHaveBeenCalledTimes(2));
+    expect(subscription.data()).toBeUndefined();
+
+    finishSecond({ id: 'sub_user_2' });
+    await vi.waitFor(() =>
+      expect(subscription.data()).toEqual({ id: 'sub_user_2' })
+    );
+  });
+});
+
 describe('useCheckout', () => {
   it("follows clerk-js's checkout signal, with options from CheckoutProvider", async () => {
     const signals = createFakeState();
