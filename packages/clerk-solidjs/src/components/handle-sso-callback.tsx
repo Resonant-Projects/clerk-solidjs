@@ -48,9 +48,10 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
   const { signUp } = useSignUp();
   let hasRun = false;
 
-  const toApp = async (...params: Parameters<SetActiveNavigate>) => {
+  // Returned, so clerk-js waits for the app's navigation before it
+  // publishes the session.
+  const toApp = async (...params: Parameters<SetActiveNavigate>) =>
     props.navigateToApp(...params);
-  };
 
   const run = async () => {
     const instance = untrack(clerk);
@@ -119,11 +120,14 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     const sessionId =
       signIn.existingSession?.sessionId || signUp.existingSession?.sessionId;
     if (sessionId) {
-      await instance.setActive({
-        session: sessionId,
-        // clerk-js waits for this navigation before it publishes the session.
-        navigate: async (...params) => props.navigateToApp(...params)
-      });
+      await instance.setActive({ session: sessionId, navigate: toApp });
+      return;
+    }
+
+    // A sign-up through SSO that still needs fields, such as a username,
+    // continues on the sign-up page.
+    if (signUp.status === 'missing_requirements') {
+      return props.navigateToSignUp();
     }
   };
 

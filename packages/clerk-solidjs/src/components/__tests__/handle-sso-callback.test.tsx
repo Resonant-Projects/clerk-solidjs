@@ -155,6 +155,39 @@ describe('HandleSSOCallback', () => {
     await vi.waitFor(() => expect(activated).toBe(true));
   });
 
+  it("waits for the app's navigation before a finalized sign-in is published", async () => {
+    let finishNavigation!: () => void;
+    let published = false;
+    const signIn = resource({ status: 'complete' });
+    signIn.finalize = vi.fn(async ({ navigate }) => {
+      await navigate({ session: { id: 'sess_1' }, decorateUrl: String });
+      published = true;
+      return { error: null };
+    });
+    const { props } = setup(signIn, resource());
+    props.navigateToApp.mockImplementation(
+      () => new Promise<void>((resolve) => (finishNavigation = resolve))
+    );
+
+    await vi.waitFor(() => expect(props.navigateToApp).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(published).toBe(false);
+
+    finishNavigation();
+    await vi.waitFor(() => expect(published).toBe(true));
+  });
+
+  it('continues an SSO sign-up that still needs fields on the sign-up page', async () => {
+    const { props } = setup(
+      resource({ status: 'needs_identifier' }),
+      resource({ status: 'missing_requirements' })
+    );
+
+    await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+    expect(props.navigateToSignIn).not.toHaveBeenCalled();
+    expect(props.navigateToApp).not.toHaveBeenCalled();
+  });
+
   it('sends a failed bot-protection check back to the flow it came from', async () => {
     window.history.replaceState(null, '', '/sso-callback?intent=signUp');
     const { props, members } = setup(resource(), resource(), () => {
