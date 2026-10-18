@@ -232,6 +232,69 @@ describe('useOrganization', () => {
     expect(getMemberships.mock.calls.length).toBe(callsBefore + 1);
   });
 
+  it('keeps the page it moved to while an earlier cache write is delivered', async () => {
+    const getMemberships = pagedFetcher(25, 'mem');
+    const { clerkJS } = createFakeClerkJS(signedInFixtures(getMemberships));
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({ memberships: { pageSize: 10 } }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() =>
+      expect(result.memberships()?.data()).toHaveLength(10)
+    );
+    const memberships = result.memberships()!;
+    memberships.fetchNext();
+    await vi.waitFor(() =>
+      expect(memberships.data()[0]).toEqual({ id: 'mem_11' })
+    );
+    memberships.fetchPrevious();
+    await vi.waitFor(() =>
+      expect(memberships.data()[0]).toEqual({ id: 'mem_1' })
+    );
+
+    // Write page 1, then move to the cached page 2 before the write's
+    // notification is delivered.
+    void memberships.setData((previous) => ({
+      ...previous!,
+      data: [{ id: 'edited' } as unknown as OrganizationMembershipResource]
+    }));
+    memberships.fetchPage(2);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(memberships.page()).toBe(2);
+    expect(memberships.data()[0]).toEqual({ id: 'mem_11' });
+  });
+
+  it('shows a list another hook fetched, even where it was not requested', async () => {
+    const { clerkJS } = createFakeClerkJS(signedInFixtures());
+    let passive!: ReturnType<typeof useOrganization>;
+    let active!: ReturnType<typeof useOrganization>;
+    const Passive = () => {
+      passive = useOrganization();
+      return null;
+    };
+    const Active = () => {
+      active = useOrganization(() => ({ memberships: true }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => (
+      <>
+        <Passive />
+        <Active />
+      </>
+    ));
+    await vi.waitFor(() =>
+      expect(active.memberships()?.data()).toHaveLength(10)
+    );
+    await vi.waitFor(() =>
+      expect(passive.memberships()?.data()).toHaveLength(10)
+    );
+  });
+
   it('surfaces a fetch error', async () => {
     const getMemberships = vi.fn(async () => {
       throw new Error('boom');

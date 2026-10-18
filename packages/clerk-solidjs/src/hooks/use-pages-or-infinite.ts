@@ -225,13 +225,17 @@ export function usePagesOrInfinite<Args, Data>(
   // Data, count and page come from one source so they always agree.
   const pagedState = createMemo(() => {
     cacheVersion();
+    // Track both observers even while the list is disabled: another hook can
+    // fetch or setData the same key, and only the observers report that.
+    const single = singlePageQuery();
+    const infinite = infiniteQuery();
     if (triggerInfinite()) {
       const cached =
         client?.getQueryData<InfiniteData<ClerkPaginatedResponse<Data>>>(
           infiniteQueryKey()
         );
       const pages = queriesEnabled()
-        ? (infiniteQuery().data?.pages ?? cached?.pages ?? [])
+        ? (infinite.data?.pages ?? cached?.pages ?? [])
         : (cached?.pages ?? []);
       const validPages = Array.isArray(pages) ? pages.filter(Boolean) : [];
       return {
@@ -245,7 +249,7 @@ export function usePagesOrInfinite<Args, Data>(
 
     // A disabled list's query result is stale, so read only the cache.
     const pageData = queriesEnabled()
-      ? (singlePageQuery().data ??
+      ? (single.data ??
         client?.getQueryData<ClerkPaginatedResponse<Data>>(pagesQueryKey()))
       : client?.getQueryData<ClerkPaginatedResponse<Data>>(pagesQueryKey());
     return {

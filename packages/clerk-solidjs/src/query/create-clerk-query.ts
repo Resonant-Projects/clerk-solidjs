@@ -59,8 +59,10 @@ function createBaseQuery<TResult>(
     { equals: false }
   );
 
+  // Read the result when the batched notification is delivered, not when it
+  // was queued, so a late notification cannot overwrite a newer result.
   const unsubscribe = observer.subscribe(
-    notifyManager.batchCalls((next) => setResult(next))
+    notifyManager.batchCalls(() => setResult(observer.getCurrentResult()))
   );
   // Pick up any change between creating the observer and subscribing.
   observer.updateResult();
