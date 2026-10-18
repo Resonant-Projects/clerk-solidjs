@@ -2,14 +2,20 @@ import { getEnvVariable as getSharedEnvVariable } from '@clerk/shared/getEnvVari
 import { isTruthy } from '@clerk/shared/underscore';
 import { getRequestEvent } from 'solid-js/web';
 
+type WithRuntime = { runtime?: Record<string, any> };
+
 /**
  * The current request's runtime bindings. On Cloudflare, nitro puts the
  * Worker's `env` on `request.runtime.cloudflare`, where `getEnvVariable`
- * looks for it. In the browser there is no request event.
+ * looks for it. A single-flight render replaces the event's request with a
+ * new page Request, so fall back to the h3 event's, which is the original.
+ * In the browser there is no request event.
  */
-const requestRuntime = (): Record<string, any> | undefined =>
-  (getRequestEvent()?.request as { runtime?: Record<string, any> } | undefined)
-    ?.runtime;
+const requestRuntime = (): Record<string, any> | undefined => {
+  const event = getRequestEvent() as
+    { request?: WithRuntime; nativeEvent?: { req?: WithRuntime } } | undefined;
+  return event?.request?.runtime ?? event?.nativeEvent?.req?.runtime;
+};
 
 /**
  * Reads an environment variable from `process.env`, Vite's `import.meta.env`,

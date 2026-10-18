@@ -18,6 +18,7 @@ vi.mock('@clerk/backend', async (importOriginal) => ({
 }));
 
 import { auth } from '../auth';
+import { clerkClient } from '../clerk-client';
 import { clerkMiddleware } from '../middleware';
 
 const signedOutAuth = () => ({
@@ -621,6 +622,29 @@ describe('the state handed to the browser', () => {
         __unsafeDisableDevelopmentModeConsoleWarning: true
       }
     );
+  });
+
+  it('keeps the Cloudflare bindings in a single-flight render, whose request is new', async () => {
+    const original = new Request('http://localhost:3000/_server', {
+      method: 'POST'
+    }) as Request & { runtime?: unknown };
+    original.runtime = {
+      name: 'cloudflare',
+      cloudflare: { env: { CLERK_SECRET_KEY: 'sk_test_from_binding' } }
+    };
+    // SolidStart copies the event and gives it a new page Request; the h3
+    // event, and its request, are the original.
+    const pageEvent = {
+      ...fetchEvent(),
+      request: new Request('http://localhost:3000/protected'),
+      nativeEvent: { req: original }
+    };
+
+    provideRequestEvent(pageEvent, () => clerkClient());
+
+    expect(backend.clientOptions.at(-1)).toMatchObject({
+      secretKey: 'sk_test_from_binding'
+    });
   });
 
   it('carries a server-only CLERK_CHECKOUT_CONTINUE_URL', async () => {
