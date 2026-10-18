@@ -216,6 +216,23 @@ describe('clerkMiddleware as an h3 middleware', () => {
     expect(response.headers.get('x-clerk-auth-status')).toBe('signed-out');
   });
 
+  it("keeps Clerk's headers when the Response holds its state under symbol keys", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState(clerkHeaders()));
+    // Node 22's Response keeps its state and headers like this.
+    const kHeaders = Symbol('headers');
+    const route = Object.assign(
+      new Response('ok', { headers: { 'x-route': 'yes' } }),
+      { [kHeaders]: new Headers({ 'x-route': 'yes' }) }
+    );
+
+    const response = (await runH3(fetchEvent(), async () => route)
+      .result) as Response;
+
+    expect(Object.getOwnPropertySymbols(response)).not.toContain(kHeaders);
+    expect(response.headers.get('x-route')).toBe('yes');
+    expect(response.headers.getSetCookie()).toHaveLength(2);
+  });
+
   it('puts headers on errHeaders for an error the route returns', async () => {
     backend.authenticateRequest.mockResolvedValue(requestState(clerkHeaders()));
     const event = fetchEvent();

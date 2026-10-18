@@ -47,7 +47,8 @@ const appendHeaders = (target: Headers, headers: Headers) => {
  * object: a Response a route reuses across requests must not keep one
  * visitor's session cookies, and some Responses have immutable headers.
  * Properties set on the Response itself, such as the `crossws` hooks h3's
- * WebSocket handler attaches, carry over.
+ * WebSocket handler attaches, carry over. Only string keys: Node 22's
+ * Response keeps its state and headers under enumerable symbol keys.
  */
 const withHeaders = (response: Response, headers: Headers): Response => {
   const merged = new Headers(response.headers);
@@ -57,7 +58,12 @@ const withHeaders = (response: Response, headers: Headers): Response => {
     statusText: response.statusText,
     headers: merged
   });
-  return Object.assign(copy, response);
+  for (const key of Object.keys(response)) {
+    (copy as unknown as Record<string, unknown>)[key] = (
+      response as unknown as Record<string, unknown>
+    )[key];
+  }
+  return copy;
 };
 
 /**
