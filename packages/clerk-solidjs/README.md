@@ -541,14 +541,21 @@ export default createHandler(
 
 `'strict-dynamic'` then lets those scripts load clerk-js and Clerk's UI.
 
+Clerk's policy replaces one your route sets. A `Reporting-Endpoints` header your
+route sets keeps its other groups. In the deprecated `createMiddleware({ onRequest })`
+form, Clerk's middleware runs before the route and cannot see what the route sets
+afterwards, so a policy the route sets replaces Clerk's. Use the array form above.
+
 #### Debugging
 
 `debug: true` logs, for each request, the options, the URL, the request state
 and the auth object, between `[clerk debug start]` and `[clerk debug end]` lines.
-It leaves credentials out. Keys are cut to their first characters and cookies to
-their names. URLs keep their parameter names but no values. Headers keep their
-values only when they carry no credentials, such as `host`, `accept` or
-`x-clerk-auth-status`; others are listed by name.
+It leaves credentials out. Keys and tokens are cut to their first characters and
+cookies to their names. URLs keep their parameter names but no values. Headers keep
+their values only when they carry no credentials, such as `host`, `accept` or
+`x-clerk-auth-status`; others are listed by name. Options and the auth object's
+debug data keep booleans, numbers and Clerk's own settings, such as `domain`;
+other text values are cut.
 
 #### Server-only code
 
