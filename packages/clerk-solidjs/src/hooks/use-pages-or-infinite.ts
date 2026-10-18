@@ -65,12 +65,14 @@ export const calculatePageCount = (
   pageSize: number
 ) => Math.ceil((totalCount - offsetCount) / pageSize);
 
+// `currentPage` is absolute, so the current page ends at item
+// `currentPage * pageSize` whatever `initialPage` was. (@clerk/shared also
+// subtracts the offset here, which hides the next page when initialPage > 1.)
 export const calculateHasNextPage = (
   totalCount: number,
-  offsetCount: number,
   currentPage: number,
   pageSize: number
-) => totalCount - offsetCount > currentPage * pageSize;
+) => totalCount > currentPage * pageSize;
 
 export const calculateHasPreviousPage = (
   currentPage: number,
@@ -319,7 +321,7 @@ export function usePagesOrInfinite<Args, Data>(
   const hasNextPage = createMemo(() =>
     triggerInfinite()
       ? Boolean(infiniteQuery().hasNextPage)
-      : calculateHasNextPage(count(), offsetCount, page(), pageSize)
+      : calculateHasNextPage(count(), page(), pageSize)
   );
   const hasPreviousPage = createMemo(() =>
     triggerInfinite()
@@ -327,20 +329,37 @@ export function usePagesOrInfinite<Args, Data>(
       : calculateHasPreviousPage(page(), pageSize, offsetCount)
   );
 
+  const loadedInfinitePages = () =>
+    untrack(infiniteQuery).data?.pages.length ??
+    client?.getQueryData<InfiniteData<unknown>>(untrack(infiniteQueryKey))
+      ?.pages.length ??
+    0;
+
+  /**
+   * Fetches next pages until `target` pages are loaded or the list ends.
+   * (@clerk/shared fetches one page per call, so `fetchPage(5)` with one page
+   * loaded stops at two.)
+   */
+  const loadInfinitePages = async (target: number) => {
+    if (!client) return;
+    let loaded = loadedInfinitePages();
+    while (loaded < target) {
+      const result = await untrack(infiniteQuery).fetchNextPage({
+        cancelRefetch: false
+      });
+      const nowLoaded = result.data?.pages.length ?? loaded;
+      if (result.isError || nowLoaded <= loaded || !result.hasNextPage) return;
+      loaded = nowLoaded;
+    }
+  };
+
   const fetchPage: ValueOrSetter<number> = (numberOrFn) => {
     if (untrack(triggerInfinite)) {
       const next =
         typeof numberOrFn === 'function'
           ? numberOrFn(untrack(page))
           : numberOrFn;
-      const loadedPages =
-        untrack(infiniteQuery).data?.pages.length ??
-        client?.getQueryData<InfiniteData<unknown>>(untrack(infiniteQueryKey))
-          ?.pages.length ??
-        0;
-      if (Math.max(0, next) > loadedPages) {
-        void untrack(infiniteQuery).fetchNextPage({ cancelRefetch: false });
-      }
+      void loadInfinitePages(Math.max(0, next));
       return;
     }
     setPaginatedPage(numberOrFn);
@@ -369,6 +388,9 @@ export function usePagesOrInfinite<Args, Data>(
             : [];
           const nextPages =
             typeof value === 'function' ? value(previousPages) : value;
+          // Leave the cache alone, as setQueryData does for a single page;
+          // `pages: undefined` would break every later read of the list.
+          if (nextPages === undefined) return undefined;
           // query-core reads pageParams[i] for page i, so a list seeded
           // before its first fetch needs one param per page.
           const previousParams: unknown[] = Array.isArray(previous?.pageParams)

@@ -55,14 +55,19 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
 
   // Cached lists belong to the signed-in user. Clear them on sign-out even
   // when no list hook is mounted to clear its own, so the next user on this
-  // page never sees them.
+  // page never sees them. clerk-js's signOut() first emits user `undefined`
+  // (its transitive state), then `null`, so remember the last known user
+  // across `undefined`.
+  let lastKnownUserId: string | null | undefined;
   createEffect(
     on(
       () => derivedState().userId,
-      (userId, previousUserId) => {
-        if (typeof previousUserId === 'string' && userId === null) {
+      (userId) => {
+        if (userId === undefined) return;
+        if (typeof lastKnownUserId === 'string' && userId === null) {
           clearAuthenticatedQueries();
         }
+        lastKnownUserId = userId;
       }
     )
   );

@@ -204,6 +204,98 @@ describe('useOrganization', () => {
     ).toEqual([1, 2, 3]);
   });
 
+  it('reports the next page correctly when the list starts after page 1', async () => {
+    const getMemberships = pagedFetcher(50, 'mem');
+    const { clerkJS } = createFakeClerkJS(signedInFixtures(getMemberships));
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({
+        memberships: { initialPage: 3, pageSize: 10 }
+      }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() =>
+      expect(result.memberships()?.data()[0]).toEqual({ id: 'mem_21' })
+    );
+    const memberships = result.memberships()!;
+    // Items 21–30 of 50: pages 4 and 5 remain.
+    expect(memberships.page()).toBe(3);
+    expect(memberships.hasNextPage()).toBe(true);
+    expect(memberships.hasPreviousPage()).toBe(false);
+    expect(memberships.pageCount()).toBe(3);
+
+    memberships.fetchNext();
+    await vi.waitFor(() =>
+      expect(memberships.data()[0]).toEqual({ id: 'mem_31' })
+    );
+    expect(memberships.hasNextPage()).toBe(true);
+
+    memberships.fetchNext();
+    await vi.waitFor(() =>
+      expect(memberships.data()[0]).toEqual({ id: 'mem_41' })
+    );
+    expect(memberships.hasNextPage()).toBe(false);
+    expect(memberships.hasPreviousPage()).toBe(true);
+  });
+
+  it('loads every page up to the one fetchPage asks for on an infinite list', async () => {
+    const getMemberships = pagedFetcher(25, 'mem');
+    const { clerkJS } = createFakeClerkJS(signedInFixtures(getMemberships));
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({
+        memberships: { pageSize: 5, infinite: true }
+      }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() =>
+      expect(result.memberships()?.data()).toHaveLength(5)
+    );
+    const memberships = result.memberships()!;
+
+    memberships.fetchPage(4);
+    await vi.waitFor(() => expect(memberships.data()).toHaveLength(20));
+    expect(memberships.page()).toBe(4);
+
+    // Past the end, it stops at the last page.
+    memberships.fetchPage(10);
+    await vi.waitFor(() => expect(memberships.data()).toHaveLength(25));
+    expect(memberships.hasNextPage()).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(
+      getMemberships.mock.calls.map(([args]) => args?.initialPage)
+    ).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('leaves an infinite list unchanged when setData gets undefined', async () => {
+    const { clerkJS } = createFakeClerkJS(signedInFixtures());
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({
+        memberships: { pageSize: 10, infinite: true }
+      }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() =>
+      expect(result.memberships()?.data()).toHaveLength(10)
+    );
+    const memberships = result.memberships()!;
+
+    await memberships.setData(undefined);
+    await memberships.setData(() => undefined);
+    expect(memberships.data()).toHaveLength(10);
+    expect(memberships.hasNextPage()).toBe(true);
+
+    memberships.fetchNext();
+    await vi.waitFor(() => expect(memberships.data()).toHaveLength(20));
+  });
+
   it('accepts setData on an infinite list before its first fetch finishes', async () => {
     const pending = vi.fn(() => new Promise<never>(() => {}));
     const { clerkJS } = createFakeClerkJS(signedInFixtures(pending as any));
@@ -392,6 +484,37 @@ describe('sign-out', () => {
 
     // Navigate away from the list, then sign out.
     setShowList(false);
+    emit({ user: null, session: null, organization: null });
+
+    await vi.waitFor(() => expect(membershipQueries()).toBe(0));
+  });
+
+  it("clears cached lists when sign-out passes through clerk-js's transitive state", async () => {
+    const { clerkJS, emit } = createFakeClerkJS(signedInFixtures());
+    const [showList, setShowList] = createSignal(true);
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({ memberships: true }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => (
+      <Show when={showList()}>
+        <Probe />
+      </Show>
+    ));
+    await vi.waitFor(() =>
+      expect(result.memberships()?.data()).toHaveLength(10)
+    );
+    const cache = getClerkQueryClient()!.getQueryCache();
+    const membershipQueries = () =>
+      cache.findAll({ queryKey: ['memberships'] }).length;
+    setShowList(false);
+
+    // signOut() empties the resources first, then emits the signed-out state.
+    emit({ user: undefined, session: undefined, organization: undefined });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(membershipQueries()).toBeGreaterThan(0);
     emit({ user: null, session: null, organization: null });
 
     await vi.waitFor(() => expect(membershipQueries()).toBe(0));
