@@ -1,5 +1,13 @@
 import { provideRequestEvent } from 'solid-js/web/storage';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi
+} from 'vitest';
 import { TEST_PUBLISHABLE_KEY } from '../../../__tests__/helpers/fake-clerk-js';
 
 const backend = vi.hoisted(() => ({
@@ -313,7 +321,7 @@ describe('contentSecurityPolicy', () => {
 });
 
 describe('debug', () => {
-  let log: ReturnType<typeof vi.spyOn>;
+  let log: MockInstance<typeof console.log>;
   beforeEach(() => {
     log = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
@@ -334,6 +342,37 @@ describe('debug', () => {
     expect(output).toContain('__session=…');
     expect(output).not.toContain(SECRET_KEY);
     expect(output).not.toContain('live.token');
+  });
+
+  it("never logs the incoming request's credentials", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+
+    await clerkMiddleware({ ...options, debug: true })(
+      fetchEvent(
+        'http://localhost:3000/dashboard?__clerk_db_jwt=dvb_devbrowsersecret&__clerk_handshake=eyJhandshake&tab=1',
+        {
+          headers: {
+            authorization: 'Bearer ak_live_machinetokensecret',
+            cookie: `__session=eyJsessionsecret; __client_uat=1700000000; theme=dark`
+          }
+        }
+      )
+    );
+
+    const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
+    for (const secret of [
+      'dvb_devbrowsersecret',
+      'eyJhandshake',
+      'ak_live_machinetokensecret',
+      'eyJsessionsecret',
+      '1700000000'
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+    expect(output).toContain('Bearer …');
+    expect(output).toContain('__session=…; __client_uat=…; theme=…');
+    expect(output).toContain('__clerk_db_jwt=%E2%80%A6');
+    expect(output).toContain('tab=1');
   });
 
   it('logs nothing without it', async () => {

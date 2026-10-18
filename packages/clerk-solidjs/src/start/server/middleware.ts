@@ -17,7 +17,8 @@ import { createContentSecurityPolicyHeaders } from './content-security-policy';
 import {
   createDebugLogger,
   redactHeaders,
-  redactOptions
+  redactOptions,
+  redactRequest
 } from './debug-logger';
 import { loadOptions } from './load-options';
 import { CLERK_LOCALS, clerkLocals } from './locals';
@@ -152,7 +153,7 @@ export const clerkMiddleware = (
       logger.debug('options', () =>
         redactOptions({ ...loadedOptions, ...middlewareOptions })
       );
-      logger.debug('url', () => clerkRequest.toJSON());
+      logger.debug('url', () => redactRequest(clerkRequest));
 
       // A Frontend API request goes to Clerk as it is, before authenticating:
       // it carries the browser's own credentials for Clerk.

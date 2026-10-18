@@ -1,3 +1,5 @@
+import type { ClerkRequest } from '@clerk/backend/internal';
+
 type Entry = string | Record<string, unknown>;
 
 /**
@@ -70,4 +72,47 @@ export const redactHeaders = (headers: Headers) => {
     result['set-cookie'] = cookies.map((cookie) => `${cookie.split('=')[0]}=…`);
   }
   return result;
+};
+
+/** Names only, from a Cookie header. */
+const cookieNames = (cookie: string) =>
+  cookie
+    .split(';')
+    .map((part) => part.trim().split('=')[0])
+    .filter(Boolean)
+    .map((name) => `${name}=…`)
+    .join('; ');
+
+/**
+ * The URL with the values of Clerk's own query parameters (`__clerk_*` and
+ * `__dev_*`) cut out: they carry handshake, dev-browser and sign-in tokens.
+ */
+const redactUrl = (url: URL) => {
+  const redacted = new URL(url);
+  for (const name of [...redacted.searchParams.keys()]) {
+    if (name.startsWith('__clerk') || name.startsWith('__dev')) {
+      redacted.searchParams.set(name, '…');
+    }
+  }
+  return redacted.toString();
+};
+
+/**
+ * The request as `ClerkRequest.toJSON()` describes it, without credentials:
+ * cookies by name, the Authorization scheme only, and Clerk's tokens cut
+ * out of the URL. `toJSON()` itself includes them all.
+ */
+export const redactRequest = (request: ClerkRequest) => {
+  const headers: Record<string, string> = {};
+  request.headers.forEach((value, key) => {
+    if (key === 'cookie') headers[key] = cookieNames(value);
+    else if (key === 'authorization') headers[key] = `${value.split(' ')[0]} …`;
+    else headers[key] = value;
+  });
+  return {
+    url: redactUrl(request.clerkUrl),
+    method: request.method,
+    headers,
+    cookies: [...request.cookies.keys()]
+  };
 };
