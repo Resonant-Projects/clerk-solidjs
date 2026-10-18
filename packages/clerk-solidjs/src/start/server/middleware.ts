@@ -16,8 +16,8 @@ import { clerkClient } from './clerk-client';
 import { createContentSecurityPolicyHeaders } from './content-security-policy';
 import {
   createDebugLogger,
+  redactConfig,
   redactHeaders,
-  redactOptions,
   redactRequest
 } from './debug-logger';
 import { loadOptions } from './load-options';
@@ -54,12 +54,46 @@ const REPLACED_HEADERS = new Set([
   constants.Headers.ReportingEndpoints.toLowerCase()
 ]);
 
+const REPORTING_ENDPOINTS = constants.Headers.ReportingEndpoints.toLowerCase();
+
+/** The `name="url"` members of a Reporting-Endpoints dictionary. */
+const reportingEndpoints = (value: string) =>
+  (value.match(/(?:[^,"]|"(?:\\.|[^"\\])*")+/g) ?? [])
+    .map((member) => member.trim())
+    .filter(Boolean);
+
+const endpointName = (member: string) =>
+  member.split('=')[0].trim().toLowerCase();
+
+/**
+ * Sets a replaced header. Reporting-Endpoints names several groups, so the
+ * route's other groups stay and only Clerk's own are replaced.
+ */
+const setReplacedHeader = (target: Headers, key: string, value: string) => {
+  const existing = target.get(key);
+  if (key !== REPORTING_ENDPOINTS || existing === null) {
+    target.set(key, value);
+    return;
+  }
+  const ours = reportingEndpoints(value);
+  const names = new Set(ours.map(endpointName));
+  target.set(
+    key,
+    [
+      ...reportingEndpoints(existing).filter(
+        (member) => !names.has(endpointName(member))
+      ),
+      ...ours
+    ].join(', ')
+  );
+};
+
 const appendHeaders = (target: Headers, headers: Headers) => {
   // Append, so several Set-Cookie headers survive. A second CSP would be
   // enforced as well as the first, so Clerk's replaces the route's.
   headers.forEach((value, key) =>
     REPLACED_HEADERS.has(key)
-      ? target.set(key, value)
+      ? setReplacedHeader(target, key, value)
       : target.append(key, value)
   );
 };
@@ -84,8 +118,10 @@ const replaceStagedPolicy = (res: H3EventLike['res'], headers: Headers) => {
   for (const key of REPLACED_HEADERS) {
     const value = headers.get(key);
     if (value === null) continue;
-    if (res?.headers?.has(key)) res.headers.set(key, value);
-    if (res?.errHeaders?.has(key)) res.errHeaders.set(key, value);
+    if (res?.headers?.has(key)) setReplacedHeader(res.headers, key, value);
+    if (res?.errHeaders?.has(key)) {
+      setReplacedHeader(res.errHeaders, key, value);
+    }
   }
 };
 
@@ -165,7 +201,7 @@ export const clerkMiddleware = (
       );
       const { contentSecurityPolicy, frontendApiProxyPath } = middlewareOptions;
       logger.debug('options', () =>
-        redactOptions({ ...loadedOptions, ...middlewareOptions })
+        redactConfig({ ...loadedOptions, ...middlewareOptions })
       );
       logger.debug('url', () => redactRequest(clerkRequest));
 
@@ -243,7 +279,7 @@ export const clerkMiddleware = (
         sessionId: sessionAuth.sessionId,
         orgId: sessionAuth.orgId ?? null,
         tokenType: sessionAuth.tokenType,
-        debug: sessionAuth.debug()
+        debug: redactConfig(sessionAuth.debug())
       }));
 
       const headers = new Headers(requestState.headers);
