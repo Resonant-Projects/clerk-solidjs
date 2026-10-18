@@ -15,7 +15,6 @@ import {
   Component,
   createEffect,
   createMemo,
-  createSignal,
   on,
   onCleanup,
   onMount,
@@ -97,43 +96,52 @@ const isOpenProps = (props: any): props is OpenProps => {
 };
 
 const Portal: Component<MountProps | OpenProps> = (props) => {
-  const [portalRef, setPortalRef] = createSignal<HTMLDivElement>();
+  let node: HTMLDivElement | undefined;
+  let mounted = false;
 
-  const componentProps = () => props.props;
-
-  createEffect(() => {
-    const ref = portalRef();
-    if (ref && isMountProps(props)) {
-      props.updateProps({
-        node: ref,
-        props: componentProps()
-      });
-    }
-  });
+  // Spreading reads every key, so this re-runs when any prop changes, whether
+  // the caller passes a splitProps proxy or an object literal. Clerk keeps the
+  // object it is given, so it gets a plain copy rather than a live Solid proxy.
+  const snapshot = createMemo(() => ({ ...props.props }));
 
   onMount(() => {
-    const ref = portalRef();
-    if (ref) {
-      if (isMountProps(props)) {
-        props.mount(ref, componentProps());
-      } else if (isOpenProps(props)) {
-        props.open(componentProps());
-      }
+    if (!node) return;
+    if (isMountProps(props)) {
+      props.mount(node, untrack(snapshot));
+    } else if (isOpenProps(props)) {
+      props.open(untrack(snapshot));
     }
+    mounted = true;
   });
+
+  createEffect(
+    on(
+      snapshot,
+      (current) => {
+        if (mounted && node && isMountProps(props)) {
+          void props.updateProps({ node, props: current });
+        }
+      },
+      { defer: true }
+    )
+  );
 
   onCleanup(() => {
-    const ref = portalRef();
-    if (ref) {
-      if (isMountProps(props)) {
-        props.unmount(ref);
-      } else if (isOpenProps(props)) {
-        props.close();
-      }
+    if (!mounted || !node) return;
+    if (isMountProps(props)) {
+      props.unmount(node);
+    } else if (isOpenProps(props)) {
+      props.close();
     }
   });
 
-  return <div ref={setPortalRef} />;
+  return (
+    <div
+      ref={(el) => {
+        node = el;
+      }}
+    />
+  );
 };
 
 export const SignIn = withClerk((props: WithClerkProp<SignInProps>) => {
@@ -143,7 +151,7 @@ export const SignIn = withClerk((props: WithClerkProp<SignInProps>) => {
       mount={local.clerk().mountSignIn}
       unmount={local.clerk().unmountSignIn}
       updateProps={
-        (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
+        (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
       }
       props={rest}
     />
@@ -157,7 +165,7 @@ export const Waitlist = withClerk((props: WithClerkProp<SignInProps>) => {
       mount={local.clerk().mountWaitlist}
       unmount={local.clerk().unmountWaitlist}
       updateProps={
-        (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
+        (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
       }
       props={rest}
     />
@@ -171,7 +179,7 @@ export const SignUp = withClerk((props: WithClerkProp<SignUpProps>) => {
       mount={local.clerk().mountSignUp}
       unmount={local.clerk().unmountSignUp}
       updateProps={
-        (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
+        (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
       }
       props={rest}
     />
@@ -199,8 +207,7 @@ const _UserProfile = withClerk(
           mount={local.clerk().mountUserProfile}
           unmount={local.clerk().unmountUserProfile}
           updateProps={
-            (local.clerk() as unknown as IsomorphicClerk)
-              .__unstable__updateProps
+            (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
           }
           props={{ ...clerkProps, customPages: pages().customPages }}
         />
@@ -238,8 +245,7 @@ const _UserButton = withClerk(
           mount={local.clerk().mountUserButton}
           unmount={local.clerk().unmountUserButton}
           updateProps={
-            (local.clerk() as unknown as IsomorphicClerk)
-              .__unstable__updateProps
+            (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
           }
           props={{
             ...clerkProps,
@@ -290,8 +296,7 @@ const _OrganizationProfile = withClerk(
           mount={local.clerk().mountOrganizationProfile}
           unmount={local.clerk().unmountOrganizationProfile}
           updateProps={
-            (local.clerk() as unknown as IsomorphicClerk)
-              .__unstable__updateProps
+            (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
           }
           props={{ ...clerkProps, customPages: pages().customPages }}
         />
@@ -318,7 +323,7 @@ export const CreateOrganization = withClerk(
         mount={local.clerk().mountCreateOrganization}
         unmount={local.clerk().unmountCreateOrganization}
         updateProps={
-          (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
         }
         props={rest}
       />
@@ -350,8 +355,7 @@ const _OrganizationSwitcher = withClerk(
           mount={local.clerk().mountOrganizationSwitcher}
           unmount={local.clerk().unmountOrganizationSwitcher}
           updateProps={
-            (local.clerk() as unknown as IsomorphicClerk)
-              .__unstable__updateProps
+            (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
           }
           props={{
             ...clerkProps,
@@ -382,7 +386,7 @@ export const OrganizationList = withClerk(
         mount={local.clerk().mountOrganizationList}
         unmount={local.clerk().unmountOrganizationList}
         updateProps={
-          (local.clerk() as unknown as IsomorphicClerk).__unstable__updateProps
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
         }
         props={rest}
       />

@@ -157,6 +157,26 @@ export default function MyComponent() {
 }
 ```
 
+### Signed-in state and authorization
+
+`useAuth()` follows Clerk Core 3. A session that still has tasks to finish, such
+as choosing an organization or setting up MFA, counts as signed out. Pass
+`treatPendingAsSignedOut: false` to `useAuth`, `<SignedIn>`, `<SignedOut>` or
+`<Protect>` to treat it as signed in instead. `useSession().isSignedIn()` is
+`false` for such a session, while `session()` still returns it, as in
+`@clerk/react`.
+
+`has()` checks roles, permissions, features, plans and reverification together,
+and returns `false` for anything it cannot confirm. Call it inside JSX or a memo
+to keep it reactive.
+
+```tsx
+const { isSignedIn, has } = useAuth();
+const canManageMembers = () =>
+  has({ permission: 'org:sys_memberships:manage' });
+const isPro = () => has({ plan: 'pro' });
+```
+
 ### Custom menu items and pages
 
 The components take the same children as `@clerk/react`. Icons and page bodies render

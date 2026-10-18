@@ -1,4 +1,8 @@
-import type { CustomMenuItem, CustomPage } from '@clerk/shared/types';
+import type {
+  CustomMenuItem,
+  CustomPage,
+  LoadedClerk
+} from '@clerk/shared/types';
 import { render } from '@solidjs/testing-library';
 import {
   createContext,
@@ -16,19 +20,21 @@ import {
   UserProfileModal
 } from '..';
 import { ClerkInstanceContextProvider } from '../../contexts/clerk-instance';
+import type { ClerkJSInternals } from '../../types';
 
-const createFakeClerk = () => ({
-  loaded: true,
-  mountUserButton: vi.fn(),
-  unmountUserButton: vi.fn(),
-  mountUserProfile: vi.fn(),
-  unmountUserProfile: vi.fn(),
-  mountOrganizationSwitcher: vi.fn(),
-  unmountOrganizationSwitcher: vi.fn(),
-  openUserProfile: vi.fn(),
-  closeUserProfile: vi.fn(),
-  __unstable__updateProps: vi.fn()
-});
+const createFakeClerk = () =>
+  ({
+    loaded: true,
+    mountUserButton: vi.fn(),
+    unmountUserButton: vi.fn(),
+    mountUserProfile: vi.fn(),
+    unmountUserProfile: vi.fn(),
+    mountOrganizationSwitcher: vi.fn(),
+    unmountOrganizationSwitcher: vi.fn(),
+    openUserProfile: vi.fn(),
+    closeUserProfile: vi.fn(),
+    __internal_updateProps: vi.fn()
+  }) satisfies Partial<LoadedClerk & ClerkJSInternals>;
 
 type FakeClerk = ReturnType<typeof createFakeClerk>;
 
@@ -41,7 +47,7 @@ const renderWithClerk = (clerk: FakeClerk, ui: () => JSX.Element) =>
 
 /** Props from the latest mount or updateProps call. */
 const latestProps = (clerk: FakeClerk, mount: keyof FakeClerk) => {
-  const updates = clerk.__unstable__updateProps.mock.calls;
+  const updates = clerk.__internal_updateProps.mock.calls;
   if (updates.length) {
     return updates[updates.length - 1]![0].props;
   }

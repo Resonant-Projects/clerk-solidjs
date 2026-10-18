@@ -18,6 +18,8 @@ import type {
   CreateOrganizationParams,
   CreateOrganizationProps,
   DomainOrProxyUrl,
+  EnvironmentJSON,
+  EnvironmentResource,
   GoogleOneTapProps,
   HandleEmailLinkVerificationParams,
   HandleOAuthCallbackParams,
@@ -42,13 +44,14 @@ import type {
   WaitlistProps,
   WaitlistResource
 } from '@clerk/shared/types';
-import { handleValueOrFn } from '@clerk/shared/utils';
+import { handleValueOrFn, logErrorInDevMode } from '@clerk/shared/utils';
 
 import { errorThrower } from './errors/error-thrower';
 import { unsupportedNonBrowserDomainOrProxyUrlFunction } from './errors/messages';
 import type {
   BrowserClerk,
   BrowserClerkConstructor,
+  ClerkJSInternals,
   ClerkProp,
   HeadlessBrowserClerk,
   HeadlessBrowserClerkConstructor,
@@ -594,6 +597,18 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       clerkjs.mountUserButton(node, props);
     });
 
+    this.premountOrganizationProfileNodes.forEach((props, node) => {
+      clerkjs.mountOrganizationProfile(node, props);
+    });
+
+    this.premountCreateOrganizationNodes.forEach((props, node) => {
+      clerkjs.mountCreateOrganization(node, props);
+    });
+
+    this.premountOrganizationSwitcherNodes.forEach((props, node) => {
+      clerkjs.mountOrganizationSwitcher(node, props);
+    });
+
     this.premountOrganizationListNodes.forEach((props, node) => {
       clerkjs.mountOrganizationList(node, props);
     });
@@ -656,13 +671,13 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     }
   }
 
-  get __unstable__environment(): any {
-    if (this.clerkjs) {
-      return (this.clerkjs as any).__unstable__environment;
-      // TODO: add ssr condition
-    } else {
-      return undefined;
-    }
+  get __internal_environment(): EnvironmentResource | null | undefined {
+    return this.#clerkjsInternals?.__internal_environment;
+  }
+
+  /** @deprecated Use `__internal_environment`. Removed in 4.0. */
+  get __unstable__environment(): EnvironmentResource | null | undefined {
+    return this.__internal_environment;
   }
 
   get isSignedIn(): boolean {
@@ -677,21 +692,44 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     return (this.clerkjs as any)?.__experimental_commerce;
   }
 
-  __unstable__setEnvironment(...args: any): void {
-    if (this.clerkjs && '__unstable__setEnvironment' in this.clerkjs) {
-      (this.clerkjs as any).__unstable__setEnvironment(args);
-    } else {
-      return undefined;
-    }
-  }
+  __internal_setEnvironment = (
+    env: EnvironmentJSON
+  ): Promise<void> | undefined => {
+    return this.#clerkjsInternals?.__internal_setEnvironment?.(env);
+  };
 
-  __unstable__updateProps = async (props: any): Promise<void> => {
-    const clerkjs = await this.#waitForClerkJS();
-    // Handle case where accounts has clerk-react@4 installed, but clerk-js@3 is manually loaded
-    if (clerkjs && '__unstable__updateProps' in clerkjs) {
-      return (clerkjs as any).__unstable__updateProps(props);
+  /** @deprecated Use `__internal_setEnvironment`. Removed in 4.0. */
+  __unstable__setEnvironment = (env: EnvironmentJSON) =>
+    this.__internal_setEnvironment(env);
+
+  /**
+   * Sends new props to a mounted component (`{ node, props }`) or new
+   * `appearance`/`options` to clerk-js. Waits until clerk-js has loaded.
+   */
+  __internal_updateProps = async (props: any): Promise<void> => {
+    await this.#waitForClerkJS();
+    const updateProps = this.#clerkjsInternals?.__internal_updateProps;
+    if (typeof updateProps === 'function') {
+      return updateProps(props);
+    }
+    // A clerk-js without this method would drop every prop change silently.
+    if (!this.#warnedMissingUpdateProps) {
+      this.#warnedMissingUpdateProps = true;
+      logErrorInDevMode(
+        `${PACKAGE_NAME}: the loaded clerk-js has no __internal_updateProps, so prop changes cannot reach Clerk's components. Load clerk-js 6 or later.`
+      );
     }
   };
+
+  /** @deprecated Use `__internal_updateProps`. Removed in 4.0. */
+  __unstable__updateProps = (props: any): Promise<void> =>
+    this.__internal_updateProps(props);
+
+  #warnedMissingUpdateProps = false;
+
+  get #clerkjsInternals(): Partial<ClerkJSInternals> | null {
+    return this.clerkjs as Partial<ClerkJSInternals> | null;
+  }
 
   __experimental_nextTask = async (params?: NextTaskParams): Promise<void> => {
     const nextTask = (this.clerkjs as any)?.__experimental_nextTask;

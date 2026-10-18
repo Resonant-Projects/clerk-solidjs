@@ -5,8 +5,8 @@
  * We are solving this in the SDK level to reduce setup steps.
  */
 if (typeof window !== 'undefined' && !window.global) {
-  // @ts-ignore
-  window.global = typeof global === 'undefined' ? window : global;
+  (window as Window & { global?: typeof globalThis }).global =
+    typeof global === 'undefined' ? window : global;
 }
 
 export {};

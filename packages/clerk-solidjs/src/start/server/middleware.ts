@@ -36,13 +36,19 @@ import { getResponseClerkState } from './utils';
 export const clerkMiddleware = (
   options: LoaderOptions = {}
 ): RequestMiddleware => {
-  return async ({ request, locals }) => {
+  return async ({ request, response, locals }) => {
     try {
       const loadedOptions = loadOptions(request, options);
       const requestState = await authenticateRequest(request, loadedOptions);
       const state = getResponseClerkState(requestState, loadedOptions);
       locals.auth = stripPrivateDataFromObject(requestState.toAuth());
       locals.clerkInitialState = state.clerkInitialState;
+      // Session refreshes and production handshakes set cookies without a
+      // redirect, and every response carries x-clerk-auth-* diagnostics.
+      // Append, so several Set-Cookie headers survive.
+      state.headers.forEach((value, key) => {
+        response.headers.append(key, value);
+      });
     } catch (error) {
       if (error instanceof Response) {
         return error;
