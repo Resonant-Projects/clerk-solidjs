@@ -27,6 +27,7 @@ import type {
   HandleOAuthCallbackParams,
   JoinWaitlistParams,
   ListenerCallback,
+  LoadedClerk,
   OrganizationListProps,
   OrganizationProfileProps,
   OrganizationResource,
@@ -45,7 +46,8 @@ import type {
   UserButtonProps,
   UserProfileProps,
   WaitlistProps,
-  WaitlistResource
+  WaitlistResource,
+  Without
 } from '@clerk/shared/types';
 import { handleValueOrFn, logErrorInDevMode } from '@clerk/shared/utils';
 
@@ -85,11 +87,99 @@ type MethodName<T> = {
 
 type MethodCallback = () => Promise<unknown> | unknown;
 
-type IsomorphicLoadedClerk = {
-  client: ClientResource | undefined;
+type WithVoidReturn<F extends (...args: any) => any> = (
+  ...args: Parameters<F>
+) => ReturnType<F> extends Promise<infer T>
+  ? Promise<T | void>
+  : ReturnType<F> | void;
+type WithVoidReturnFunctions<T> = {
+  [K in keyof T]: T[K] extends (...args: any) => any
+    ? WithVoidReturn<T[K]>
+    : T[K];
 };
 
-type NextTaskParams = unknown;
+/**
+ * `LoadedClerk` members IsomorphicClerk does not forward yet, by the
+ * hill-climb feature that adds them. Every other member must exist, so a
+ * member Clerk adds upstream is a type error until it is ported or listed.
+ */
+type NotYetSupported =
+  // F24: Core 3 signal hooks.
+  | '__internal_state'
+  // F26: session tasks.
+  | 'buildTasksUrl'
+  | 'redirectToTasks'
+  | 'mountTaskChooseOrganization'
+  | 'unmountTaskChooseOrganization'
+  | 'mountTaskResetPassword'
+  | 'unmountTaskResetPassword'
+  | 'mountTaskSetupMFA'
+  | 'unmountTaskSetupMFA'
+  // F27: SSO callback and bot protection.
+  | 'setProtectAssertion'
+  | '__internal_handleResourceCallback'
+  | '__internal_resolvePendingProtectCheck'
+  | '__internal_resumeAfterProtectCheck'
+  | '__internal_protectChallengeLoadTimeoutMs'
+  // F28: remaining instance members.
+  | 'authenticateWithBase'
+  | 'authenticateWithSolana'
+  | 'uiVersion'
+  | '__internal_windowNavigate'
+  | '__internal_moduleManager'
+  | '__internal_lastEmittedResources'
+  | '__internal_hasOAuthTransport'
+  | '__internal_oauthTransport'
+  | '__internal_country'
+  | 'openInviteMembers'
+  | 'closeInviteMembers'
+  | '__internal_attemptToEnableEnvironmentSetting'
+  | '__internal_openEnableOrganizationsPrompt'
+  | '__internal_closeEnableOrganizationsPrompt'
+  | '__internal_mountConfigureSSO'
+  | '__internal_unmountConfigureSSO'
+  | '__internal_mountConfigureDirectorySync'
+  | '__internal_unmountConfigureDirectorySync'
+  // F30, F31, F32: APIKeys, UserAvatar, OAuthConsent and device verification.
+  | 'mountAPIKeys'
+  | 'unmountAPIKeys'
+  | 'mountUserAvatar'
+  | 'unmountUserAvatar'
+  | 'mountOAuthConsent'
+  | 'unmountOAuthConsent'
+  | '__internal_mountOAuthConsent'
+  | '__internal_unmountOAuthConsent'
+  | '__internal_mountOAuthDeviceVerification'
+  | '__internal_unmountOAuthDeviceVerification'
+  // F37 to F40: billing.
+  | '__experimental_checkout'
+  | '__internal_openCheckout'
+  | '__internal_closeCheckout'
+  | '__internal_openPlanDetails'
+  | '__internal_closePlanDetails'
+  | '__internal_openSubscriptionDetails'
+  | '__internal_closeSubscriptionDetails'
+  | 'buildNewSubscriptionRedirectUrl'
+  | '__internal_loadStripeJs';
+
+/**
+ * @clerk/react's contract: every `LoadedClerk` member, with methods allowed
+ * to return nothing while clerk-js loads.
+ */
+type IsomorphicLoadedClerk = Without<
+  WithVoidReturnFunctions<LoadedClerk>,
+  | 'client'
+  | '__internal_addNavigationListener'
+  | '__internal_getCachedResources'
+  | '__internal_reloadInitialResources'
+  | 'billing'
+  | 'apiKeys'
+  | 'oauthApplication'
+  | '__internal_setActiveInProgress'
+  | NotYetSupported
+> & {
+  client: ClientResource | undefined;
+};
 
 export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private readonly mode: 'browser' | 'server';
@@ -748,10 +838,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     }
   }
 
-  get __experimental_commerce(): unknown | undefined {
-    return (this.clerkjs as any)?.__experimental_commerce;
-  }
-
   __internal_setEnvironment = (
     env: EnvironmentJSON
   ): Promise<void> | undefined => {
@@ -790,15 +876,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   get #clerkjsInternals(): Partial<ClerkJSInternals> | null {
     return this.clerkjs as Partial<ClerkJSInternals> | null;
   }
-
-  __experimental_nextTask = async (params?: NextTaskParams): Promise<void> => {
-    const nextTask = (this.clerkjs as any)?.__experimental_nextTask;
-    if (nextTask) {
-      return nextTask(params);
-    } else {
-      return Promise.reject();
-    }
-  };
 
   /**
    * `setActive` can be used to set the active session and/or organization.
@@ -972,10 +1049,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       this.premountPricingTableNodes.delete(node);
     }
   };
-
-  __experimental_mountPricingTable = this.mountPricingTable;
-
-  __experimental_unmountPricingTable = this.unmountPricingTable;
 
   mountSignUp = (node: HTMLDivElement, props?: SignUpProps) => {
     if (this.clerkjs && this.#loaded) {
