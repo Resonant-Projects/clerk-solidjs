@@ -774,11 +774,14 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     // `notify` hands them its current value. This runs after `loaded` is set,
     // so a listener that sees `'ready'` can use this instance right away.
     if (typeof clerkjs.on === 'function') {
-      // A copy: the bus returns its live array, and a listener that calls
-      // off() while being notified would otherwise make this skip the next.
-      [
-        ...(this.#eventBus.internal.retrieveListeners(clerkEvents.Status) ?? [])
-      ].forEach((listener) => {
+      // The bus returns its live array, which off() splices. Walk a copy, so
+      // a listener removing itself does not make this skip the next one, and
+      // skip any listener an earlier notification has removed (a disposed
+      // <ClerkLoading>, say), so it is not subscribed again.
+      const live =
+        this.#eventBus.internal.retrieveListeners(clerkEvents.Status) ?? [];
+      [...live].forEach((listener) => {
+        if (!live.includes(listener)) return;
         clerkjs.on(clerkEvents.Status, listener, { notify: true });
       });
     }

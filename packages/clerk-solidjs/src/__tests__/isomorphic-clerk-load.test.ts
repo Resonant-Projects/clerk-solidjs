@@ -271,6 +271,43 @@ describe('IsomorphicClerk Core 3 loading', () => {
     expect(second).toHaveBeenCalledWith('ready');
   });
 
+  it('does not hand over a listener that an earlier notification removed', async () => {
+    const withStatus = Object.assign(clerkJS, {
+      status: 'loading' as ClerkStatus,
+      on: vi.fn(
+        (
+          _event: 'status',
+          handler: (status: ClerkStatus) => void,
+          opts?: { notify?: boolean }
+        ) => {
+          if (opts?.notify) handler(withStatus.status);
+        }
+      ),
+      off: vi.fn()
+    });
+    clerkJS.load.mockImplementation(async () => {
+      clerkJS.loaded = true;
+      withStatus.status = 'ready';
+    });
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: withStatus as any
+    });
+    const later = vi.fn();
+    // Like the provider disposing a subtree whose cleanup unsubscribes.
+    const first = (status: ClerkStatus) => {
+      if (status === 'ready') isomorphicClerk.off('status', later);
+    };
+    isomorphicClerk.on('status', first);
+    isomorphicClerk.on('status', later);
+    await loadedClerk(isomorphicClerk);
+
+    expect(later).not.toHaveBeenCalled();
+    expect(withStatus.on).not.toHaveBeenCalledWith('status', later, {
+      notify: true
+    });
+  });
+
   it('reports ready for a clerk-js without a status of its own', async () => {
     const isomorphicClerk = new IsomorphicClerk({
       publishableKey: 'pk_test_XXX',
