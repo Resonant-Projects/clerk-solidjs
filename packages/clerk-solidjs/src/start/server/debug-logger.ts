@@ -3,6 +3,20 @@ import type { ClerkRequest } from '@clerk/backend/internal';
 type Entry = string | Record<string, unknown>;
 
 /**
+ * The last pass over every line logged, whatever it came from: the value of
+ * any `__clerk*` or `__dev*` parameter, plain or percent-encoded, and
+ * anything shaped like a JWT, are cut. The redactors below handle the known
+ * places; this catches tokens anywhere else, such as in a Link header.
+ */
+const scrub = (output: string) =>
+  output
+    .replace(
+      /((?:__|%5F%5F)(?:clerk|dev)[A-Za-z0-9_%]*=)[^&#\s;,"'<>\\]+/gi,
+      '$1…'
+    )
+    .replace(/eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, 'eyJ…');
+
+/**
  * Collects a request's debug entries and logs them together, between a
  * start and an end line, as `@clerk/nextjs`'s debug logger does. Entries are
  * computed only when enabled.
@@ -30,7 +44,7 @@ export const createDebugLogger = (name: string, enabled: boolean) => {
         // One call per entry, so hosts that cap a log line's size (Vercel and
         // Netlify at 4 KB) keep the rest.
         console.log(
-          output
+          scrub(output)
             .split('\n')
             .map((line) => `  ${line}`)
             .join('\n')

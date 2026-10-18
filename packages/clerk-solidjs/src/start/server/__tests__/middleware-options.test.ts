@@ -389,6 +389,9 @@ describe('debug', () => {
             referer:
               'http://localhost:3000/sign-in?__clerk_ticket=tkt_impersonationticket&x=2',
             'x-forwarded-uri': '/accept?__clerk_ticket=tkt_forwardedticket',
+            link: '<http://localhost:3000/x?__clerk_ticket=tkt_linkticket>; rel=preload',
+            'x-custom-token':
+              'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyXzEifQ.c2lnbmF0dXJlc2VjcmV0',
             'x-network-path':
               '//app.example.com/accept?__clerk_ticket=tkt_networkpathticket',
             'x-original-url':
@@ -410,19 +413,19 @@ describe('debug', () => {
       'tkt_forwardedticket',
       'tkt_encodedticket',
       'tkt_hashticket',
-      'tkt_networkpathticket'
+      'tkt_networkpathticket',
+      'tkt_linkticket',
+      'c2lnbmF0dXJlc2VjcmV0'
     ]) {
       expect(output).not.toContain(secret);
     }
     expect(output).toContain('Bearer …');
     expect(output).toContain('__session=…; __client_uat=…; theme=…');
-    expect(output).toContain('__clerk_db_jwt=%E2%80%A6');
+    expect(output).toContain('__clerk_db_jwt=…');
     expect(output).toContain('tab=1');
-    expect(output).toContain('/sign-in?__clerk_ticket=%E2%80%A6&x=2');
-    expect(output).toContain('/accept?__clerk_ticket=%E2%80%A6');
-    expect(output).toContain(
-      '//app.example.com/accept?__clerk_ticket=%E2%80%A6'
-    );
+    expect(output).toContain('/sign-in?__clerk_ticket=…&x=2');
+    expect(output).toContain('/accept?__clerk_ticket=…');
+    expect(output).toContain('//app.example.com/accept?__clerk_ticket=…');
   });
 
   it("cuts Clerk's tokens out of a handshake redirect's Location", async () => {
