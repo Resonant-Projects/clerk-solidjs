@@ -1,9 +1,10 @@
 import { eventMethodCalled } from '@clerk/shared/telemetry';
-import { createEffect, createMemo } from 'solid-js';
+import { createMemo } from 'solid-js';
 import { useClientContext } from '../contexts/client';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { IsomorphicClerk } from '../isomorphic-clerk';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
+import { recordTelemetryOnce } from './utils';
 
 export const useSignUp = () => {
   useAssertWrappedByClerkProvider('useSignUp');
@@ -11,9 +12,7 @@ export const useSignUp = () => {
   const isomorphicClerk = useIsomorphicClerkContext();
   const client = useClientContext();
 
-  createEffect(() => {
-    isomorphicClerk().telemetry?.record(eventMethodCalled('useSignUp'));
-  });
+  recordTelemetryOnce(isomorphicClerk, () => eventMethodCalled('useSignUp'));
 
   const isLoaded = createMemo(() => !!client());
   const signUp = createMemo(() => client()?.signUp);

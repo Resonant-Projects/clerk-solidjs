@@ -1,7 +1,11 @@
 import { inBrowser } from '@clerk/shared/browser';
 import { ClerkRuntimeError } from '@clerk/shared/error';
-import type { ClerkStatus } from '@clerk/shared/types';
-import { Accessor } from 'solid-js';
+import type {
+  ClerkStatus,
+  TelemetryCollector,
+  TelemetryEventRaw
+} from '@clerk/shared/types';
+import { Accessor, createEffect, untrack } from 'solid-js';
 import type { IsomorphicClerk } from '../isomorphic-clerk';
 
 /**
@@ -54,4 +58,24 @@ export const createSignOut = (isomorphicClerk: Accessor<IsomorphicClerk>) => {
     await clerkLoaded(clerk);
     return clerk.signOut(...args);
   };
+};
+
+/**
+ * Records a hook's telemetry event once, as soon as clerk-js provides a
+ * collector. Status changes after that do not record it again.
+ *
+ * @internal
+ */
+export const recordTelemetryOnce = (
+  clerk: Accessor<{ telemetry?: TelemetryCollector }>,
+  event: () => TelemetryEventRaw
+) => {
+  let recorded = false;
+  createEffect(() => {
+    if (recorded) return;
+    const telemetry = clerk().telemetry;
+    if (!telemetry) return;
+    recorded = true;
+    telemetry.record(untrack(event));
+  });
 };

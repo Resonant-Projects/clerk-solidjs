@@ -7,7 +7,7 @@ import type {
   OrganizationSuggestionResource,
   UserOrganizationInvitationResource
 } from '@clerk/shared/types';
-import { Accessor, createEffect, createMemo, on } from 'solid-js';
+import { Accessor, createMemo } from 'solid-js';
 import { useClerkInstanceContext } from '../contexts/clerk-instance';
 import { useUserContext } from '../contexts/user';
 import { IsomorphicClerk } from '../isomorphic-clerk';
@@ -15,6 +15,7 @@ import { createCacheKeys, STABLE_KEYS } from '../query/keys';
 import type { PaginatedHookConfig } from '../types';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
 import { createSafeValues, usePagesOrInfinite } from './use-pages-or-infinite';
+import { recordTelemetryOnce } from './utils';
 
 type UseOrganizationListParams = {
   userMemberships?:
@@ -38,12 +39,7 @@ export const useOrganizationList = (
   const clerk = useClerkInstanceContext();
   const user = useUserContext();
 
-  createEffect(
-    on(
-      () => clerk().telemetry,
-      (telemetry) => telemetry?.record(eventMethodCalled('useOrganizationList'))
-    )
-  );
+  recordTelemetryOnce(clerk, () => eventMethodCalled('useOrganizationList'));
 
   const listParams =
     <K extends keyof UseOrganizationListParams>(key: K) =>
