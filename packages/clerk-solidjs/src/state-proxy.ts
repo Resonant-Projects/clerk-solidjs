@@ -1,0 +1,515 @@
+import { inBrowser } from '@clerk/shared/browser';
+import type {
+  SignInErrors,
+  SignUpErrors,
+  SignUpVerificationResource,
+  State,
+  VerificationResource,
+  WaitlistErrors,
+  WaitlistResource
+} from '@clerk/shared/types';
+
+import { errorThrower } from './errors/error-thrower';
+import type { IsomorphicClerk } from './isomorphic-clerk';
+
+const defaultSignInErrors = (): SignInErrors => ({
+  fields: {
+    identifier: null,
+    password: null,
+    code: null
+  },
+  raw: null,
+  global: null
+});
+
+const defaultSignUpErrors = (): SignUpErrors => ({
+  fields: {
+    firstName: null,
+    lastName: null,
+    emailAddress: null,
+    phoneNumber: null,
+    password: null,
+    username: null,
+    code: null,
+    captcha: null,
+    legalAccepted: null
+  },
+  raw: null,
+  global: null
+});
+
+const defaultWaitlistErrors = (): WaitlistErrors => ({
+  fields: {
+    emailAddress: null
+  },
+  raw: null,
+  global: null
+});
+
+const defaultVerificationResource = (): VerificationResource => ({
+  pathRoot: '',
+
+  attempts: null,
+  error: null,
+  expireAt: null,
+  externalVerificationRedirectURL: null,
+  nonce: null,
+  message: null,
+  status: null,
+  strategy: null,
+  verifiedAtClient: null,
+  verifiedFromTheSameClient() {
+    return false;
+  },
+  reload() {
+    throw new Error('reload() called before Clerk is loaded');
+  },
+  __internal_toSnapshot() {
+    return {
+      object: 'verification',
+      id: '',
+      attempts: null,
+      error: { code: '', message: '' },
+      expire_at: null,
+      externalVerificationRedirectURL: null,
+      nonce: null,
+      message: null,
+      status: null,
+      strategy: null,
+      verified_at_client: null
+    };
+  }
+});
+
+const defaultSignUpVerificationResource = (): SignUpVerificationResource => ({
+  ...defaultVerificationResource(),
+  supportedStrategies: [],
+  nextAction: '',
+  reload() {
+    throw new Error('reload() called before Clerk is loaded');
+  },
+  __internal_toSnapshot() {
+    return {
+      ...defaultVerificationResource().__internal_toSnapshot(),
+      next_action: this.nextAction,
+      supported_strategies: this.supportedStrategies
+    };
+  }
+});
+
+/**
+ * Ported from @clerk/react 6.17.8 (`src/stateProxy.ts`), without the
+ * checkout signal, which arrives with billing.
+ *
+ * `IsomorphicClerk.__internal_state` returns this until clerk-js has loaded,
+ * and always on the server. Its properties read as defaults until then, and
+ * its methods wait for clerk-js, so a form can call `signIn.create()` before
+ * Clerk has finished loading.
+ */
+export class StateProxy implements State {
+  constructor(private isomorphicClerk: IsomorphicClerk) {}
+
+  private readonly signInSignalProxy = this.buildSignInProxy();
+  private readonly signUpSignalProxy = this.buildSignUpProxy();
+  private readonly waitlistSignalProxy = this.buildWaitlistProxy();
+
+  signInSignal() {
+    return this.signInSignalProxy;
+  }
+  signUpSignal() {
+    return this.signUpSignalProxy;
+  }
+  waitlistSignal() {
+    return this.waitlistSignalProxy;
+  }
+
+  get __internal_waitlist() {
+    return this.state.__internal_waitlist;
+  }
+
+  private buildSignInProxy() {
+    const gateProperty = this.gateProperty.bind(this);
+    const target = () =>
+      this.state.signInSignal().signIn ?? this.client.signIn.__internal_future;
+
+    return {
+      errors: defaultSignInErrors(),
+      fetchStatus: 'idle' as const,
+      signIn: {
+        get status() {
+          return gateProperty(target, 'status', 'needs_identifier');
+        },
+        availableStrategies: [],
+        get isTransferable() {
+          return gateProperty(target, 'isTransferable', false);
+        },
+        get id() {
+          return gateProperty(target, 'id', undefined);
+        },
+        get timezone() {
+          return gateProperty(target, 'timezone', null);
+        },
+        get supportedFirstFactors() {
+          return gateProperty(target, 'supportedFirstFactors', []);
+        },
+        get ssoBypassFirstFactors() {
+          return gateProperty(target, 'ssoBypassFirstFactors', []);
+        },
+        get supportedSecondFactors() {
+          return gateProperty(target, 'supportedSecondFactors', []);
+        },
+        get secondFactorVerification() {
+          return gateProperty(target, 'secondFactorVerification', {
+            status: null,
+            error: null,
+            expireAt: null,
+            externalVerificationRedirectURL: null,
+            nonce: null,
+            attempts: null,
+            message: null,
+            strategy: null,
+            verifiedAtClient: null,
+            verifiedFromTheSameClient: () => false,
+            __internal_toSnapshot: () => {
+              throw new Error(
+                '__internal_toSnapshot called before Clerk is loaded'
+              );
+            },
+            pathRoot: '',
+            reload: () => {
+              throw new Error(
+                '__internal_toSnapshot called before Clerk is loaded'
+              );
+            }
+          });
+        },
+        get identifier() {
+          return gateProperty(target, 'identifier', null);
+        },
+        get createdSessionId() {
+          return gateProperty(target, 'createdSessionId', null);
+        },
+        get userData() {
+          return gateProperty(target, 'userData', {});
+        },
+        get firstFactorVerification() {
+          return gateProperty(target, 'firstFactorVerification', {
+            status: null,
+            error: null,
+            expireAt: null,
+            externalVerificationRedirectURL: null,
+            nonce: null,
+            attempts: null,
+            message: null,
+            strategy: null,
+            verifiedAtClient: null,
+            verifiedFromTheSameClient: () => false,
+            __internal_toSnapshot: () => {
+              throw new Error(
+                '__internal_toSnapshot called before Clerk is loaded'
+              );
+            },
+            pathRoot: '',
+            reload: () => {
+              throw new Error(
+                '__internal_toSnapshot called before Clerk is loaded'
+              );
+            }
+          });
+        },
+        get canBeDiscarded() {
+          return gateProperty(target, 'canBeDiscarded', false);
+        },
+        get protectCheck() {
+          return gateProperty(target, 'protectCheck', null);
+        },
+
+        create: this.gateMethod(target, 'create'),
+        password: this.gateMethod(target, 'password'),
+        sso: this.gateMethod(target, 'sso'),
+        finalize: this.gateMethod(target, 'finalize'),
+        reset: this.gateMethod(target, 'reset'),
+        submitProtectCheck: this.gateMethod(target, 'submitProtectCheck'),
+
+        emailCode: this.wrapMethods(() => target().emailCode, [
+          'sendCode',
+          'verifyCode'
+        ] as const),
+        emailLink: this.wrapStruct(
+          () => target().emailLink,
+          ['sendLink', 'waitForVerification'] as const,
+          ['verification'] as const,
+          { verification: null }
+        ),
+        resetPasswordEmailCode: this.wrapMethods(
+          () => target().resetPasswordEmailCode,
+          ['sendCode', 'verifyCode', 'submitPassword'] as const
+        ),
+        resetPasswordPhoneCode: this.wrapMethods(
+          () => target().resetPasswordPhoneCode,
+          ['sendCode', 'verifyCode', 'submitPassword'] as const
+        ),
+        phoneCode: this.wrapMethods(() => target().phoneCode, [
+          'sendCode',
+          'verifyCode'
+        ] as const),
+        mfa: this.wrapMethods(() => target().mfa, [
+          'sendPhoneCode',
+          'verifyPhoneCode',
+          'sendEmailCode',
+          'verifyEmailCode',
+          'verifyTOTP',
+          'verifyBackupCode'
+        ] as const),
+        ticket: this.gateMethod(target, 'ticket'),
+        passkey: this.gateMethod(target, 'passkey'),
+        web3: this.gateMethod(target, 'web3')
+      }
+    };
+  }
+
+  private buildSignUpProxy() {
+    const gateProperty = this.gateProperty.bind(this);
+    const gateMethod = this.gateMethod.bind(this);
+    const target = () =>
+      this.state.signUpSignal().signUp ?? this.client.signUp.__internal_future;
+
+    return {
+      errors: defaultSignUpErrors(),
+      fetchStatus: 'idle' as const,
+      signUp: {
+        get id() {
+          return gateProperty(target, 'id', undefined);
+        },
+        get timezone() {
+          return gateProperty(target, 'timezone', null);
+        },
+        get requiredFields() {
+          return gateProperty(target, 'requiredFields', []);
+        },
+        get optionalFields() {
+          return gateProperty(target, 'optionalFields', []);
+        },
+        get missingFields() {
+          return gateProperty(target, 'missingFields', []);
+        },
+        get username() {
+          return gateProperty(target, 'username', null);
+        },
+        get firstName() {
+          return gateProperty(target, 'firstName', null);
+        },
+        get lastName() {
+          return gateProperty(target, 'lastName', null);
+        },
+        get emailAddress() {
+          return gateProperty(target, 'emailAddress', null);
+        },
+        get phoneNumber() {
+          return gateProperty(target, 'phoneNumber', null);
+        },
+        get web3Wallet() {
+          return gateProperty(target, 'web3Wallet', null);
+        },
+        get hasPassword() {
+          return gateProperty(target, 'hasPassword', false);
+        },
+        get unsafeMetadata() {
+          return gateProperty(target, 'unsafeMetadata', {});
+        },
+        get createdSessionId() {
+          return gateProperty(target, 'createdSessionId', null);
+        },
+        get createdUserId() {
+          return gateProperty(target, 'createdUserId', null);
+        },
+        get abandonAt() {
+          return gateProperty(target, 'abandonAt', null);
+        },
+        get legalAcceptedAt() {
+          return gateProperty(target, 'legalAcceptedAt', null);
+        },
+        get locale() {
+          return gateProperty(target, 'locale', null);
+        },
+        get status() {
+          return gateProperty(target, 'status', 'missing_requirements');
+        },
+        get unverifiedFields() {
+          return gateProperty(target, 'unverifiedFields', []);
+        },
+        get isTransferable() {
+          return gateProperty(target, 'isTransferable', false);
+        },
+        get canBeDiscarded() {
+          return gateProperty(target, 'canBeDiscarded', false);
+        },
+        get protectCheck() {
+          return gateProperty(target, 'protectCheck', null);
+        },
+
+        create: gateMethod(target, 'create'),
+        update: gateMethod(target, 'update'),
+        sso: gateMethod(target, 'sso'),
+        password: gateMethod(target, 'password'),
+        ticket: gateMethod(target, 'ticket'),
+        web3: gateMethod(target, 'web3'),
+        finalize: gateMethod(target, 'finalize'),
+        reset: gateMethod(target, 'reset'),
+        submitProtectCheck: gateMethod(target, 'submitProtectCheck'),
+
+        verifications: this.wrapStruct(
+          () => target().verifications,
+          [
+            'sendEmailCode',
+            'verifyEmailCode',
+            'sendEmailLink',
+            'waitForEmailLinkVerification',
+            'sendPhoneCode',
+            'verifyPhoneCode'
+          ] as const,
+          [
+            'emailAddress',
+            'phoneNumber',
+            'web3Wallet',
+            'externalAccount',
+            'emailLinkVerification'
+          ] as const,
+          {
+            emailAddress: defaultSignUpVerificationResource(),
+            phoneNumber: defaultSignUpVerificationResource(),
+            web3Wallet: defaultSignUpVerificationResource(),
+            externalAccount: defaultSignUpVerificationResource(),
+            emailLinkVerification: null
+          }
+        )
+      }
+    };
+  }
+
+  private buildWaitlistProxy() {
+    const gateProperty = this.gateProperty.bind(this);
+    const gateMethod = this.gateMethod.bind(this);
+    const target = (): WaitlistResource => {
+      return this.state.__internal_waitlist;
+    };
+
+    return {
+      errors: defaultWaitlistErrors(),
+      fetchStatus: 'idle' as const,
+      waitlist: {
+        pathRoot: '/waitlist',
+        get id() {
+          return gateProperty(target, 'id', '');
+        },
+        get createdAt() {
+          return gateProperty(target, 'createdAt', null);
+        },
+        get updatedAt() {
+          return gateProperty(target, 'updatedAt', null);
+        },
+
+        join: gateMethod(target, 'join'),
+        reload: gateMethod(target, 'reload')
+      }
+    };
+  }
+
+  __internal_effect(): () => void {
+    throw new Error('__internal_effect called before Clerk is loaded');
+  }
+  __internal_computed<T>(): () => T {
+    throw new Error('__internal_computed called before Clerk is loaded');
+  }
+
+  private get state() {
+    const s = this.isomorphicClerk.__internal_state;
+    if (!s) {
+      throw new Error('Clerk state not ready');
+    }
+    return s;
+  }
+
+  private get client() {
+    const c = this.isomorphicClerk.client;
+    if (!c) {
+      throw new Error('Clerk client not ready');
+    }
+    return c;
+  }
+
+  private gateProperty<T extends object, K extends keyof T>(
+    getTarget: () => T,
+    key: K,
+    defaultValue: T[K]
+  ) {
+    return (() => {
+      if (!inBrowser() || !this.isomorphicClerk.loaded) {
+        return defaultValue;
+      }
+      const t = getTarget();
+      return t[key];
+    })();
+  }
+
+  private gateMethod<T extends object, K extends keyof T & string>(
+    getTarget: () => T,
+    key: K
+  ) {
+    type F = Extract<T[K], (...args: unknown[]) => unknown>;
+    return (async (...args: Parameters<F>): Promise<ReturnType<F>> => {
+      if (!inBrowser()) {
+        return errorThrower.throw(
+          `Attempted to call a method (${key}) that is not supported on the server.`
+        );
+      }
+      if (!this.isomorphicClerk.loaded) {
+        await new Promise<void>((resolve) =>
+          this.isomorphicClerk.addOnLoaded(resolve)
+        );
+      }
+      const t = getTarget();
+      return (t[key] as (...args: Parameters<F>) => ReturnType<F>).apply(
+        t,
+        args
+      );
+    }) as F;
+  }
+
+  private wrapMethods<
+    T extends object,
+    K extends readonly (keyof T & string)[]
+  >(getTarget: () => T, keys: K): Pick<T, K[number]> {
+    return Object.fromEntries(
+      keys.map((k) => [k, this.gateMethod(getTarget, k)])
+    ) as Pick<T, K[number]>;
+  }
+
+  private wrapStruct<
+    T extends object,
+    M extends readonly (keyof T)[],
+    G extends readonly (keyof T)[]
+  >(
+    getTarget: () => T,
+    methods: M,
+    getters: G,
+    fallbacks: Pick<T, G[number]>
+  ): Pick<T, M[number] | G[number]> & {
+    [K in M[number]]: T[K] extends (...args: any[]) => any ? T[K] : never;
+  } & {
+    [K in G[number]]: T[K] extends (...args: any[]) => any ? never : T[K];
+  } {
+    const out: any = {};
+    for (const m of methods) {
+      out[m] = this.gateMethod(getTarget, m as any);
+    }
+    for (const g of getters) {
+      Object.defineProperty(out, g, {
+        get: () =>
+          this.gateProperty(getTarget, g as any, (fallbacks as any)[g]),
+        enumerable: true
+      });
+    }
+    return out;
+  }
+}

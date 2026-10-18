@@ -6,14 +6,17 @@ import {
   useAuth,
   useOrganization,
   useOrganizationList,
+  useReverification,
   useSession,
   useSessionList,
   useSignIn,
   useSignUp,
-  useUser
+  useUser,
+  useWaitlist
 } from '../..';
 import {
   createFakeClerkJS,
+  createFakeState,
   TEST_PUBLISHABLE_KEY
 } from '../../__tests__/helpers/fake-clerk-js';
 
@@ -29,6 +32,7 @@ describe('hook telemetry', () => {
     let status: ClerkStatus = 'loading';
     Object.assign(clerkJS, {
       telemetry: { record },
+      __internal_state: createFakeState().state,
       get status() {
         return status;
       },
@@ -55,6 +59,8 @@ describe('hook telemetry', () => {
       useSessionList();
       useSignIn();
       useSignUp();
+      useWaitlist();
+      useReverification(async () => null);
       useOrganization();
       useOrganizationList();
       return null;
@@ -68,7 +74,7 @@ describe('hook telemetry', () => {
       </ClerkProvider>
     ));
 
-    await vi.waitFor(() => expect(record).toHaveBeenCalledTimes(8));
+    await vi.waitFor(() => expect(record).toHaveBeenCalledTimes(10));
 
     status = 'degraded';
     handlers.forEach((handler) => handler('degraded'));
@@ -79,15 +85,23 @@ describe('hook telemetry', () => {
       'useAuth',
       'useOrganization',
       'useOrganizationList',
+      'useReverification',
       'useSession',
       'useSessionList',
       'useSignIn',
       'useSignUp',
-      'useUser'
+      'useUser',
+      'useWaitlist'
     ]);
     expect(events.every((event) => event.event === 'METHOD_CALLED')).toBe(true);
     expect(
       events.find((event) => event.payload.method === 'useAuth').payload
     ).toMatchObject({ treatPendingAsSignedOut: false });
+    // The Core 3 hooks report the API version, as @clerk/react's do.
+    for (const method of ['useSignIn', 'useSignUp', 'useWaitlist']) {
+      expect(
+        events.find((event) => event.payload.method === method).payload
+      ).toMatchObject({ apiVersion: '2025-11' });
+    }
   });
 });

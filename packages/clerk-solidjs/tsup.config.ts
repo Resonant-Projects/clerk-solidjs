@@ -37,6 +37,12 @@ export default defineConfig((config) => {
           entry: 'src/start/server/index.ts'
         },
         {
+          name: 'legacy',
+          entry: 'src/legacy.tsx',
+          server_entry: true,
+          dev_entry: true
+        },
+        {
           name: 'webhooks',
           entry: 'src/webhooks.ts'
         }
