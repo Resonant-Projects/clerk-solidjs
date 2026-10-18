@@ -1,5 +1,27 @@
 # clerk-solidjs
 
+## 4.3.0
+
+### Minor Changes
+
+- 598190c: Advanced composition, and clean-ups.
+
+  - **`__experimental_asProvider` and `__experimental_Outlet`** on `UserButton` and `OrganizationSwitcher`: the component renders its children, and itself where its Outlet is, with its props, custom pages and menu items.
+  - **`@resonant-projects/clerk-solidjs/internal`**, for frameworks built on this package, as `@clerk/react/internal`: `MultisessionAppSupport`, `useDerivedAuth`, `useRoutingProps`, `publishableKeyFromHost` and `setErrorThrowerOptions`.
+  - **Headless runtimes:** with `experimental={{ runtimeEnvironment: 'headless' }}` and your own `Clerk`, the provider loads it without scripts, Clerk's UI or window globals. A failed load reports the `error` status.
+  - **One ClerkProvider per tree** is checked through context. A provider inside another still throws, but separate roots and islands each get their own, and nothing is counted on the server.
+  - **`useEmailLink`** returns plain functions, `startEmailLinkFlow(params)` and `cancelEmailLinkFlow()`, as `@clerk/react` does. The accessor style (`startEmailLinkFlow()(params)`) still works, with a deprecation warning. The flow is made when it starts, not in a memo, and is cancelled when the resource changes.
+  - Custom page and menu item warnings are logged from an effect, not while building (so not on the server), and the portal handlers of removed pages are dropped.
+  - `@solid-primitives/context` and `@solid-primitives/destructure` are no longer dependencies.
+
+- 8658f11: Security and infrastructure options for `clerkMiddleware()`, as `@clerk/nextjs` has:
+
+  - **`frontendApiProxy`** serves Clerk's Frontend API from your app, at `/__clerk` by default, for networks that block it. Unless you pass a `proxyUrl`, the browser uses the proxy too.
+  - **`contentSecurityPolicy`** sets a `Content-Security-Policy` that allows Clerk, merged with your directives, with report-only and reporting options. In strict mode the per-request nonce is in `event.locals.clerkNonce`; pass it to SolidStart's `createHandler`.
+  - **`debug`** logs each request's options, request state and auth, without credentials: keys cut short, cookies by name, URLs without parameter values, and headers that could carry a credential by name only.
+  - **Netlify:** a handshake redirect on a development instance busts Netlify's cache, as the other Clerk SDKs do.
+  - **`./start/server` in the browser:** a browser build gets a stand-in with the same exports, which throw when called. Route files can still import `auth` for their `"use server"` functions, and `@clerk/backend` stays out of the browser bundle.
+
 ## 4.2.0
 
 ### Minor Changes
