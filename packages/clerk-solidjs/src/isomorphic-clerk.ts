@@ -1,4 +1,5 @@
 import { inBrowser } from '@clerk/shared/browser';
+import { clerkEvents, createClerkEventBus } from '@clerk/shared/clerkEventBus';
 import {
   loadClerkJSScript,
   loadClerkUIScript
@@ -13,6 +14,7 @@ import type {
   Clerk,
   ClerkAuthenticateWithWeb3Params,
   ClerkOptions,
+  ClerkStatus,
   ClerkUIConstructor,
   ClientResource,
   CreateOrganizationParams,
@@ -31,6 +33,7 @@ import type {
   OrganizationSwitcherProps,
   PricingTableProps,
   RedirectOptions,
+  SDKMetadata,
   SetActiveParams,
   SignInProps,
   SignInRedirectOptions,
@@ -157,9 +160,12 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private loadedListeners: Array<() => void> = [];
 
   #loaded = false;
+  #status: ClerkStatus = 'loading';
+  #eventBus = createClerkEventBus();
   #domain: DomainOrProxyUrl['domain'];
   #proxyUrl: DomainOrProxyUrl['proxyUrl'];
   #publishableKey: string;
+  #sdkMetadata: SDKMetadata;
 
   get publishableKey(): string {
     return this.#publishableKey;
@@ -167,6 +173,18 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
   get loaded(): boolean {
     return this.#loaded;
+  }
+
+  /**
+   * `'loading'` until clerk-js is ready, `'error'` if it failed to load, and
+   * clerk-js's own status (`'ready'` or `'degraded'`) after that.
+   */
+  get status(): ClerkStatus {
+    if (!this.clerkjs) {
+      return this.#status;
+    }
+    // A clerk-js without `status` predates `'degraded'` and `'error'`.
+    return this.clerkjs.status || (this.clerkjs.loaded ? 'ready' : 'loading');
   }
 
   static #instance: IsomorphicClerk | null | undefined;
@@ -230,18 +248,23 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     this.options = options;
     this.Clerk = Clerk;
     this.mode = inBrowser() ? 'browser' : 'server';
+    // Options can be a Solid props proxy, which ignores writes, so the
+    // default is kept here and passed to clerk-js explicitly.
+    this.#sdkMetadata = options?.sdkMetadata ?? SDK_METADATA;
 
-    if (!this.options.sdkMetadata) {
-      this.options.sdkMetadata = SDK_METADATA;
-    }
+    this.#eventBus.emit(clerkEvents.Status, 'loading');
+    this.#eventBus.prioritizedOn(
+      clerkEvents.Status,
+      (status) => (this.#status = status)
+    );
 
     if (this.#publishableKey) {
       void this.loadClerkJS();
     }
   }
 
-  get sdkMetadata() {
-    return this.clerkjs?.sdkMetadata || this.options.sdkMetadata || undefined;
+  get sdkMetadata(): SDKMetadata {
+    return this.clerkjs?.sdkMetadata || this.#sdkMetadata;
   }
 
   get instanceType() {
@@ -433,6 +456,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
           : undefined;
         await clerk.load({
           ...this.options,
+          sdkMetadata: this.#sdkMetadata,
           ui: { ...this.options.ui, ClerkUI }
         });
       }
@@ -442,6 +466,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       }
       return;
     } catch (err) {
+      this.#eventBus.emit(clerkEvents.Status, 'error');
       // loadClerkJS runs fire-and-forget from the constructor, so rethrowing
       // would only surface as an unhandled rejection. Log it like @clerk/react.
       console.error(err instanceof Error ? err.stack || err.message : err);
@@ -519,6 +544,25 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
     return globalThis.__internal_ClerkUICtor;
   }
+
+  /**
+   * Subscribes to Clerk events such as `'status'`. Before clerk-js loads,
+   * listeners wait here and move to clerk-js once it has loaded.
+   */
+  public on: Clerk['on'] = (...args) => {
+    // A clerk-js without `on` predates the status event.
+    if (this.clerkjs?.on) {
+      return this.clerkjs.on(...args);
+    }
+    this.#eventBus.on(...args);
+  };
+
+  public off: Clerk['off'] = (...args) => {
+    if (this.clerkjs?.off) {
+      return this.clerkjs.off(...args);
+    }
+    this.#eventBus.off(...args);
+  };
 
   public addOnLoaded = (cb: () => void) => {
     this.loadedListeners.push(cb);
@@ -622,6 +666,22 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     });
 
     this.#loaded = true;
+
+    // Status listeners move to clerk-js, which now owns the status, and
+    // `notify` hands them its current value. This runs after `loaded` is set,
+    // so a listener that sees `'ready'` can use this instance right away.
+    if (typeof clerkjs.on === 'function') {
+      this.#eventBus.internal
+        .retrieveListeners(clerkEvents.Status)
+        ?.forEach((listener) => {
+          clerkjs.on(clerkEvents.Status, listener, { notify: true });
+        });
+    }
+    // A clerk-js without `status` predates the status event, so report
+    // `'ready'` to the listeners that stayed here.
+    if (typeof clerkjs.status === 'undefined') {
+      this.#eventBus.emit(clerkEvents.Status, 'ready');
+    }
     this.emitLoaded();
     return this.clerkjs;
   };

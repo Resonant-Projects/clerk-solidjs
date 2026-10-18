@@ -1,18 +1,22 @@
 export {
   AuthenticateWithRedirectCallback,
+  ClerkDegraded,
+  ClerkFailed,
   ClerkLoaded,
   ClerkLoading,
+  ClerkShow,
   Protect,
   RedirectToCreateOrganization,
   RedirectToOrganizationProfile,
   RedirectToSignIn,
   RedirectToSignUp,
   RedirectToUserProfile,
+  Show,
   SignedIn,
   SignedOut
 } from './control-components';
 
-export type { ProtectProps } from './control-components';
+export type { ProtectProps, ShowProps } from './control-components';
 
 export { SignInButton } from './sign-in-button';
 export { SignInWithMetamaskButton } from './sign-in-with-metamask-button';

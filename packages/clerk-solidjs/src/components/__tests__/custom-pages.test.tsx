@@ -20,6 +20,7 @@ import {
   UserProfileModal
 } from '..';
 import { ClerkInstanceContextProvider } from '../../contexts/clerk-instance';
+import { ClerkLoadStateContext } from '../../contexts/clerk-status';
 import type { ClerkJSInternals } from '../../types';
 
 const createFakeClerk = () =>
@@ -41,7 +42,11 @@ type FakeClerk = ReturnType<typeof createFakeClerk>;
 const renderWithClerk = (clerk: FakeClerk, ui: () => JSX.Element) =>
   render(() => (
     <ClerkInstanceContextProvider clerk={() => clerk as any}>
-      {ui()}
+      <ClerkLoadStateContext.Provider
+        value={{ status: () => 'ready', loaded: () => true }}
+      >
+        {ui()}
+      </ClerkLoadStateContext.Provider>
     </ClerkInstanceContextProvider>
   ));
 
