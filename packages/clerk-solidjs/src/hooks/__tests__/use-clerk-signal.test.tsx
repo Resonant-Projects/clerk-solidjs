@@ -177,6 +177,39 @@ describe('useSignIn', () => {
   });
 });
 
+describe('when clerk-js fails to load', () => {
+  it('rejects a method called before, and one called after', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    const { clerkJS } = setup({ signIn: new FakeSignInFuture() });
+    clerkJS.load.mockRejectedValue(new Error('blocked'));
+
+    let signIn!: SignInSignalValue['signIn'];
+    const Form = () => {
+      ({ signIn } = useSignIn());
+      return null;
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <Form />
+      </ClerkProvider>
+    ));
+
+    const before = signIn.create({ identifier: 'a@example.com' });
+    await expect(before).rejects.toMatchObject({
+      code: 'clerk_js_failed_to_load'
+    });
+    await expect(
+      signIn.create({ identifier: 'a@example.com' })
+    ).rejects.toMatchObject({ code: 'clerk_js_failed_to_load' });
+    consoleError.mockRestore();
+  });
+});
+
 describe('useSignUp', () => {
   it("follows clerk-js's sign-up signal", async () => {
     // Not the stand-in's default, so the wait below sees clerk-js's value.

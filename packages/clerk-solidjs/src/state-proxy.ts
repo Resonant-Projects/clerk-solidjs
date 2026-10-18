@@ -1,5 +1,7 @@
 import { inBrowser } from '@clerk/shared/browser';
+import { ClerkRuntimeError } from '@clerk/shared/error';
 import type {
+  ClerkStatus,
   SignInErrors,
   SignUpErrors,
   SignUpVerificationResource,
@@ -464,9 +466,7 @@ export class StateProxy implements State {
         );
       }
       if (!this.isomorphicClerk.loaded) {
-        await new Promise<void>((resolve) =>
-          this.isomorphicClerk.addOnLoaded(resolve)
-        );
+        await this.waitForClerk(key);
       }
       const t = getTarget();
       return (t[key] as (...args: Parameters<F>) => ReturnType<F>).apply(
@@ -474,6 +474,37 @@ export class StateProxy implements State {
         args
       );
     }) as F;
+  }
+
+  /**
+   * Resolves once clerk-js has loaded. Rejects if it fails to load, so a
+   * call made before then does not wait forever. Unlike @clerk/react's,
+   * which only waits for load.
+   */
+  private waitForClerk(method: string): Promise<void> {
+    const clerk = this.isomorphicClerk;
+    const failed = () =>
+      new ClerkRuntimeError(
+        `Clerk failed to load, so ${method}() could not run.`,
+        { code: 'clerk_js_failed_to_load' }
+      );
+    return new Promise<void>((resolve, reject) => {
+      if (clerk.status === 'error') {
+        reject(failed());
+        return;
+      }
+      const onStatus = (status: ClerkStatus) => {
+        if (status !== 'error') return;
+        // After this dispatch: the event bus walks its live listener list.
+        queueMicrotask(() => clerk.off('status', onStatus));
+        reject(failed());
+      };
+      clerk.on('status', onStatus);
+      clerk.addOnLoaded(() => {
+        clerk.off('status', onStatus);
+        resolve();
+      });
+    });
   }
 
   private wrapMethods<
