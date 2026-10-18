@@ -2,7 +2,8 @@ import type {
   CheckAuthorizationWithCustomPermissions,
   HandleOAuthCallbackParams,
   OrganizationCustomPermissionKey,
-  OrganizationCustomRoleKey
+  OrganizationCustomRoleKey,
+  PendingSessionOptions
 } from '@clerk/shared/types';
 import {
   createEffect,
@@ -14,7 +15,6 @@ import {
   splitProps,
   Switch
 } from 'solid-js';
-import { useAuthContext } from '../contexts/auth';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { useAssertWrappedByClerkProvider } from '../hooks/use-assert-wrapped-by-clerk-provider';
 import { useAuth } from '../hooks/use-auth';
@@ -25,16 +25,31 @@ import type {
 } from '../types';
 import { withClerk } from './with-clerk';
 
-export const SignedIn = (props: ParentProps): JSX.Element => {
+type PendingSessionProps = ParentProps<PendingSessionOptions>;
+
+/**
+ * Renders its children once a user is signed in. A session with pending tasks
+ * counts as signed out unless `treatPendingAsSignedOut` is `false`.
+ */
+export const SignedIn = (props: PendingSessionProps): JSX.Element => {
   useAssertWrappedByClerkProvider('SignedIn');
-  const { userId } = useAuthContext();
-  return <Show when={userId()}>{props.children}</Show>;
+  const { isSignedIn } = useAuth(() => ({
+    treatPendingAsSignedOut: props.treatPendingAsSignedOut
+  }));
+  return <Show when={isSignedIn()}>{props.children}</Show>;
 };
 
-export const SignedOut = (props: ParentProps): JSX.Element => {
+/**
+ * Renders its children once Clerk has loaded and no user is signed in. A
+ * session with pending tasks counts as signed out unless
+ * `treatPendingAsSignedOut` is `false`.
+ */
+export const SignedOut = (props: PendingSessionProps): JSX.Element => {
   useAssertWrappedByClerkProvider('SignedOut');
-  const { userId } = useAuthContext();
-  return <Show when={userId() === null}>{props.children}</Show>;
+  const { isSignedIn } = useAuth(() => ({
+    treatPendingAsSignedOut: props.treatPendingAsSignedOut
+  }));
+  return <Show when={isSignedIn() === false}>{props.children}</Show>;
 };
 
 export const ClerkLoaded = (props: ParentProps): JSX.Element => {
@@ -75,7 +90,7 @@ export type ProtectProps = ParentProps<
       }
   ) & {
     fallback?: JSX.Element;
-  }
+  } & PendingSessionOptions
 >;
 
 /**
@@ -95,10 +110,13 @@ export const Protect = (props: ProtectProps) => {
 
   const [local, restAuthorizedParams] = splitProps(props, [
     'children',
-    'fallback'
+    'fallback',
+    'treatPendingAsSignedOut'
   ]);
 
-  const { isLoaded, has, userId } = useAuth();
+  const { isLoaded, has, isSignedIn } = useAuth(() => ({
+    treatPendingAsSignedOut: local.treatPendingAsSignedOut
+  }));
 
   /**
    * Fallback to UI provided by user or `null` if authorization checks failed
@@ -109,7 +127,7 @@ export const Protect = (props: ProtectProps) => {
   return (
     <Switch fallback={unauthorized}>
       <Match when={!isLoaded()}>{unauthorized}</Match>
-      <Match when={!userId()}>{unauthorized}</Match>
+      <Match when={!isSignedIn()}>{unauthorized}</Match>
       <Match
         when={
           typeof restAuthorizedParams.condition === 'function' &&

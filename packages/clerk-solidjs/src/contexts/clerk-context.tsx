@@ -54,25 +54,22 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
 
   const clerkCtx = () => (clerkLoaded() ? clerk() : clerk());
 
+  // Memoized by identity, so consumers re-run only when the resource changes,
+  // not on every Clerk update.
+  const client = createMemo(() => state().client);
+  const session = createMemo(() => derivedState().session);
+  const organization = createMemo(() => derivedState().organization);
+  const user = createMemo(() => derivedState().user);
+
   return (
     <IsomorphicClerkContextProvider
       clerk={clerkCtx as unknown as Accessor<LoadedClerk>}
     >
-      <ClientContextProvider client={() => state().client}>
-        <SessionContextProvider session={() => derivedState().session}>
-          <OrganizationContextProvider
-            organization={() => derivedState().organization}
-          >
-            <AuthContextProvider
-              userId={() => derivedState().userId}
-              sessionId={() => derivedState().sessionId}
-              actor={() => derivedState().actor}
-              orgId={() => derivedState().orgId}
-              orgRole={() => derivedState().orgRole}
-              orgSlug={() => derivedState().orgSlug}
-              orgPermissions={() => derivedState().orgPermissions}
-            >
-              <UserContextProvider user={() => derivedState().user}>
+      <ClientContextProvider client={client}>
+        <SessionContextProvider session={session}>
+          <OrganizationContextProvider organization={organization}>
+            <AuthContextProvider auth={derivedState}>
+              <UserContextProvider user={user}>
                 {props.children}
               </UserContextProvider>
             </AuthContextProvider>
