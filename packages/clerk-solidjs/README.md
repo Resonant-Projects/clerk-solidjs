@@ -362,6 +362,50 @@ Wrap part of the app in `<UNSAFE_PortalProvider getContainer={() => el}>` to
 render Clerk's components, popovers and modals inside `el`, such as a dialog,
 instead of `document.body`.
 
+### Billing (experimental)
+
+Billing is experimental in `@clerk/react` too, so it has its own entry, and its
+API can change in a minor release:
+
+```tsx
+import { Show } from '@resonant-projects/clerk-solidjs';
+import {
+  CheckoutButton,
+  usePlans
+} from '@resonant-projects/clerk-solidjs/experimental';
+import { For } from 'solid-js';
+
+const Plans = () => {
+  const plans = usePlans(() => ({ for: 'user' }));
+  return (
+    <Show when="signed-in">
+      <For each={plans.data()}>
+        {(plan) => (
+          <CheckoutButton planId={plan.id} planPeriod="month">
+            Choose {plan.name}
+          </CheckoutButton>
+        )}
+      </For>
+    </Show>
+  );
+};
+```
+
+- `<CheckoutButton>`, `<PlanDetailsButton>` and `<SubscriptionDetailsButton>`
+  open Clerk's billing drawers.
+- `usePlans()`, `useStatements()`, `usePaymentAttempts()` and
+  `usePaymentMethods()` page through billing data, as `useAPIKeys()` does.
+  `useSubscription()` returns the current subscription.
+- `useCheckout(() => ({ planId, planPeriod }))` drives a custom checkout:
+  `checkout.start()`, `confirm()` and `finalize()`. `<CheckoutProvider>` can
+  supply its options instead.
+- `<PaymentElementProvider>`, `<PaymentElement>` and `usePaymentElement()`
+  render Stripe's payment form and submit it. Clerk loads Stripe.js itself.
+
+Render the buttons and `useCheckout()` for a signed-in user, and with
+`for="organization"` only with an active organization. Otherwise they throw to
+the nearest `ErrorBoundary`. The hooks wait until billing is on for the payer.
+
 ### Custom menu items and pages
 
 The components take the same children as `@clerk/react`. Icons and page bodies render
