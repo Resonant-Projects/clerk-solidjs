@@ -349,4 +349,49 @@ describe('PaymentElement', () => {
     await payment.submit();
     expect(fake.stripe.confirmSetup).toHaveBeenCalled();
   });
+
+  it('does not load Stripe.js with billing off', async () => {
+    const { clerkJS } = setup();
+    (clerkJS as any).__internal_environment.commerceSettings.billing = {
+      stripePublishableKey: 'pk_test_stripe',
+      user: { enabled: false },
+      organization: { enabled: false }
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <PaymentElementProvider>
+          <PaymentElement />
+        </PaymentElementProvider>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(clerkJS.loaded).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect((clerkJS as any).__internal_loadStripeJs).not.toHaveBeenCalled();
+  });
+
+  it('does not load Stripe.js for a signed-out visitor', async () => {
+    const { clerkJS: signedIn } = setup();
+    const { clerkJS } = createFakeClerkJS();
+    Object.assign(clerkJS, {
+      __internal_loadStripeJs: vi.fn(),
+      __internal_getOption: () => undefined,
+      __internal_environment: (signedIn as any).__internal_environment
+    });
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <PaymentElementProvider>
+          <PaymentElement />
+        </PaymentElementProvider>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(clerkJS.loaded).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect((clerkJS as any).__internal_loadStripeJs).not.toHaveBeenCalled();
+  });
 });

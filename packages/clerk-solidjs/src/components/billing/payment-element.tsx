@@ -17,7 +17,6 @@ import {
   untrack,
   useContext
 } from 'solid-js';
-import { useClerkLoadState } from '../../contexts/clerk-status';
 import { useIsomorphicClerkContext } from '../../contexts/isomorphic-clerk';
 import { useOrganizationContext } from '../../contexts/organization';
 import { useUserContext } from '../../contexts/user';
@@ -139,7 +138,6 @@ export const PaymentElementProvider = (
   props: PaymentElementProviderProps
 ): JSX.Element => {
   const clerk = useIsomorphicClerkContext();
-  const { loaded } = useClerkLoadState();
   const user = useUserContext();
   const organization = useOrganizationContext();
   const billingEnabled = useBillingIsEnabled(() => ({ for: props.for }));
@@ -155,7 +153,9 @@ export const PaymentElementProvider = (
     queryFn: async () => ({
       loadStripe: (await untrack(clerk).__internal_loadStripeJs()) as LoadStripe
     }),
-    enabled: loaded(),
+    // Not for a signed-out visitor or with billing off, who cannot pay:
+    // Stripe.js is a third-party script. @clerk/shared loads it regardless.
+    enabled: billingEnabledSignedIn(),
     staleTime: Infinity,
     refetchOnWindowFocus: false
   }));
