@@ -11,7 +11,9 @@ export const MultisessionAppSupport = (props: ParentProps): JSX.Element => {
   useAssertWrappedByClerkProvider('MultisessionAppSupport');
   const session = useSessionContext();
   const key = createMemo(() => session()?.id ?? 'no-users');
-  // `on` reads the children untracked, so they are owned by this memo and
-  // disposed when the session changes.
-  return createMemo(on(key, () => props.children)) as unknown as JSX.Element;
+  // A new tracked memo for each session: it owns the children, so they are
+  // disposed when the session changes, and it keeps them reactive within one.
+  return createMemo(
+    on(key, () => createMemo(() => props.children))
+  ) as unknown as JSX.Element;
 };

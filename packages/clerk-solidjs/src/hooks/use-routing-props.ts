@@ -1,5 +1,5 @@
 import type { RoutingOptions } from '@clerk/shared/types';
-import { mergeProps, untrack } from 'solid-js';
+import { mergeProps, splitProps, untrack } from 'solid-js';
 import { errorThrower } from '../errors/error-thrower';
 import {
   incompatibleRoutingWithPathProvidedError,
@@ -34,7 +34,16 @@ export function useRoutingProps<T extends RoutingOptions>(
     }
   });
 
-  return mergeProps(routingOptions ?? {}, props, {
+  // `path` and `routing` come only from the getters below: mergeProps reads
+  // an undefined value as absent and falls back to an earlier source, so a
+  // path left in one would survive non-path routing.
+  const [, others] = splitProps(props, ['path', 'routing']);
+  const options = Object.fromEntries(
+    Object.entries(routingOptions ?? {}).filter(
+      ([key]) => key !== 'path' && key !== 'routing'
+    )
+  );
+  return mergeProps(options, others, {
     get routing() {
       return routing();
     },
@@ -43,5 +52,5 @@ export function useRoutingProps<T extends RoutingOptions>(
         ? props.path || routingOptions?.path
         : undefined;
     }
-  }) as T;
+  }) as unknown as T;
 }

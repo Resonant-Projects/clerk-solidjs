@@ -371,6 +371,27 @@ describe('MultisessionAppSupport', () => {
   });
 });
 
+describe('MultisessionAppSupport within one session', () => {
+  it('keeps reactive children reactive', async () => {
+    const { clerkJS } = createFakeClerkJS(signedInAs('user_1'));
+    const [message, setMessage] = createSignal('first');
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <p data-testid="message">
+          <MultisessionAppSupport>{message()}</MultisessionAppSupport>
+        </p>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(clerkJS.loaded).toBe(true));
+    expect(screen.getByTestId('message').textContent).toBe('first');
+    setMessage('second');
+    expect(screen.getByTestId('message').textContent).toBe('second');
+  });
+});
+
 describe('useDerivedAuth', () => {
   it("derives useAuth's state from an auth object, with has() from its claims", () => {
     const [object, setObject] = createSignal<any>({
@@ -420,6 +441,14 @@ describe('useRoutingProps', () => {
       routing: 'hash',
       path: undefined
     });
+    // A framework's default path does not survive the app's hash routing.
+    const hashed = useRoutingProps(
+      'SignIn',
+      { routing: 'hash' },
+      { path: '/sign-in' }
+    );
+    expect(hashed.routing).toBe('hash');
+    expect((hashed as { path?: string }).path).toBeUndefined();
     expect(() =>
       // RoutingOptions rejects this combination at compile time too.
       useRoutingProps('SignIn', { routing: 'hash', path: '/sign-in' } as any)
