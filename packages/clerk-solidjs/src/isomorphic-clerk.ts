@@ -354,7 +354,12 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       (status) => (this.#status = status)
     );
 
-    if (this.#publishableKey) {
+    // A Clerk instance the app created carries its own key; a constructor or
+    // the CDN build needs one here.
+    if (
+      this.#publishableKey ||
+      (this.Clerk && !isConstructor<BrowserClerkConstructor>(this.Clerk))
+    ) {
       void this.loadClerkJS();
     }
   }
@@ -654,10 +659,12 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   };
 
   public off: Clerk['off'] = (...args) => {
+    // A listener added before load also stays on this bus, so remove it here
+    // too, or it is kept for the instance's lifetime.
+    this.#eventBus.off(...args);
     if (this.clerkjs?.off) {
       return this.clerkjs.off(...args);
     }
-    this.#eventBus.off(...args);
   };
 
   public addOnLoaded = (cb: () => void) => {

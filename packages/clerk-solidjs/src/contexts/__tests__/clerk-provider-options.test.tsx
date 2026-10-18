@@ -76,6 +76,30 @@ describe('ClerkProvider options', () => {
     expect(options.signInFallbackRedirectUrl).toBe('/explicit');
   });
 
+  it("treats '' legacy props, as the SolidStart provider passes for unset env, as not supplied", async () => {
+    const options = await loadOptions({
+      publishableKey: TEST_PUBLISHABLE_KEY,
+      afterSignInUrl: '',
+      afterSignUpUrl: '',
+      signInFallbackRedirectUrl: ''
+    });
+
+    expect(deprecations.deprecated).not.toHaveBeenCalled();
+    expect(options.signInFallbackRedirectUrl).toBeFalsy();
+    expect(options.signUpFallbackRedirectUrl).toBeUndefined();
+  });
+
+  it('loads a Clerk instance passed without a publishable key', async () => {
+    const { clerkJS } = createFakeClerkJS();
+    render(() => (
+      <ClerkProvider Clerk={clerkJS as any}>
+        <p>app</p>
+      </ClerkProvider>
+    ));
+
+    await vi.waitFor(() => expect(clerkJS.load).toHaveBeenCalled());
+  });
+
   it('does not warn without the legacy props', async () => {
     await loadOptions({ publishableKey: TEST_PUBLISHABLE_KEY });
 

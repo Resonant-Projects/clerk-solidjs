@@ -41,13 +41,14 @@ function ClerkProviderBase<TUi extends Ui = Ui>(
   // Core 3 removed afterSignInUrl and afterSignUpUrl, and clerk-js ignores
   // them. Until 4.0 they stand in for the fallback redirect URLs.
   untrack(() => {
-    if (rest.afterSignInUrl !== undefined) {
+    // The SolidStart provider passes '' for an unset env variable.
+    if (rest.afterSignInUrl) {
       deprecated(
         'afterSignInUrl',
         'Use `signInFallbackRedirectUrl` or `signInForceRedirectUrl` instead.'
       );
     }
-    if (rest.afterSignUpUrl !== undefined) {
+    if (rest.afterSignUpUrl) {
       deprecated(
         'afterSignUpUrl',
         'Use `signUpFallbackRedirectUrl` or `signUpForceRedirectUrl` instead.'
@@ -60,10 +61,10 @@ function ClerkProviderBase<TUi extends Ui = Ui>(
       return publishableKey();
     },
     get signInFallbackRedirectUrl() {
-      return rest.signInFallbackRedirectUrl ?? rest.afterSignInUrl;
+      return rest.signInFallbackRedirectUrl || rest.afterSignInUrl || undefined;
     },
     get signUpFallbackRedirectUrl() {
-      return rest.signUpFallbackRedirectUrl ?? rest.afterSignUpUrl;
+      return rest.signUpFallbackRedirectUrl || rest.afterSignUpUrl || undefined;
     }
   }) as unknown as IsomorphicClerkOptions;
 

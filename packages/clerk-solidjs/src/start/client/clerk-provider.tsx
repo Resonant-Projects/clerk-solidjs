@@ -61,7 +61,13 @@ export function ClerkProvider(
 
   const mergedProps = createMemo(() => ({
     ...envAndInitStateProps,
-    ...providerProps
+    ...providerProps,
+    // Merged field by field, so `telemetry={{ debug: true }}` keeps an env
+    // opt-out (`disabled: true`).
+    telemetry:
+      providerProps.telemetry === false
+        ? false
+        : { ...envAndInitStateProps.telemetry, ...providerProps.telemetry }
   }));
 
   return (

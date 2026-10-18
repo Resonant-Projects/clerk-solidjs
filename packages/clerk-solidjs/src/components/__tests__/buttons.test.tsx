@@ -123,6 +123,54 @@ describe('Clerk buttons', () => {
     expect(clerkJS.redirectToSignUp).not.toHaveBeenCalled();
   });
 
+  it("let the button's onClick stop the click reaching ancestors when the child has no handler", async () => {
+    const clerkJS = createClerkJS();
+    const ancestor = vi.fn();
+    renderInProvider(clerkJS, () => (
+      <div onClick={ancestor}>
+        <SignInButton onClick={(event) => event.stopPropagation()}>
+          <button>Inside a panel</button>
+        </SignInButton>
+      </div>
+    ));
+    await loaded(clerkJS);
+
+    await userEvent.click(screen.getByText('Inside a panel'));
+    await vi.waitFor(() => expect(clerkJS.redirectToSignIn).toHaveBeenCalled());
+    expect(ancestor).not.toHaveBeenCalled();
+  });
+
+  it('honour disabled with an element child, and warn about attributes it cannot apply', async () => {
+    const clerkJS = createClerkJS();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    renderInProvider(clerkJS, () => (
+      <>
+        <SignInButton disabled>
+          <button>Disabled sign-in</button>
+        </SignInButton>
+        <SignUpButton class="ignored">
+          <button>Styled elsewhere</button>
+        </SignUpButton>
+      </>
+    ));
+    await loaded(clerkJS);
+
+    await userEvent.click(screen.getByText('Disabled sign-in'));
+    await Promise.resolve();
+    expect(clerkJS.redirectToSignIn).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '<SignUpButton> sets class only on its default button'
+      )
+    );
+    expect(
+      warn.mock.calls.some(([message]) =>
+        String(message).includes('SignInButton')
+      )
+    ).toBe(false);
+    warn.mockRestore();
+  });
+
   it('wrap a text child in the default button, with its attributes', async () => {
     const clerkJS = createClerkJS();
     const onClick = vi.fn();

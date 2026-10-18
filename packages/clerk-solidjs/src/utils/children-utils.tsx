@@ -53,9 +53,14 @@ const composeClickHandler = (
   const target = element as DelegatedClickTarget;
   let childHandler = target.$$click;
   // Solid calls a bound handler as (data, event), otherwise as (event).
-  const composed = async function (this: Element, ...args: unknown[]) {
+  const composed = function (this: Element, ...args: unknown[]) {
     const event = args[args.length - 1] as MouseEvent;
-    await childHandler?.apply(this, args);
+    const result = childHandler?.apply(this, args);
+    // Only wait for a handler that returns a promise. Otherwise onClick runs
+    // during the dispatch, so its stopPropagation() still stops ancestors.
+    if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+      return Promise.resolve(result).then(() => onClick(event));
+    }
     return onClick(event);
   };
   Object.defineProperty(target, '$$click', {
@@ -113,6 +118,9 @@ export const ClerkButton = (props: {
   });
 
   const handleClick = async (event: MouseEvent) => {
+    // A disabled default button never fires; honour `disabled` for an
+    // element child too.
+    if (props.attributes.disabled) return;
     await callHandler(props.onClick, event);
     return props.action();
   };
@@ -122,6 +130,16 @@ export const ClerkButton = (props: {
     createEffect(() => {
       const element = child();
       if (!(element instanceof Element)) return;
+      if (__DEV__) {
+        const ignored = Object.keys(props.attributes).filter(
+          (name) => name !== 'disabled'
+        );
+        if (ignored.length) {
+          console.warn(
+            `${PACKAGE_NAME}: <${props.name}> sets ${ignored.join(', ')} only on its default button. With your own element as the child, set them on that element.`
+          );
+        }
+      }
       onCleanup(composeClickHandler(element, handleClick));
     });
   }

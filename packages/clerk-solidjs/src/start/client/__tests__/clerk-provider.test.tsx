@@ -13,7 +13,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const loadOptions = async (ui?: { sdkMetadata?: SDKMetadata }) => {
+const loadOptions = async (ui?: {
+  sdkMetadata?: SDKMetadata;
+  telemetry?: { debug?: boolean; disabled?: boolean };
+}) => {
   const { clerkJS } = createFakeClerkJS();
   render(() => (
     <Router
@@ -113,6 +116,15 @@ describe('SolidStart ClerkProvider in the browser', () => {
       proxyUrl: 'https://example.com/__clerk',
       telemetry: { disabled: true, debug: true }
     });
+  });
+
+  it('keeps an env telemetry opt-out when the app passes other telemetry options', async () => {
+    window.__clerk_init_state = signedInInitState();
+    vi.stubEnv('VITE_CLERK_TELEMETRY_DISABLED', 'true');
+
+    expect(
+      (await loadOptions({ telemetry: { debug: true } })).telemetry
+    ).toEqual({ disabled: true, debug: true });
   });
 
   it('prefers the server state over the env', async () => {
