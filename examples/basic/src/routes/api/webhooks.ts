@@ -8,7 +8,12 @@ export async function POST({ request }: APIEvent) {
     const event = await verifyWebhook(request);
     console.log(`Clerk webhook: ${event.type}`);
     return new Response(null, { status: 204 });
-  } catch {
+  } catch (error) {
+    // Logs why, such as a missing signing secret, but not the payload.
+    console.error(
+      "Clerk webhook verification failed:",
+      error instanceof Error ? error.message : error,
+    );
     return new Response("Invalid webhook signature", { status: 400 });
   }
 }

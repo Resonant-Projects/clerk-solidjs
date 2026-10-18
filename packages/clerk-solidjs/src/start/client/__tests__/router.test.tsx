@@ -140,6 +140,98 @@ describe('SolidStart routing wrappers', () => {
     });
   });
 
+  /** Renders the routes, and returns the fake and a way to navigate. */
+  const renderRoutes = (url: string, routes: () => JSX.Element) => {
+    const { clerkJS } = createFakeClerkJS();
+    Object.assign(clerkJS, {
+      mountUserProfile: vi.fn(),
+      unmountUserProfile: vi.fn()
+    });
+    const history = createMemoryHistory();
+    history.set({ value: url });
+    render(() => (
+      <MemoryRouter
+        history={history}
+        root={(props) => (
+          <RootClerkProvider
+            publishableKey={TEST_PUBLISHABLE_KEY}
+            Clerk={clerkJS as any}
+          >
+            {props.children}
+          </RootClerkProvider>
+        )}
+      >
+        {routes()}
+      </MemoryRouter>
+    ));
+    return { clerkJS, go: (to: string) => history.set({ value: to }) };
+  };
+
+  /** The paths sent to clerk-js since mount, in order. */
+  const pathsSent = (clerkJS: any, mount: string) => [
+    clerkJS[mount].mock.calls[0]?.[1]?.path,
+    ...clerkJS.__internal_updateProps.mock.calls
+      .map(([update]: [any]) => update?.props?.path)
+      .filter(Boolean)
+  ];
+
+  it("follow the route's parameters, which change without a remount", async () => {
+    const { clerkJS, go } = renderRoutes('/orgs/acme/profile/security', () => (
+      <Route
+        path="/orgs/:slug/profile/*rest"
+        component={() => <UserProfile />}
+      />
+    ));
+    await vi.waitFor(() =>
+      expect((clerkJS as any).mountUserProfile).toHaveBeenCalled()
+    );
+
+    go('/orgs/beta/profile');
+
+    await vi.waitFor(() =>
+      expect(pathsSent(clerkJS, 'mountUserProfile').at(-1)).toBe(
+        '/orgs/beta/profile'
+      )
+    );
+    expect((clerkJS as any).mountUserProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('take the path of the route that renders them, not a child route below it', async () => {
+    const Account = (props: { children?: JSX.Element }) => (
+      <>
+        <UserProfile />
+        {props.children}
+      </>
+    );
+    const { clerkJS } = renderRoutes('/account/security', () => (
+      <Route path="/account" component={Account}>
+        <Route path="/security" component={() => <p>security</p>} />
+      </Route>
+    ));
+
+    await vi.waitFor(() =>
+      expect((clerkJS as any).mountUserProfile).toHaveBeenCalled()
+    );
+    expect((clerkJS as any).mountUserProfile.mock.calls[0][1]).toMatchObject({
+      path: '/account'
+    });
+  });
+
+  it('keep their path while the router moves on to another route', async () => {
+    const { clerkJS, go } = renderRoutes('/sign-in/factor-one', () => (
+      <>
+        <Route path="/sign-in/*rest" component={() => <SignIn />} />
+        <Route path="/elsewhere" component={() => <p>elsewhere</p>} />
+      </>
+    ));
+    await vi.waitFor(() => expect(clerkJS.mountSignIn).toHaveBeenCalled());
+
+    go('/elsewhere');
+    await vi.waitFor(() => expect(screen.getByText('elsewhere')).toBeTruthy());
+
+    expect(pathsSent(clerkJS, 'mountSignIn')).toEqual(['/sign-in']);
+  });
+
   it('reject a path with hash routing, as @clerk/react does', () => {
     const consoleError = vi
       .spyOn(console, 'error')

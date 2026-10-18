@@ -555,6 +555,35 @@ describe('auth()', () => {
     ).toBe('http://localhost:3000/protected?tab=2');
   });
 
+  it("gives a single-flight render's return URL the public origin behind a proxy", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const proxied = {
+      'X-Server-Id': 'src/routes/dashboard.tsx#save',
+      'x-forwarded-host': 'app.example.com',
+      'x-forwarded-proto': 'https'
+    };
+    const event = fetchEvent('http://localhost:3000/_server', {
+      method: 'POST',
+      headers: proxied
+    });
+    await clerkMiddleware(options)(event);
+
+    const pageEvent = {
+      ...event,
+      request: new Request('http://localhost:3000/protected?tab=2', {
+        headers: proxied
+      })
+    };
+    const redirect = provideRequestEvent(pageEvent, () =>
+      auth().redirectToSignIn()
+    );
+    expect(
+      new URL(redirect.headers.get('location')!).searchParams.get(
+        'redirect_url'
+      )
+    ).toBe('https://app.example.com/protected?tab=2');
+  });
+
   it('explains what is missing outside a request or without the middleware', () => {
     expect(() => auth()).toThrow(/outside a request/);
     expect(() => provideRequestEvent(fetchEvent(), () => auth())).toThrow(
@@ -564,6 +593,36 @@ describe('auth()', () => {
 });
 
 describe('the state handed to the browser', () => {
+  it("reads the env from the request's Cloudflare bindings", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+    // Where nitro's cloudflare-module preset puts the Worker's env.
+    event.request.runtime = {
+      name: 'cloudflare',
+      cloudflare: {
+        env: {
+          CLERK_SECRET_KEY: 'sk_test_from_binding',
+          CLERK_CHECKOUT_CONTINUE_URL: '/billing/bound',
+          CLERK_UNSAFE_DISABLE_DEVELOPMENT_MODE_CONSOLE_WARNING: 'true'
+        }
+      }
+    };
+
+    await provideRequestEvent(event, () =>
+      clerkMiddleware({ publishableKey: TEST_PUBLISHABLE_KEY })(event)
+    );
+
+    expect(backend.clientOptions.at(-1)).toMatchObject({
+      secretKey: 'sk_test_from_binding'
+    });
+    expect(event.locals.clerkInitialState.__internal_clerk_state).toMatchObject(
+      {
+        __newSubscriptionRedirectUrl: '/billing/bound',
+        __unsafeDisableDevelopmentModeConsoleWarning: true
+      }
+    );
+  });
+
   it('carries a server-only CLERK_CHECKOUT_CONTINUE_URL', async () => {
     vi.stubEnv('CLERK_CHECKOUT_CONTINUE_URL', '/billing/done');
     backend.authenticateRequest.mockResolvedValue(requestState());

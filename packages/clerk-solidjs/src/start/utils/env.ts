@@ -1,9 +1,19 @@
 import { getEnvVariable as getSharedEnvVariable } from '@clerk/shared/getEnvVariable';
 import { isTruthy } from '@clerk/shared/underscore';
+import { getRequestEvent } from 'solid-js/web';
+
+/**
+ * The current request's runtime bindings. On Cloudflare, nitro puts the
+ * Worker's `env` on `request.runtime.cloudflare`, where `getEnvVariable`
+ * looks for it. In the browser there is no request event.
+ */
+const requestRuntime = (): Record<string, any> | undefined =>
+  (getRequestEvent()?.request as { runtime?: Record<string, any> } | undefined)
+    ?.runtime;
 
 /**
  * Reads an environment variable from `process.env`, Vite's `import.meta.env`,
- * a Cloudflare-style `context.env`, or `globalThis`, through
+ * the request's Cloudflare bindings, or `globalThis`, through
  * `@clerk/shared/getEnvVariable`. Read it when it is needed, not at import:
  * some runtimes only provide bindings once a request arrives.
  *
@@ -12,7 +22,7 @@ import { isTruthy } from '@clerk/shared/underscore';
 export const getEnvVariable = (
   name: string,
   defaultValue = '',
-  context?: Record<string, any>
+  context: Record<string, any> | undefined = requestRuntime()
 ): string => getSharedEnvVariable(name, context) || defaultValue;
 
 /** `VITE_<name>` (exposed to the browser by Vite), then `<name>`. */
@@ -20,7 +30,9 @@ const getPublicEnvVariable = (name: string, context?: Record<string, any>) =>
   getEnvVariable(`VITE_${name}`, '', context) ||
   getEnvVariable(name, '', context);
 
-export const getPublicEnvVariables = (context?: Record<string, any>) => {
+export const getPublicEnvVariables = (
+  context: Record<string, any> | undefined = requestRuntime()
+) => {
   const get = (name: string) => getPublicEnvVariable(name, context);
   const unsafeDisableDevelopmentModeConsoleWarning = get(
     'CLERK_UNSAFE_DISABLE_DEVELOPMENT_MODE_CONSOLE_WARNING'

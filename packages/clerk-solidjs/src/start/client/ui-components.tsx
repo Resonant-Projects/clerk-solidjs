@@ -1,6 +1,6 @@
 import type { RoutingOptions } from '@clerk/shared/types';
-import { useCurrentMatches } from '@solidjs/router';
-import { JSX, mergeProps, untrack } from 'solid-js';
+import { useCurrentMatches, useResolvedPath } from '@solidjs/router';
+import { Accessor, createMemo, JSX, mergeProps, untrack } from 'solid-js';
 import {
   OrganizationList as BaseOrganizationList,
   OrganizationProfile as BaseOrganizationProfile,
@@ -16,16 +16,25 @@ import {
 
 /**
  * The path of the route rendering the component, without its catch-all
- * part: `/sign-in` for `/sign-in/factor-one` on a `sign-in/[...rest]` route.
- * It is read once, at mount: during a navigation away, the router already
- * reports the next route while the component is still mounted.
+ * part: `/sign-in` for `/sign-in/factor-one` on a `sign-in/[...rest]` route,
+ * and `/account` for a component an `account` layout renders above a child
+ * route. It follows that route's parameters, since the router keeps the
+ * component mounted when only they change. While navigating to another
+ * route, the router reports the next route before this one unmounts; the
+ * path then stays as it was.
  */
-const useRoutePath = (): string | undefined => {
+const useRoutePath = (): Accessor<string | undefined> => {
   const matches = useCurrentMatches();
-  return untrack(() => {
-    const current = matches();
-    return current[current.length - 1]?.path;
-  });
+  // The path of the route whose component tree this is in.
+  const ownPath = useResolvedPath(() => '');
+  const ownRoute = untrack(
+    () => matches().find((match) => match.path === ownPath())?.route.key
+  );
+  return createMemo<string | undefined>(
+    (previous) =>
+      matches().find((match) => match.route.key === ownRoute)?.path ?? previous,
+    untrack(ownPath)
+  );
 };
 
 /**
@@ -35,11 +44,11 @@ const useRoutePath = (): string | undefined => {
 const withRoutingProps = <P extends RoutingOptions>(
   componentName: string,
   props: P,
-  routePath: string | undefined
+  routePath: Accessor<string | undefined>
 ): P => {
   untrack(() => {
     const routing = props.routing ?? 'path';
-    if (routing === 'path' && !props.path && !routePath) {
+    if (routing === 'path' && !props.path && !routePath()) {
       errorThrower.throw(noPathProvidedError(componentName));
     }
     if (routing !== 'path' && props.path) {
@@ -54,7 +63,7 @@ const withRoutingProps = <P extends RoutingOptions>(
     },
     get path() {
       return (props.routing ?? 'path') === 'path'
-        ? (props.path ?? routePath)
+        ? (props.path ?? routePath())
         : undefined;
     }
   }) as P;
