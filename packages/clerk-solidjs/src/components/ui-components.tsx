@@ -146,6 +146,11 @@ type OutletContextValue = Pick<
   props: Accessor<Record<string, unknown>>;
   /** The provider's `fallback`, shown where the Outlet is until Clerk renders. */
   fallback: () => JSX.Element;
+  /**
+   * Whether the component is a provider. It provides this context either
+   * way, as its children resolve beneath it, so an Outlet checks.
+   */
+  asProvider: () => boolean;
 };
 
 type FallbackProp = {
@@ -463,7 +468,8 @@ const _UserButton = withClerk(
           updateProps: (update) =>
             isomorphicClerk().__internal_updateProps(update),
           props: shared,
-          fallback: () => props.fallback
+          fallback: () => props.fallback,
+          asProvider: () => !!props.__experimental_asProvider
         }}
       >
         <UserButtonHost {...props} share={share} />
@@ -482,14 +488,16 @@ const _UserButton = withClerk(
 export function UserButtonOutlet(
   outletProps: Without<UserButtonProps, 'userProfileProps'>
 ): JSX.Element {
-  const context = useContext(UserButtonContext);
-  if (!context) {
+  const parent = useContext(UserButtonContext);
+  // Only an asProvider component renders here; any other renders itself.
+  const context = () => (parent?.asProvider() ? parent : undefined);
+  if (!untrack(context)) {
     logErrorInDevMode(
       '<UserButton.__experimental_Outlet /> renders only inside <UserButton __experimental_asProvider>.'
     );
   }
   return (
-    <Show when={context}>
+    <Show when={context()}>
       {(outlet) => (
         <Portal
           component="UserButton"
@@ -666,7 +674,8 @@ const _OrganizationSwitcher = withClerk(
           updateProps: (update) =>
             isomorphicClerk().__internal_updateProps(update),
           props: shared,
-          fallback: () => props.fallback
+          fallback: () => props.fallback,
+          asProvider: () => !!props.__experimental_asProvider
         }}
       >
         <OrganizationSwitcherHost {...props} share={share} />
@@ -684,14 +693,16 @@ const _OrganizationSwitcher = withClerk(
 export function OrganizationSwitcherOutlet(
   outletProps: Without<OrganizationSwitcherProps, 'organizationProfileProps'>
 ): JSX.Element {
-  const context = useContext(OrganizationSwitcherContext);
-  if (!context) {
+  const parent = useContext(OrganizationSwitcherContext);
+  // Only an asProvider component renders here; any other renders itself.
+  const context = () => (parent?.asProvider() ? parent : undefined);
+  if (!untrack(context)) {
     logErrorInDevMode(
       '<OrganizationSwitcher.__experimental_Outlet /> renders only inside <OrganizationSwitcher __experimental_asProvider>.'
     );
   }
   return (
-    <Show when={context}>
+    <Show when={context()}>
       {(outlet) => (
         <Portal
           component="OrganizationSwitcher"

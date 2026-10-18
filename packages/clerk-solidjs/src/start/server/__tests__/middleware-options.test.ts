@@ -29,6 +29,15 @@ vi.mock('@clerk/backend/proxy', async (importOriginal) => ({
   clerkFrontendApiProxy: backend.proxy
 }));
 
+import {
+  createClerkRequest,
+  signedOutAuthObject
+} from '@clerk/backend/internal';
+import type {
+  ContentSecurityPolicyDirective,
+  ContentSecurityPolicyOptions,
+  FrontendApiProxyOptions
+} from '../index';
 import { clerkMiddleware } from '../middleware';
 
 const SECRET_KEY = 'sk_test_fakesecretvalue';
@@ -351,6 +360,23 @@ describe('contentSecurityPolicy', () => {
   });
 });
 
+it('exports the option types from the server entry', () => {
+  // tsc fails here if ../index stops exporting them.
+  const directive: ContentSecurityPolicyDirective = 'img-src';
+  const policy: ContentSecurityPolicyOptions = {
+    strict: true,
+    directives: { [directive]: ['https://images.example.com'] }
+  };
+  const proxy: FrontendApiProxyOptions = { enabled: true };
+  expect(
+    clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: policy,
+      frontendApiProxy: proxy
+    })
+  ).toBeTypeOf('function');
+});
+
 describe('debug', () => {
   let log: MockInstance<typeof console.log>;
   beforeEach(() => {
@@ -437,6 +463,105 @@ describe('debug', () => {
     // Known-safe headers keep their values.
     expect(output).toContain('"x-forwarded-proto": "http"');
     expect(output).toContain('"user-agent": "smoke-agent/1.0"');
+  });
+
+  it("never logs credentials from the auth object's debug data", async () => {
+    // @clerk/backend's debug() is its whole authenticate context: the
+    // request with every header and cookie, the URL, and the options.
+    const contextRequest = createClerkRequest(
+      new Request(
+        'http://localhost:3000/?__clerk_db_jwt=dvb_contexturlsecret',
+        {
+          headers: {
+            authorization: 'Bearer ak_contextheadersecret',
+            cookie:
+              '__session=eyJcontextcookiesecret; __clerk_db_jwt=dvb_contextcookiesecret'
+          }
+        }
+      )
+    );
+    const debugData = {
+      cookieSuffix: 'suffix1',
+      clerkRequest: contextRequest,
+      clerkUrl: contextRequest.clerkUrl,
+      secretKey: SECRET_KEY,
+      machineSecretKey: 'ak_machinesecretvalue',
+      publishableKey: TEST_PUBLISHABLE_KEY,
+      domain: 'example.com',
+      isSatellite: false,
+      signInUrl:
+        'https://accounts.example.com/sign-in?access_token=signinurlsecret',
+      handshakeNonce: 'nonce_handshakesecret',
+      clientUat: '1700000000',
+      sessionTokenInCookie: 'eyJcontextcookiesecret',
+      handshakeRedirectLoopCounter: 0,
+      organizationSyncOptions: { organizationPatterns: ['/orgs/:slug'] },
+      customField: 'customfieldsecret'
+    };
+    backend.authenticateRequest.mockResolvedValue(
+      requestState(new Headers(), {
+        toAuth: () => signedOutAuthObject(debugData as never)
+      })
+    );
+
+    await clerkMiddleware({ ...options, debug: true })(fetchEvent());
+
+    const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
+    for (const secret of [
+      'fakesecretvalue',
+      'machinesecretvalue',
+      'dvb_contexturlsecret',
+      'ak_contextheadersecret',
+      'contextcookiesecret',
+      'signinurlsecret',
+      'handshakesecret',
+      '1700000000',
+      'customfieldsecret'
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+    expect(output).toContain('"machineSecretKey": "ak_mach…"');
+    expect(output).toContain('"domain": "example.com"');
+    expect(output).toContain('"isSatellite": false');
+    expect(output).toContain('"handshakeRedirectLoopCounter": 0');
+    expect(output).toContain('http://localhost:3000/?__clerk_db_jwt=…');
+    expect(output).toContain('"cookies": [');
+    expect(output).toContain(
+      'https://accounts.example.com/sign-in?access_token=…'
+    );
+    expect(output).toContain('"/orgs/:slug"');
+    expect(output).toContain('"customField": "…"');
+  });
+
+  it('logs options without query values or text it does not know', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+
+    await clerkMiddleware({
+      ...options,
+      apiVersion: 'v1',
+      signInUrl:
+        'https://accounts.example.com/sign-in?access_token=optionsecret',
+      contentSecurityPolicy: {
+        reportTo: 'https://report.example.com/csp?key=reportsecret',
+        directives: { 'img-src': ['ignored-option-value'] }
+      },
+      debug: true
+    })(fetchEvent());
+
+    const entry = log.mock.calls
+      .map((call) => call.join(' '))
+      .find((line) => line.startsWith('  options '));
+    expect(entry).toBeDefined();
+    expect(entry).not.toContain('optionsecret');
+    expect(entry).not.toContain('reportsecret');
+    expect(entry).not.toContain('ignored-option-value');
+    expect(entry).toContain('"apiVersion": "v1"');
+    expect(entry).toContain(
+      '"signInUrl": "https://accounts.example.com/sign-in?access_token=…"'
+    );
+    expect(entry).toContain(
+      '"reportTo": "https://report.example.com/csp?key=…"'
+    );
   });
 
   it('cuts a bare Authorization token whole, and a ticket nested in a redirect_url', async () => {

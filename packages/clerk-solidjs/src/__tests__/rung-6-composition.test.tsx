@@ -30,6 +30,7 @@ import {
   useDerivedAuth,
   useRoutingProps
 } from '../internal';
+import { IsomorphicClerk } from '../isomorphic-clerk';
 import type { ClerkJSInternals } from '../types';
 import { createCustomElementPortals } from '../utils/custom-element-portals';
 import {
@@ -101,6 +102,29 @@ describe('one ClerkProvider per tree', () => {
     ));
     expect(screen.getByText('first island')).toBeTruthy();
     expect(screen.getByText('second island')).toBeTruthy();
+  });
+
+  it('keeps the shared Clerk while another root still uses it', () => {
+    const create = vi.spyOn(IsomorphicClerk, 'getOrCreateInstance');
+    const { clerkJS } = createFakeClerkJS();
+    const island = () =>
+      render(() => (
+        <ClerkProvider
+          publishableKey={TEST_PUBLISHABLE_KEY}
+          Clerk={clerkJS as any}
+        >
+          <p>island</p>
+        </ClerkProvider>
+      ));
+    const first = island();
+    island();
+    first.unmount();
+    // A root mounted after one of two unmounted joins the one still there.
+    island();
+
+    const instances = new Set(create.mock.results.map(({ value }) => value));
+    expect(create).toHaveBeenCalledTimes(3);
+    expect(instances.size).toBe(1);
   });
 });
 
@@ -296,6 +320,40 @@ describe('__experimental_asProvider and the Outlet', () => {
     expect(screen.getByText('layout')).toBeTruthy();
   });
 
+  it.each([
+    [
+      'UserButton',
+      () => (
+        <UserButton>
+          <UserButton.__experimental_Outlet />
+        </UserButton>
+      ),
+      'mountUserButton'
+    ],
+    [
+      'OrganizationSwitcher',
+      () => (
+        <OrganizationSwitcher>
+          <OrganizationSwitcher.__experimental_Outlet />
+        </OrganizationSwitcher>
+      ),
+      'mountOrganizationSwitcher'
+    ]
+  ] as const)(
+    'renders nothing, with a warning, for an Outlet in a %s that is not a provider',
+    (_name, ui, mount) => {
+      vi.stubEnv('NODE_ENV', 'development');
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const clerk = createFakeClerk();
+      renderWithClerk(clerk, ui);
+      // The component itself, and no second one for the Outlet.
+      expect(clerk[mount]).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls.flat().join(' ')).toContain(
+        '__experimental_Outlet'
+      );
+    }
+  );
+
   it('renders nothing, with a warning, for an Outlet outside a provider', () => {
     vi.stubEnv('NODE_ENV', 'development');
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -352,6 +410,34 @@ describe('custom element portals', () => {
       expect(portals.hasMountedNode()).toBe(false);
       dispose();
     });
+  });
+
+  it("leaves a re-added element's node alone when the old handler unmounts late", () => {
+    // No createRoot: inside one, Solid runs the portals' effects only once it
+    // returns.
+    const portals = createCustomElementPortals();
+    const [ids, setIds] = createSignal(['b']);
+    render(() => (
+      <portals.CustomElements
+        elements={ids().map((id) => ({ id, render: () => <p>body {id}</p> }))}
+      />
+    ));
+    const first = portals.handlersFor('b');
+    first.mount(document.createElement('div'));
+    // The item leaves and comes back before Clerk unmounts the old one.
+    setIds([]);
+    setIds(['b']);
+    const second = portals.handlersFor('b');
+    expect(second).not.toBe(first);
+    // Clerk's nodes are in the document.
+    const node = document.body.appendChild(document.createElement('div'));
+    second.mount(node);
+    first.unmount();
+    expect(portals.hasMountedNode()).toBe(true);
+    expect(node.textContent).toContain('body b');
+    second.unmount();
+    expect(portals.hasMountedNode()).toBe(false);
+    node.remove();
   });
 });
 

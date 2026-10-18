@@ -63,16 +63,91 @@ export const createDebugLogger = (name: string, enabled: boolean) => {
 export const shorten = (value: unknown) =>
   typeof value === 'string' && value ? `${value.substring(0, 7)}…` : value;
 
-const SECRET_OPTIONS = ['secretKey', 'machineSecretKey', 'jwtKey'] as const;
+/** Keys and tokens, logged as their first seven characters. */
+const SECRET_FIELDS = new Set([
+  'secretKey',
+  'machineSecretKey',
+  'jwtKey',
+  'sessionToken',
+  'tokenInHeader',
+  'sessionTokenInCookie',
+  'refreshTokenInCookie',
+  'devBrowserToken',
+  'handshakeToken',
+  'handshakeNonce'
+]);
 
-/** Options with the keys shortened. */
-export const redactOptions = (options: Record<string, unknown>) => {
-  const redacted = { ...options };
-  for (const key of SECRET_OPTIONS) {
-    if (key in redacted) redacted[key] = shorten(redacted[key]);
-  }
-  return redacted;
+/** Strings logged as they are: they configure Clerk and carry no credentials. */
+const SAFE_FIELDS = new Set([
+  'acceptsToken',
+  'apiUrl',
+  'apiVersion',
+  'cookieSuffix',
+  'domain',
+  'frontendApi',
+  'instanceType',
+  'originalFrontendApi',
+  'publishableKey'
+]);
+
+const isUrlString = (value: string) =>
+  /^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.startsWith('/');
+
+const isPlainObject = (value: object) => {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 };
+
+/**
+ * A value fit to log: booleans and numbers as they are, keys and tokens
+ * shortened, URLs without query values, requests and headers as the
+ * redactors below leave them, and plain objects and arrays field by field.
+ * Any other string, under a field not known to be safe, is cut.
+ */
+const redactField = (field: string, value: unknown, depth: number): unknown => {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === 'boolean' ||
+    typeof value === 'number'
+  ) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    if (SECRET_FIELDS.has(field)) return shorten(value);
+    if (isUrlString(value)) return redactUrlString(value);
+    return SAFE_FIELDS.has(field) ? value : '…';
+  }
+  if (SECRET_FIELDS.has(field) || depth > 4) return '…';
+  if (value instanceof URL) return redactUrlString(value.href);
+  if (value instanceof Request) {
+    return 'clerkUrl' in value
+      ? redactRequest(value as ClerkRequest)
+      : { url: redactUrlString(value.url), method: value.method };
+  }
+  if (value instanceof Headers) return redactHeaders(value);
+  if (Array.isArray(value)) {
+    return value.map((item) => redactField(field, item, depth + 1));
+  }
+  if (typeof value === 'object' && isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        redactField(key, item, depth + 1)
+      ])
+    );
+  }
+  return typeof value === 'function' ? '[function]' : '…';
+};
+
+/**
+ * Options, or the data an auth object's `debug()` returns, fit to log.
+ * `debug()` is `@clerk/backend`'s authenticate context, which holds the
+ * whole request (every header and cookie), the URL and the machine secret
+ * key, so it is shaped field by field like the options.
+ */
+export const redactConfig = (data: Record<string, unknown>) =>
+  redactField('', data, 0) as Record<string, unknown>;
 
 const safeDecode = (value: string) => {
   try {
