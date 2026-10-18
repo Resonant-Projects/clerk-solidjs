@@ -1,8 +1,9 @@
 import { Router } from '@solidjs/router';
 import { renderToString } from 'solid-js/web';
 import { provideRequestEvent } from 'solid-js/web/storage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ClerkProvider } from '..';
+import { TEST_PUBLISHABLE_KEY } from '../../../__tests__/helpers/fake-clerk-js';
 import { SignedIn, SignedOut } from '../../../components';
 import { signedInInitState } from './fixtures';
 
@@ -66,7 +67,10 @@ describe('SolidStart ClerkProvider on the server', () => {
   });
 
   it('renders no state script when the middleware did not run', () => {
+    // Without the middleware's state, the key comes from the env.
+    vi.stubEnv('VITE_CLERK_PUBLISHABLE_KEY', TEST_PUBLISHABLE_KEY);
     const html = renderPage({});
+    vi.unstubAllEnvs();
 
     expect(html).not.toContain('__clerk_init_state');
   });

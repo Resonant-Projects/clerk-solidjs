@@ -1,6 +1,9 @@
+import { eventMethodCalled } from '@clerk/shared/telemetry';
 import { createMemo } from 'solid-js';
+import { useClerkInstanceContext } from '../contexts/clerk-instance';
 import { useSessionContext } from '../contexts/session';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
+import { recordTelemetryOnce } from './utils';
 
 /**
  * The current session. While Clerk loads, `isLoaded()` is `false` and
@@ -11,6 +14,9 @@ export const useSession = () => {
   useAssertWrappedByClerkProvider('useSession');
 
   const session = useSessionContext();
+  recordTelemetryOnce(useClerkInstanceContext(), () =>
+    eventMethodCalled('useSession')
+  );
 
   const isLoaded = createMemo(() => session() !== undefined);
   const isSignedIn = createMemo(() => {

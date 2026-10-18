@@ -1,12 +1,11 @@
 /**
- * Vite does not define `global` by default
- * One workaround is to use the `define` config prop
- * https://vitejs.dev/config/#define
- * We are solving this in the SDK level to reduce setup steps.
+ * Vite does not define `global`, which some browser code still expects. Called
+ * when IsomorphicClerk is created in the browser, before clerk-js loads, rather
+ * than at import, so the package has no import-time side effects.
  */
-if (typeof window !== 'undefined' && !window.global) {
-  (window as Window & { global?: typeof globalThis }).global =
-    typeof global === 'undefined' ? window : global;
-}
-
-export {};
+export const installGlobalPolyfill = () => {
+  if (typeof window !== 'undefined' && !window.global) {
+    (window as Window & { global?: typeof globalThis }).global =
+      typeof global === 'undefined' ? window : global;
+  }
+};

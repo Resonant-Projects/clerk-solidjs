@@ -1,10 +1,9 @@
 import { useWindowSize } from "@solid-primitives/resize-observer";
 import { A } from "@solidjs/router";
 import {
-  ClerkLoaded,
+  ClerkFailed,
   ClerkLoading,
-  SignedIn,
-  SignedOut,
+  ClerkShow,
   SignInButton,
   SignOutButton,
   UserButton,
@@ -44,45 +43,55 @@ export default function Home() {
       <ClerkLoading>
         <p>Loading...</p>
       </ClerkLoading>
-      <ClerkLoaded>
-        <SignedOut>
-          <SignInButton class="bg-slate-200 rounded-md px-3 py-1" />
-        </SignedOut>
-        <SignedIn>
-          <UserButton showName={size.width > 768} userProfileMode="modal">
-            <UserButton.MenuItems>
-              <UserButton.Action
-                label="Preferences"
-                labelIcon={<DotIcon />}
-                open="preferences"
-              />
-              <UserButton.Link
-                label="Protected page"
-                labelIcon={<DotIcon />}
-                href="/protected"
-              />
-              <UserButton.Action label="manageAccount" />
-              <UserButton.Action label="signOut" />
-            </UserButton.MenuItems>
-            <PreferencesPage />
-          </UserButton>
-          <button
-            class="bg-slate-200 rounded-md px-3 py-1"
-            onClick={() => setModalKey(Date.now())}
-          >
-            Open preferences
-          </button>
-          {/* The callback takes the key, so each click mounts a new modal (a zero-argument child is an accessor). */}
-          <Show when={modalKey()} keyed>
-            {(_key) => (
-              <UserProfileModal __experimental_startPath="/preferences">
-                <PreferencesPage />
-              </UserProfileModal>
-            )}
-          </Show>
-          <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
-        </SignedIn>
-      </ClerkLoaded>
+      <ClerkFailed>
+        <p>Clerk failed to load.</p>
+      </ClerkFailed>
+      {/* ClerkShow is Clerk's <Show>, named so it can sit beside solid-js's. It
+          renders on the server from the request's auth state. */}
+      <ClerkShow when="signed-out">
+        {/* Your own button as the child: Clerk's click handler goes on it. */}
+        <SignInButton>
+          <button class="bg-slate-200 rounded-md px-3 py-1">Sign in</button>
+        </SignInButton>
+      </ClerkShow>
+      <ClerkShow when="signed-in">
+        <UserButton
+          showName={size.width > 768}
+          userProfileMode="modal"
+          fallback={<span class="text-slate-500">Loading account...</span>}
+        >
+          <UserButton.MenuItems>
+            <UserButton.Action
+              label="Preferences"
+              labelIcon={<DotIcon />}
+              open="preferences"
+            />
+            <UserButton.Link
+              label="Protected page"
+              labelIcon={<DotIcon />}
+              href="/protected"
+            />
+            <UserButton.Action label="manageAccount" />
+            <UserButton.Action label="signOut" />
+          </UserButton.MenuItems>
+          <PreferencesPage />
+        </UserButton>
+        <button
+          class="bg-slate-200 rounded-md px-3 py-1"
+          onClick={() => setModalKey(Date.now())}
+        >
+          Open preferences
+        </button>
+        {/* The callback takes the key, so each click mounts a new modal (a zero-argument child is an accessor). */}
+        <Show when={modalKey()} keyed>
+          {(_key) => (
+            <UserProfileModal __experimental_startPath="/preferences">
+              <PreferencesPage />
+            </UserProfileModal>
+          )}
+        </Show>
+        <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
+      </ClerkShow>
       <A href="/protected" class="bg-slate-200 rounded-md px-3 py-1">
         Protected Page
       </A>

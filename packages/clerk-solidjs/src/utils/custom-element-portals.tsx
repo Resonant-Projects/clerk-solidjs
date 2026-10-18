@@ -1,6 +1,6 @@
 import { createMemo, For, type JSX, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
-import { Portal } from 'solid-js/web';
+import { isServer, Portal } from 'solid-js/web';
 
 /**
  * A piece of app JSX that Clerk asks us to render into a node it owns:
@@ -79,7 +79,9 @@ export const createCustomElementPortals = () => {
     return (
       <For each={ids()}>
         {(id) => (
-          <Show when={nodes[id]} keyed>
+          // Clerk only hands out nodes in the browser; the guard also keeps
+          // Portal, which Solid 2 rejects on the server, off the server.
+          <Show when={isServer ? undefined : nodes[id]} keyed>
             {(node) => (
               <Portal
                 mount={node}

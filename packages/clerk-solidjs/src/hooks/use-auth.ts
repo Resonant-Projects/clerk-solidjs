@@ -9,13 +9,13 @@ import type {
   PendingSessionOptions,
   SignOut
 } from '@clerk/shared/types';
-import { Accessor, createEffect, createMemo, on, untrack } from 'solid-js';
+import { Accessor, createMemo } from 'solid-js';
 import { useAuthContext } from '../contexts/auth';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { errorThrower } from '../errors/error-thrower';
 import { invalidStateError } from '../errors/messages';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
-import { createGetToken, createSignOut } from './utils';
+import { createGetToken, createSignOut, recordTelemetryOnce } from './utils';
 
 export type UseAuthOptions = PendingSessionOptions;
 
@@ -47,20 +47,13 @@ export const useAuth = (
     (typeof options === 'function' ? options() : options)
       ?.treatPendingAsSignedOut ?? true;
 
-  createEffect(
-    on(
-      () => isomorphicClerk().telemetry,
-      (telemetry) =>
-        telemetry?.record(
-          eventMethodCalled('useAuth', {
-            treatPendingAsSignedOut: untrack(() =>
-              typeof options === 'function'
-                ? options()?.treatPendingAsSignedOut
-                : options?.treatPendingAsSignedOut
-            )
-          })
-        )
-    )
+  recordTelemetryOnce(isomorphicClerk, () =>
+    eventMethodCalled('useAuth', {
+      treatPendingAsSignedOut: (typeof options === 'function'
+        ? options()
+        : options
+      )?.treatPendingAsSignedOut
+    })
   );
 
   const checkAuthorization = createMemo(() =>

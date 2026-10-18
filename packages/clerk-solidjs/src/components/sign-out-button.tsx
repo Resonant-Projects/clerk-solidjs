@@ -1,42 +1,39 @@
-import { children as childrenFn, createMemo, splitProps } from 'solid-js';
+import { splitProps } from 'solid-js';
 import type { SignOutButtonProps, WithClerkProp } from '../types';
-import {
-  assertSingleChild,
-  normalizeWithDefaultValue,
-  safeExecute
-} from '../utils';
+import { ClerkButton } from '../utils';
 import { withClerk } from './with-clerk';
 
+/**
+ * Signs the user out. Renders the default button, or your own element passed
+ * as its only child. Without `redirectUrl`, Clerk goes to `afterSignOutUrl`.
+ */
 export const SignOutButton = withClerk(
   (props: WithClerkProp<SignOutButtonProps>) => {
-    const [local, clerk, rest] = splitProps(
+    const [local, clerkProps, rest] = splitProps(
       props,
-      ['children'],
-      ['clerk', 'redirectUrl', 'sessionId', 'onClick']
+      ['children', 'onClick'],
+      ['clerk', 'redirectUrl', 'sessionId']
     );
 
-    const children = childrenFn(() =>
-      normalizeWithDefaultValue(local.children, 'Sign out')
-    );
-    const child = createMemo(() =>
-      assertSingleChild(children())('SignOutButton')
-    );
-
-    const clickHandler = async () => {
-      if (clerk.onClick) {
-        await safeExecute(clerk.onClick)();
-      }
-      clerk.clerk().signOut({
-        redirectUrl: clerk.redirectUrl,
-        sessionId: clerk.sessionId
+    const signOut = () =>
+      clerkProps.clerk().signOut({
+        redirectUrl: clerkProps.redirectUrl,
+        ...(clerkProps.sessionId !== undefined && {
+          sessionId: clerkProps.sessionId
+        })
       });
-    };
 
     return (
-      <button {...rest} onClick={clickHandler}>
-        {child()}
-      </button>
+      <ClerkButton
+        name="SignOutButton"
+        defaultText="Sign out"
+        attributes={rest}
+        onClick={local.onClick}
+        action={signOut}
+      >
+        {local.children}
+      </ClerkButton>
     );
   },
-  'SignOutButton'
+  { component: 'SignOutButton', renderWhileLoading: true }
 );

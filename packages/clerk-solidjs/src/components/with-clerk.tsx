@@ -1,41 +1,41 @@
-import type { LoadedClerk, Without } from '@clerk/shared/types';
-import { Accessor, Component, createEffect, JSX, Show } from 'solid-js';
+import type { LoadedClerk } from '@clerk/shared/types';
+import { Accessor, Component, Show } from 'solid-js';
+import { useClerkLoadState } from '../contexts/clerk-status';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
-import { errorThrower } from '../errors/error-thrower';
-import { hocChildrenNotAFunctionError } from '../errors/messages';
 import { useAssertWrappedByClerkProvider } from '../hooks/use-assert-wrapped-by-clerk-provider';
+import type { DistributiveOmit } from '../types';
+
+type WithClerkOptions = {
+  component: string;
+  /**
+   * Render before Clerk loads, and on the server. IsomorphicClerk queues
+   * mounts, modals and redirects until clerk-js is ready.
+   */
+  renderWhileLoading?: boolean;
+};
 
 export const withClerk = <P extends { clerk: Accessor<LoadedClerk> }>(
   Component: Component<P>,
-  displayName?: string
+  displayNameOrOptions?: string | WithClerkOptions
 ) => {
-  displayName = displayName || Component.name || 'Component';
-  return (props: Without<P, 'clerk'>) => {
-    useAssertWrappedByClerkProvider(displayName || 'withClerk');
+  const options =
+    typeof displayNameOrOptions === 'string'
+      ? { component: displayNameOrOptions }
+      : displayNameOrOptions;
+  const displayName = options?.component || Component.name || 'Component';
+  const renderWhileLoading = !!options?.renderWhileLoading;
+
+  // Distributive, so union props such as a button's modal-only `appearance`
+  // survive.
+  return (props: DistributiveOmit<P, 'clerk'>) => {
+    useAssertWrappedByClerkProvider(displayName);
     const clerk = useIsomorphicClerkContext();
-    const isLoaded = () => clerk().loaded;
+    const { loaded } = useClerkLoadState();
 
     return (
-      <Show when={isLoaded()}>
-        <Component {...(props as P)} clerk={clerk} />
+      <Show when={renderWhileLoading || loaded()}>
+        <Component {...(props as unknown as P)} clerk={clerk} />
       </Show>
     );
   };
-};
-
-export const WithClerk: Component<{
-  children: (clerk: Accessor<LoadedClerk>) => JSX.Element;
-}> = (props) => {
-  const clerk = useIsomorphicClerkContext();
-  const isLoaded = () => clerk().loaded;
-  createEffect(() => {
-    if (typeof props.children !== 'function') {
-      errorThrower.throw(hocChildrenNotAFunctionError);
-    }
-  });
-  return (
-    <Show when={isLoaded()}>
-      {props.children(clerk as unknown as Accessor<LoadedClerk>)}
-    </Show>
-  );
 };

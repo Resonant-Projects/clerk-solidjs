@@ -1,7 +1,11 @@
 import type { ErrorThrowerOptions } from '@clerk/shared/error';
 import { buildErrorThrower } from '@clerk/shared/error';
 
-const errorThrower = buildErrorThrower({ packageName: 'clerk-solidjs' });
+// Named at build time, so errors from every entry, including `/start`, carry
+// the package name without an import-time setup call.
+const errorThrower = /* @__PURE__ */ buildErrorThrower({
+  packageName: PACKAGE_NAME
+});
 
 export { errorThrower };
 

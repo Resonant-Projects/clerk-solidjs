@@ -12,14 +12,15 @@ import type {
   LoadedClerk,
   RedirectUrlProp,
   IsomorphicClerkOptions as SharedIsomorphicClerkOptions,
-  SignInProps,
+  SignInButtonProps as SharedSignInButtonProps,
+  SignUpButtonProps as SharedSignUpButtonProps,
   SignInRedirectOptions,
   SignOutOptions,
-  SignUpProps,
   SignUpRedirectOptions,
   Without
 } from '@clerk/shared/types';
 import { Accessor, JSX, JSXElement } from 'solid-js';
+import type { Appearance, Theme } from './vendor/clerk-ui-appearance';
 
 declare global {
   interface Window {
@@ -27,6 +28,14 @@ declare global {
     __clerk_proxy_url?: Clerk['proxyUrl'];
     __clerk_domain?: Clerk['domain'];
     __internal_ClerkUICtor?: ClerkUIConstructor;
+  }
+
+  /**
+   * Types every `appearance` prop with Clerk's Core 3 theme, as `@clerk/react`
+   * does: `theme`, `options`, `variables`, `elements` and `captcha`.
+   */
+  interface ClerkAppearanceRegistry {
+    theme: Theme;
   }
 }
 
@@ -44,16 +53,51 @@ export type IsomorphicClerkOptions = SharedIsomorphicClerkOptions &
 
 // Distributes over the unions inside ClerkOptions (navigation, domain/proxy)
 // instead of flattening them like a plain Omit would.
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never;
 
-export type ClerkProviderProps = DistributiveOmit<
+/** `@clerk/ui`'s: the appearance type a `ui` carries, or `Default`. */
+type ExtractAppearanceType<T, Default> = T extends {
+  __appearanceType?: infer A;
+}
+  ? 0 extends 1 & A
+    ? Default
+    : A
+  : Default;
+
+/**
+ * The `ui` export of `@clerk/ui`, which bundles Clerk's components instead of
+ * loading them from the CDN. It carries the appearance type of its version.
+ */
+export interface Ui<A = any> {
+  __brand?: '__clerkUI';
+  ClerkUI?: ClerkUIConstructor | Promise<ClerkUIConstructor>;
+  version?: string;
+  __appearanceType?: A;
+}
+
+export type ClerkProviderProps<TUi extends Ui = Ui> = DistributiveOmit<
   IsomorphicClerkOptions,
-  keyof InternalClerkScriptProps
+  keyof InternalClerkScriptProps | 'appearance' | 'publishableKey' | 'ui'
 > & {
   children: JSX.Element;
   initialState?: InitialState;
+  /**
+   * Your Clerk Publishable Key. When omitted, it is read from
+   * `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY`.
+   */
+  publishableKey?: string;
+  /**
+   * Styles Clerk's components: `theme`, `options`, `variables`, `elements`
+   * and `captcha`. With `ui`, it is typed for that version of `@clerk/ui`.
+   */
+  appearance?: ExtractAppearanceType<TUi, Appearance>;
+  /**
+   * Pass `ui` from `@clerk/ui` to bundle Clerk's components instead of
+   * loading them from the CDN.
+   */
+  ui?: TUi;
 };
 
 export interface BrowserClerkConstructor {
@@ -113,34 +157,35 @@ export type ClerkProp =
   | undefined
   | null;
 
-type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
-  mode?: 'redirect' | 'modal';
+/**
+ * Attributes for the default `<button>`. With your own element as the child,
+ * set them on that element instead.
+ */
+type ButtonAttributes = Omit<
+  JSX.ButtonHTMLAttributes<HTMLButtonElement>,
+  'children'
+> & {
+  /** Text for the default button, or one element of your own. */
+  children?: JSX.Element;
 };
 
-export type SignInButtonProps = ButtonProps &
-  Pick<
-    SignInProps,
-    | 'fallbackRedirectUrl'
-    | 'forceRedirectUrl'
-    | 'signUpForceRedirectUrl'
-    | 'signUpFallbackRedirectUrl'
-  >;
+/** `@clerk/shared`'s SignInButtonProps plus `<button>` attributes. */
+export type SignInButtonProps = ButtonAttributes & SharedSignInButtonProps;
 
-export type SignOutButtonProps = ButtonProps &
+/** `@clerk/shared`'s SignUpButtonProps plus `<button>` attributes. */
+export type SignUpButtonProps = ButtonAttributes &
+  SharedSignUpButtonProps & {
+    /** Sent with the modal sign-up. */
+    unsafeMetadata?: SignUpUnsafeMetadata;
+  };
+
+export type SignOutButtonProps = ButtonAttributes &
   Pick<SignOutOptions, 'redirectUrl' | 'sessionId'>;
 
-export type SignUpButtonProps = {
-  unsafeMetadata?: SignUpUnsafeMetadata;
-} & ButtonProps &
-  Pick<
-    SignUpProps,
-    | 'fallbackRedirectUrl'
-    | 'forceRedirectUrl'
-    | 'signInForceRedirectUrl'
-    | 'signInFallbackRedirectUrl'
-  >;
-
-export type SignInWithMetamaskButtonProps = ButtonProps & RedirectUrlProp;
+export type SignInWithMetamaskButtonProps = ButtonAttributes &
+  RedirectUrlProp & {
+    mode?: 'redirect' | 'modal';
+  };
 
 export type RedirectToSignInProps = SignInRedirectOptions;
 export type RedirectToSignUpProps = SignUpRedirectOptions;

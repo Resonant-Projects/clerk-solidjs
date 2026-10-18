@@ -4,9 +4,6 @@ export const noClerkProviderError =
 export const multipleClerkProvidersError =
   "You've added multiple <ClerkProvider> components in your SolidJS component tree. Wrap your components in a single <ClerkProvider>.";
 
-export const hocChildrenNotAFunctionError =
-  'Child of WithClerk must be a function.';
-
 export const multipleChildrenInButtonComponent = (name: string) =>
   `You've passed multiple children components to <${name}/>. You can only pass a single child component or text.`;
 

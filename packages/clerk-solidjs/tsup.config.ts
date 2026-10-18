@@ -2,12 +2,9 @@ import { defineConfig } from 'tsup';
 import * as preset from 'tsup-preset-solid';
 import thisPackage from './package.json' with { type: 'json' };
 
-const CI =
-  process.env['CI'] === 'true' ||
-  process.env['GITHUB_ACTIONS'] === 'true' ||
-  process.env['CI'] === '"1"' ||
-  process.env['GITHUB_ACTIONS'] === '"1"';
-
+// package.json `exports` are maintained by hand, so the preset's
+// writePackageJson is not used: it would reorder the conditions and drop the
+// `types` siblings and the `./package.json` export.
 export default defineConfig((config) => {
   const watching = !!config.watch;
   const shouldPublish = !!config.env?.publish;
@@ -17,7 +14,9 @@ export default defineConfig((config) => {
       entries: [
         {
           entry: 'src/index.tsx',
-          server_entry: true
+          server_entry: true,
+          // A `development` build, where __DEV__ is true.
+          dev_entry: true
         },
         {
           name: 'errors',
@@ -30,7 +29,8 @@ export default defineConfig((config) => {
         {
           name: 'start',
           entry: 'src/start/index.tsx',
-          server_entry: true
+          server_entry: true,
+          dev_entry: true
         },
         {
           name: 'start/server',
@@ -40,7 +40,7 @@ export default defineConfig((config) => {
       cjs: true,
       // Keep console output: it is how clerk-js load failures are reported.
       drop_console: false,
-      modify_esbuild_options: (options) => {
+      modify_esbuild_options: (options, permutation) => {
         options.bundle = true;
         options.treeShaking = true;
         options.external = [
@@ -51,7 +51,7 @@ export default defineConfig((config) => {
           ...options.define,
           PACKAGE_NAME: `"${thisPackage.name}"`,
           PACKAGE_VERSION: `"${thisPackage.version}"`,
-          __DEV__: `${watching}`
+          __DEV__: `${watching || permutation.type.dev}`
         };
 
         return options;
@@ -60,11 +60,6 @@ export default defineConfig((config) => {
     },
     watching
   );
-
-  if (!watching && !CI) {
-    const packageFields = preset.generatePackageExports(parsed);
-    preset.writePackageJson(packageFields);
-  }
 
   const options = preset.generateTsupOptions(parsed);
   if (shouldPublish) {

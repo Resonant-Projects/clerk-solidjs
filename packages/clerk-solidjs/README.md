@@ -93,7 +93,7 @@ pnpm run dev
 
 Clerk requires your application to be wrapped in the `<ClerkProvider />` context.
 
-If using Vite, set `VITE_CLERK_PUBLISHABLE_KEY` to your Publishable key in your `.env.local` file to make the environment variable accessible on `process.env` and pass it as the `publishableKey` prop.
+Set `VITE_CLERK_PUBLISHABLE_KEY` to your Publishable key in your `.env.local` file. `ClerkProvider` reads it, or `CLERK_PUBLISHABLE_KEY`, when you don't pass the `publishableKey` prop. A missing or malformed key fails the render, on the server too.
 
 ```tsx
 // App.tsx
@@ -126,13 +126,12 @@ Once you have wrapped your app in `<ClerkProvider />` you can access hooks and c
 
 ```tsx
 import {
-  SignedIn,
-  SignedOut,
+  ClerkFailed,
+  ClerkLoading,
+  Show,
   SignInButton,
   UserButton,
-  useAuth,
-  ClerkLoading,
-  ClerkLoaded
+  useAuth
 } from '@resonant-projects/clerk-solidjs';
 
 export default function MyComponent() {
@@ -143,28 +142,89 @@ export default function MyComponent() {
       <ClerkLoading>
         <p>Loading...</p>
       </ClerkLoading>
-      <ClerkLoaded>
-        <SignedIn>
-          <UserButton />
-          <p>Welcome, {userId()}</p>
-        </SignedIn>
-        <SignedOut>
-          <SignInButton />
-        </SignedOut>
-      </ClerkLoaded>
+      <ClerkFailed>
+        <p>Sign-in is unavailable right now.</p>
+      </ClerkFailed>
+      <Show when="signed-in" fallback={<SignInButton />}>
+        <UserButton fallback={<span>Loading account...</span>} />
+        <p>Welcome, {userId()}</p>
+      </Show>
     </div>
   );
 }
 ```
 
+### `<Show>`
+
+`<Show>` is Clerk Core 3's replacement for `SignedIn`, `SignedOut` and
+`Protect`. `when` takes `'signed-in'`, `'signed-out'`, an authorization check
+such as `{ role: 'org:admin' }`, `{ permission: 'org:billing:manage' }`,
+`{ feature: 'premium' }` or `{ plan: 'pro' }`, or a function that receives
+`has`. It renders nothing until auth has loaded, renders `fallback` when `when`
+does not hold, and only creates its children once they are authorized, so their
+effects and fetches never run for the wrong user.
+
+It shares its name with solid-js's `Show`. In a file that uses both, import
+Clerk's as `ClerkShow`:
+
+```tsx
+import { Show } from 'solid-js';
+import { ClerkShow } from '@resonant-projects/clerk-solidjs';
+
+<ClerkShow when={{ role: 'org:admin' }} fallback={<p>Admins only</p>}>
+  <Show when={settings()}>{(s) => <AdminPanel settings={s()} />}</Show>
+</ClerkShow>;
+```
+
+`SignedIn`, `SignedOut` and `Protect` still work. They are deprecated wrappers
+over `<Show>`, warn once in development, and are removed in 4.0.
+
+### Loading state
+
+`ClerkLoading` shows while Clerk loads, including in the server render.
+`ClerkLoaded` shows once Clerk is ready, `ClerkFailed` if clerk-js failed to
+load (a blocked script, for example), and `ClerkDegraded` if it loaded but part
+of it is not working. `useAuth().getToken()` and `signOut()` wait until Clerk is
+ready; on the server, `getToken()` throws `clerk_runtime_not_browser`.
+
+### Buttons and components
+
+`SignInButton`, `SignUpButton`, `SignOutButton` and `SignInWithMetamaskButton`
+render on the server and before Clerk loads; a click before then runs once Clerk
+is ready. Pass text, or your own element, as the only child. Your element gets
+the click handler instead of being wrapped in another button:
+
+```tsx
+<SignInButton mode="modal" initialValues={{ emailAddress: email() }}>
+  <button class="btn-primary">Log in</button>
+</SignInButton>
+```
+
+`SignOutButton` without `redirectUrl` goes to your `afterSignOutUrl`;
+`@clerk/react`'s goes to `/`.
+
+`SignIn`, `UserButton` and the other Clerk components render their element on
+the server too, and take a `fallback` that shows until Clerk has rendered.
+
+### Appearance
+
+`appearance` is typed with Clerk Core 3's theme on `ClerkProvider` and every
+component: `theme`, `options`, `variables`, `elements` and `captcha`. The Core 2
+`baseTheme` and `layout` keys are type errors. With a bundled `ui` from
+`@clerk/ui`, `appearance` follows that version's types.
+
+The Core 2 `afterSignInUrl` and `afterSignUpUrl` props stand in for
+`signInFallbackRedirectUrl` and `signUpFallbackRedirectUrl` with a deprecation
+warning; they are removed in 4.0.
+
 ### Signed-in state and authorization
 
 `useAuth()` follows Clerk Core 3. A session that still has tasks to finish, such
 as choosing an organization or setting up MFA, counts as signed out. Pass
-`treatPendingAsSignedOut: false` to `useAuth`, `<SignedIn>`, `<SignedOut>` or
-`<Protect>` to treat it as signed in instead. `useSession().isSignedIn()` is
-`false` for such a session, while `session()` still returns it, as in
-`@clerk/react`.
+`treatPendingAsSignedOut: false` to `useAuth` or `<Show>` (or the deprecated
+`<SignedIn>`, `<SignedOut>` and `<Protect>`) to treat it as signed in instead.
+`useSession().isSignedIn()` is `false` for such a session, while `session()`
+still returns it, as in `@clerk/react`.
 
 `has()` checks roles, permissions, features, plans and reverification together,
 and returns `false` for anything it cannot confirm. Call it inside JSX or a memo

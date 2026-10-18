@@ -1,3 +1,4 @@
+import type { SDKMetadata } from '@clerk/shared/types';
 import { Router } from '@solidjs/router';
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +10,26 @@ import { signedInInitState } from './fixtures';
 afterEach(() => {
   cleanup();
   delete window.__clerk_init_state;
+  vi.unstubAllEnvs();
 });
+
+const loadOptions = async (ui?: {
+  sdkMetadata?: SDKMetadata;
+  telemetry?: { debug?: boolean; disabled?: boolean };
+}) => {
+  const { clerkJS } = createFakeClerkJS();
+  render(() => (
+    <Router
+      root={() => (
+        <ClerkProvider Clerk={clerkJS as any} {...ui}>
+          <p>app</p>
+        </ClerkProvider>
+      )}
+    />
+  ));
+  await vi.waitFor(() => expect(clerkJS.load).toHaveBeenCalled());
+  return clerkJS.load.mock.calls[0]![0] as Record<string, any>;
+};
 
 /** A clerk-js that never finishes loading, so only the server state counts. */
 const neverLoadingClerk = () => {
@@ -65,5 +85,56 @@ describe('SolidStart ClerkProvider in the browser', () => {
         signedInInitState().__internal_clerk_state.__publishableKey,
       signInUrl: '/sign-in'
     });
+  });
+
+  it('identifies itself to clerk-js as the SolidStart SDK', async () => {
+    window.__clerk_init_state = signedInInitState();
+
+    expect((await loadOptions()).sdkMetadata).toEqual({
+      name: `${PACKAGE_NAME}/start`,
+      version: PACKAGE_VERSION,
+      environment: process.env.NODE_ENV
+    });
+  });
+
+  it('passes on SDK metadata the app provides', async () => {
+    window.__clerk_init_state = signedInInitState();
+    const sdkMetadata = { name: 'my-sdk', version: '1.0.0' };
+
+    expect((await loadOptions({ sdkMetadata })).sdkMetadata).toEqual(
+      sdkMetadata
+    );
+  });
+
+  it('falls back to the env proxy URL and telemetry settings', async () => {
+    window.__clerk_init_state = signedInInitState();
+    vi.stubEnv('VITE_CLERK_PROXY_URL', 'https://example.com/__clerk');
+    vi.stubEnv('VITE_CLERK_TELEMETRY_DISABLED', 'true');
+    vi.stubEnv('VITE_CLERK_TELEMETRY_DEBUG', 'true');
+
+    expect(await loadOptions()).toMatchObject({
+      proxyUrl: 'https://example.com/__clerk',
+      telemetry: { disabled: true, debug: true }
+    });
+  });
+
+  it('keeps an env telemetry opt-out when the app passes other telemetry options', async () => {
+    window.__clerk_init_state = signedInInitState();
+    vi.stubEnv('VITE_CLERK_TELEMETRY_DISABLED', 'true');
+
+    expect(
+      (await loadOptions({ telemetry: { debug: true } })).telemetry
+    ).toEqual({ disabled: true, debug: true });
+  });
+
+  it('prefers the server state over the env', async () => {
+    window.__clerk_init_state = signedInInitState({
+      __proxyUrl: 'https://server.example.com/__clerk'
+    });
+    vi.stubEnv('VITE_CLERK_PROXY_URL', 'https://example.com/__clerk');
+
+    expect((await loadOptions()).proxyUrl).toBe(
+      'https://server.example.com/__clerk'
+    );
   });
 });

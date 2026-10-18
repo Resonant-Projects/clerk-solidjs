@@ -1,4 +1,5 @@
 import { inBrowser } from '@clerk/shared/browser';
+import { clerkEvents, createClerkEventBus } from '@clerk/shared/clerkEventBus';
 import {
   loadClerkJSScript,
   loadClerkUIScript
@@ -13,6 +14,7 @@ import type {
   Clerk,
   ClerkAuthenticateWithWeb3Params,
   ClerkOptions,
+  ClerkStatus,
   ClerkUIConstructor,
   ClientResource,
   CreateOrganizationParams,
@@ -25,12 +27,14 @@ import type {
   HandleOAuthCallbackParams,
   JoinWaitlistParams,
   ListenerCallback,
+  LoadedClerk,
   OrganizationListProps,
   OrganizationProfileProps,
   OrganizationResource,
   OrganizationSwitcherProps,
   PricingTableProps,
   RedirectOptions,
+  SDKMetadata,
   SetActiveParams,
   SignInProps,
   SignInRedirectOptions,
@@ -42,12 +46,14 @@ import type {
   UserButtonProps,
   UserProfileProps,
   WaitlistProps,
-  WaitlistResource
+  WaitlistResource,
+  Without
 } from '@clerk/shared/types';
 import { handleValueOrFn, logErrorInDevMode } from '@clerk/shared/utils';
 
 import { errorThrower } from './errors/error-thrower';
 import { unsupportedNonBrowserDomainOrProxyUrlFunction } from './errors/messages';
+import { installGlobalPolyfill } from './polyfills';
 import type {
   BrowserClerk,
   BrowserClerkConstructor,
@@ -59,9 +65,13 @@ import type {
 } from './types';
 import { isConstructor } from './utils';
 
-if (typeof globalThis.__BUILD_DISABLE_RHC__ === 'undefined') {
-  globalThis.__BUILD_DISABLE_RHC__ = false;
-}
+/**
+ * True when the app's bundler defines `__BUILD_DISABLE_RHC__` (or the global
+ * is set) to turn off loading Clerk from the CDN. `typeof` keeps this safe
+ * when it is undefined, so nothing needs setting at import.
+ */
+const remotelyHostedCodeDisabled = () =>
+  typeof __BUILD_DISABLE_RHC__ !== 'undefined' && !!__BUILD_DISABLE_RHC__;
 
 const SDK_METADATA = {
   name: PACKAGE_NAME,
@@ -82,11 +92,99 @@ type MethodName<T> = {
 
 type MethodCallback = () => Promise<unknown> | unknown;
 
-type IsomorphicLoadedClerk = {
-  client: ClientResource | undefined;
+type WithVoidReturn<F extends (...args: any) => any> = (
+  ...args: Parameters<F>
+) => ReturnType<F> extends Promise<infer T>
+  ? Promise<T | void>
+  : ReturnType<F> | void;
+type WithVoidReturnFunctions<T> = {
+  [K in keyof T]: T[K] extends (...args: any) => any
+    ? WithVoidReturn<T[K]>
+    : T[K];
 };
 
-type NextTaskParams = unknown;
+/**
+ * `LoadedClerk` members IsomorphicClerk does not forward yet, by the
+ * hill-climb feature that adds them. Every other member must exist, so a
+ * member Clerk adds upstream is a type error until it is ported or listed.
+ */
+type NotYetSupported =
+  // F24: Core 3 signal hooks.
+  | '__internal_state'
+  // F26: session tasks.
+  | 'buildTasksUrl'
+  | 'redirectToTasks'
+  | 'mountTaskChooseOrganization'
+  | 'unmountTaskChooseOrganization'
+  | 'mountTaskResetPassword'
+  | 'unmountTaskResetPassword'
+  | 'mountTaskSetupMFA'
+  | 'unmountTaskSetupMFA'
+  // F27: SSO callback and bot protection.
+  | 'setProtectAssertion'
+  | '__internal_handleResourceCallback'
+  | '__internal_resolvePendingProtectCheck'
+  | '__internal_resumeAfterProtectCheck'
+  | '__internal_protectChallengeLoadTimeoutMs'
+  // F28: remaining instance members.
+  | 'authenticateWithBase'
+  | 'authenticateWithSolana'
+  | 'uiVersion'
+  | '__internal_windowNavigate'
+  | '__internal_moduleManager'
+  | '__internal_lastEmittedResources'
+  | '__internal_hasOAuthTransport'
+  | '__internal_oauthTransport'
+  | '__internal_country'
+  | 'openInviteMembers'
+  | 'closeInviteMembers'
+  | '__internal_attemptToEnableEnvironmentSetting'
+  | '__internal_openEnableOrganizationsPrompt'
+  | '__internal_closeEnableOrganizationsPrompt'
+  | '__internal_mountConfigureSSO'
+  | '__internal_unmountConfigureSSO'
+  | '__internal_mountConfigureDirectorySync'
+  | '__internal_unmountConfigureDirectorySync'
+  // F30, F31, F32: APIKeys, UserAvatar, OAuthConsent and device verification.
+  | 'mountAPIKeys'
+  | 'unmountAPIKeys'
+  | 'mountUserAvatar'
+  | 'unmountUserAvatar'
+  | 'mountOAuthConsent'
+  | 'unmountOAuthConsent'
+  | '__internal_mountOAuthConsent'
+  | '__internal_unmountOAuthConsent'
+  | '__internal_mountOAuthDeviceVerification'
+  | '__internal_unmountOAuthDeviceVerification'
+  // F37 to F40: billing.
+  | '__experimental_checkout'
+  | '__internal_openCheckout'
+  | '__internal_closeCheckout'
+  | '__internal_openPlanDetails'
+  | '__internal_closePlanDetails'
+  | '__internal_openSubscriptionDetails'
+  | '__internal_closeSubscriptionDetails'
+  | 'buildNewSubscriptionRedirectUrl'
+  | '__internal_loadStripeJs';
+
+/**
+ * @clerk/react's contract: every `LoadedClerk` member, with methods allowed
+ * to return nothing while clerk-js loads.
+ */
+type IsomorphicLoadedClerk = Without<
+  WithVoidReturnFunctions<LoadedClerk>,
+  | 'client'
+  | '__internal_addNavigationListener'
+  | '__internal_getCachedResources'
+  | '__internal_reloadInitialResources'
+  | 'billing'
+  | 'apiKeys'
+  | 'oauthApplication'
+  | '__internal_setActiveInProgress'
+  | NotYetSupported
+> & {
+  client: ClientResource | undefined;
+};
 
 export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private readonly mode: 'browser' | 'server';
@@ -157,9 +255,12 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private loadedListeners: Array<() => void> = [];
 
   #loaded = false;
+  #status: ClerkStatus = 'loading';
+  #eventBus = createClerkEventBus();
   #domain: DomainOrProxyUrl['domain'];
   #proxyUrl: DomainOrProxyUrl['proxyUrl'];
   #publishableKey: string;
+  #sdkMetadata: SDKMetadata;
 
   get publishableKey(): string {
     return this.#publishableKey;
@@ -167,6 +268,18 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
   get loaded(): boolean {
     return this.#loaded;
+  }
+
+  /**
+   * `'loading'` until clerk-js is ready, `'error'` if it failed to load, and
+   * clerk-js's own status (`'ready'` or `'degraded'`) after that.
+   */
+  get status(): ClerkStatus {
+    if (!this.clerkjs) {
+      return this.#status;
+    }
+    // A clerk-js without `status` predates `'degraded'` and `'error'`.
+    return this.clerkjs.status || (this.clerkjs.loaded ? 'ready' : 'loading');
   }
 
   static #instance: IsomorphicClerk | null | undefined;
@@ -230,18 +343,29 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     this.options = options;
     this.Clerk = Clerk;
     this.mode = inBrowser() ? 'browser' : 'server';
+    installGlobalPolyfill();
+    // Options can be a Solid props proxy, which ignores writes, so the
+    // default is kept here and passed to clerk-js explicitly.
+    this.#sdkMetadata = options?.sdkMetadata ?? SDK_METADATA;
 
-    if (!this.options.sdkMetadata) {
-      this.options.sdkMetadata = SDK_METADATA;
-    }
+    this.#eventBus.emit(clerkEvents.Status, 'loading');
+    this.#eventBus.prioritizedOn(
+      clerkEvents.Status,
+      (status) => (this.#status = status)
+    );
 
-    if (this.#publishableKey) {
+    // A Clerk instance the app created carries its own key; a constructor or
+    // the CDN build needs one here.
+    if (
+      this.#publishableKey ||
+      (this.Clerk && !isConstructor<BrowserClerkConstructor>(this.Clerk))
+    ) {
       void this.loadClerkJS();
     }
   }
 
-  get sdkMetadata() {
-    return this.clerkjs?.sdkMetadata || this.options.sdkMetadata || undefined;
+  get sdkMetadata(): SDKMetadata {
+    return this.clerkjs?.sdkMetadata || this.#sdkMetadata;
   }
 
   get instanceType() {
@@ -433,6 +557,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
           : undefined;
         await clerk.load({
           ...this.options,
+          sdkMetadata: this.#sdkMetadata,
           ui: { ...this.options.ui, ClerkUI }
         });
       }
@@ -442,6 +567,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       }
       return;
     } catch (err) {
+      this.#eventBus.emit(clerkEvents.Status, 'error');
       // loadClerkJS runs fire-and-forget from the constructor, so rethrowing
       // would only surface as an unhandled rejection. Log it like @clerk/react.
       console.error(err instanceof Error ? err.stack || err.message : err);
@@ -453,7 +579,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     // Hot-load clerk-js from the Clerk CDN unless the app passes its own Clerk.
     if (
       (!this.Clerk || this.options.__internal_clerkJSUrl) &&
-      !__BUILD_DISABLE_RHC__ &&
+      !remotelyHostedCodeDisabled() &&
       !globalThis.Clerk
     ) {
       await loadClerkJSScript({
@@ -499,7 +625,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       return undefined;
     }
 
-    if (__BUILD_DISABLE_RHC__) {
+    if (remotelyHostedCodeDisabled()) {
       return undefined;
     }
 
@@ -519,6 +645,27 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
     return globalThis.__internal_ClerkUICtor;
   }
+
+  /**
+   * Subscribes to Clerk events such as `'status'`. Before clerk-js loads,
+   * listeners wait here and move to clerk-js once it has loaded.
+   */
+  public on: Clerk['on'] = (...args) => {
+    // A clerk-js without `on` predates the status event.
+    if (this.clerkjs?.on) {
+      return this.clerkjs.on(...args);
+    }
+    this.#eventBus.on(...args);
+  };
+
+  public off: Clerk['off'] = (...args) => {
+    // A listener added before load also stays on this bus, so remove it here
+    // too, or it is kept for the instance's lifetime.
+    this.#eventBus.off(...args);
+    if (this.clerkjs?.off) {
+      return this.clerkjs.off(...args);
+    }
+  };
 
   public addOnLoaded = (cb: () => void) => {
     this.loadedListeners.push(cb);
@@ -622,6 +769,27 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     });
 
     this.#loaded = true;
+
+    // Status listeners move to clerk-js, which now owns the status, and
+    // `notify` hands them its current value. This runs after `loaded` is set,
+    // so a listener that sees `'ready'` can use this instance right away.
+    if (typeof clerkjs.on === 'function') {
+      // The bus returns its live array, which off() splices. Walk a copy, so
+      // a listener removing itself does not make this skip the next one, and
+      // skip any listener an earlier notification has removed (a disposed
+      // <ClerkLoading>, say), so it is not subscribed again.
+      const live =
+        this.#eventBus.internal.retrieveListeners(clerkEvents.Status) ?? [];
+      [...live].forEach((listener) => {
+        if (!live.includes(listener)) return;
+        clerkjs.on(clerkEvents.Status, listener, { notify: true });
+      });
+    }
+    // A clerk-js without `status` predates the status event, so report
+    // `'ready'` to the listeners that stayed here.
+    if (typeof clerkjs.status === 'undefined') {
+      this.#eventBus.emit(clerkEvents.Status, 'ready');
+    }
     this.emitLoaded();
     return this.clerkjs;
   };
@@ -688,10 +856,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     }
   }
 
-  get __experimental_commerce(): unknown | undefined {
-    return (this.clerkjs as any)?.__experimental_commerce;
-  }
-
   __internal_setEnvironment = (
     env: EnvironmentJSON
   ): Promise<void> | undefined => {
@@ -730,15 +894,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   get #clerkjsInternals(): Partial<ClerkJSInternals> | null {
     return this.clerkjs as Partial<ClerkJSInternals> | null;
   }
-
-  __experimental_nextTask = async (params?: NextTaskParams): Promise<void> => {
-    const nextTask = (this.clerkjs as any)?.__experimental_nextTask;
-    if (nextTask) {
-      return nextTask(params);
-    } else {
-      return Promise.reject();
-    }
-  };
 
   /**
    * `setActive` can be used to set the active session and/or organization.
@@ -912,10 +1067,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       this.premountPricingTableNodes.delete(node);
     }
   };
-
-  __experimental_mountPricingTable = this.mountPricingTable;
-
-  __experimental_unmountPricingTable = this.unmountPricingTable;
 
   mountSignUp = (node: HTMLDivElement, props?: SignUpProps) => {
     if (this.clerkjs && this.#loaded) {

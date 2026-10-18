@@ -1,5 +1,6 @@
 import { deriveState } from '@clerk/shared/deriveState';
 import type {
+  ClerkStatus,
   ClientResource,
   InitialState,
   LoadedClerk,
@@ -16,10 +17,12 @@ import {
   onCleanup,
   untrack
 } from 'solid-js';
+import { isServer } from 'solid-js/web';
 import { IsomorphicClerk } from '../isomorphic-clerk';
 import { clearAuthenticatedQueries } from '../query/clerk-query-client';
 import type { IsomorphicClerkOptions } from '../types';
 import { AuthContextProvider } from './auth';
+import { ClerkLoadStateContext } from './clerk-status';
 import { ClientContextProvider } from './client';
 import { IsomorphicClerkContextProvider } from './isomorphic-clerk';
 import { OrganizationContextProvider } from './organization';
@@ -35,8 +38,11 @@ type ClerkContextProvider = {
 export type ClerkContextProviderState = Resources;
 
 export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
-  const { isomorphicClerk: clerk, loaded: clerkLoaded } =
-    useLoadedIsomorphicClerk(() => props.isomorphicClerkOptions);
+  const {
+    isomorphicClerk: clerk,
+    status,
+    loaded: clerkLoaded
+  } = useLoadedIsomorphicClerk(() => props.isomorphicClerkOptions);
 
   const [state, setState] = createSignal<ClerkContextProviderState>({
     client: clerk().client as ClientResource,
@@ -72,7 +78,12 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
     )
   );
 
-  const clerkCtx = () => (clerkLoaded() ? clerk() : clerk());
+  // Reading `status()` makes anything that calls `useClerk()()` re-run when
+  // Clerk loads or its status changes; the instance itself never changes.
+  const clerkCtx = () => {
+    status();
+    return clerk();
+  };
 
   // Not memoized: clerk-js updates resources such as its Client singleton in
   // place and emits the same reference, so every emission must reach
@@ -86,17 +97,19 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
     <IsomorphicClerkContextProvider
       clerk={clerkCtx as unknown as Accessor<LoadedClerk>}
     >
-      <ClientContextProvider client={client}>
-        <SessionContextProvider session={session}>
-          <OrganizationContextProvider organization={organization}>
-            <AuthContextProvider auth={derivedState}>
-              <UserContextProvider user={user}>
-                {props.children}
-              </UserContextProvider>
-            </AuthContextProvider>
-          </OrganizationContextProvider>
-        </SessionContextProvider>
-      </ClientContextProvider>
+      <ClerkLoadStateContext.Provider value={{ status, loaded: clerkLoaded }}>
+        <ClientContextProvider client={client}>
+          <SessionContextProvider session={session}>
+            <OrganizationContextProvider organization={organization}>
+              <AuthContextProvider auth={derivedState}>
+                <UserContextProvider user={user}>
+                  {props.children}
+                </UserContextProvider>
+              </AuthContextProvider>
+            </OrganizationContextProvider>
+          </SessionContextProvider>
+        </ClientContextProvider>
+      </ClerkLoadStateContext.Provider>
     </IsomorphicClerkContextProvider>
   );
 }
@@ -104,9 +117,20 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
 const useLoadedIsomorphicClerk = (
   options: Accessor<IsomorphicClerkOptions>
 ) => {
-  const [loaded, setLoaded] = createSignal(false);
-  const isomorphicClerk = createMemo(() =>
-    IsomorphicClerk.getOrCreateInstance(untrack(options))
+  const instance = IsomorphicClerk.getOrCreateInstance(untrack(options));
+  const isomorphicClerk = () => instance;
+
+  // clerk-js owns the status once it loads; IsomorphicClerk forwards it. The
+  // server never loads clerk-js, so it renders the `'loading'` state the
+  // browser starts in.
+  const [status, setStatus] = createSignal<ClerkStatus>(instance.status);
+  if (!isServer) {
+    const onStatus = (next: ClerkStatus) => setStatus(next);
+    instance.on('status', onStatus, { notify: true });
+    onCleanup(() => instance.off('status', onStatus));
+  }
+  const loaded = createMemo(
+    () => status() === 'ready' || status() === 'degraded'
   );
 
   createEffect(
@@ -117,6 +141,8 @@ const useLoadedIsomorphicClerk = (
           appearance
         });
       }
+      // Not deferred: with a Clerk instance that has already loaded (passed
+      // in, or reused after a remount), load() never sends the initial value.
     )
   );
 
@@ -133,15 +159,9 @@ const useLoadedIsomorphicClerk = (
     )
   );
 
-  createEffect(() => {
-    isomorphicClerk().addOnLoaded(() => {
-      setLoaded(true);
-    });
-  });
-
   onCleanup(() => {
     IsomorphicClerk.clearInstance();
   });
 
-  return { isomorphicClerk, loaded };
+  return { isomorphicClerk, status, loaded };
 };
