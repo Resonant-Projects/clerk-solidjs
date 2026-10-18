@@ -215,6 +215,32 @@ describe('billing hooks', () => {
   });
 });
 
+describe('billing for an organization with none active', () => {
+  it("never shows the user's cached subscription or payment methods", async () => {
+    const getSubscription = vi.fn(async () => ({ id: 'sub_user' }));
+    const clerkJS = signedIn({ billing: { getSubscription } });
+    let userSubscription!: ReturnType<typeof useSubscription>;
+    let userMethods!: ReturnType<typeof usePaymentMethods>;
+    let orgSubscription!: ReturnType<typeof useSubscription>;
+    let orgMethods!: ReturnType<typeof usePaymentMethods>;
+    renderInProvider(clerkJS, () => {
+      userSubscription = useSubscription();
+      userMethods = usePaymentMethods();
+      orgSubscription = useSubscription(() => ({ for: 'organization' }));
+      orgMethods = usePaymentMethods(() => ({ for: 'organization' }));
+      return null;
+    });
+    await vi.waitFor(() =>
+      expect(userSubscription.data()).toEqual({ id: 'sub_user' })
+    );
+    await vi.waitFor(() => expect(userMethods.data()).toHaveLength(1));
+
+    expect(orgSubscription.data()).toBeUndefined();
+    expect(orgMethods.data()).toEqual([]);
+    expect(getSubscription).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('useSubscription across accounts', () => {
   it("does not keep the previous user's subscription for the next one", async () => {
     let finishSecond!: (value: unknown) => void;

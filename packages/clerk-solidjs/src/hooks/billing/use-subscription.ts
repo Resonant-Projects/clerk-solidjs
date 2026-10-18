@@ -52,13 +52,17 @@ export function useSubscription(
   const billingEnabled = useBillingIsEnabled(params);
 
   const keys = createMemo(() => {
+    // `null` for an organization's subscription with none active, so it is
+    // never the user's cache entry: undefined would drop out of the key.
     const orgId =
-      params().for === 'organization' ? organization()?.id : undefined;
+      params().for === 'organization'
+        ? (organization()?.id ?? null)
+        : undefined;
     return createCacheKeys({
       stablePrefix: STABLE_KEYS.SUBSCRIPTION_KEY,
       authenticated: true,
       tracked: { userId: user()?.id, orgId },
-      untracked: { args: { orgId } }
+      untracked: { args: { orgId: orgId ?? undefined } }
     });
   });
 
