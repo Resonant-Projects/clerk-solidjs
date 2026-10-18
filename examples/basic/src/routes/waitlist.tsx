@@ -1,13 +1,10 @@
 import { useWindowSize } from "@solid-primitives/resize-observer";
 import { A } from "@solidjs/router";
 import {
-  ClerkLoaded,
-  ClerkLoading,
-  SignedIn,
-  SignedOut,
+  Show,
   SignOutButton,
   UserButton,
-  Waitlist
+  Waitlist,
 } from "@resonant-projects/clerk-solidjs";
 
 export default function Home() {
@@ -18,18 +15,13 @@ export default function Home() {
       <h1 class="text-3xl font-bold mb-5 font-mono bg-slate-300 rounded-md p-1">
         clerk-solidjs
       </h1>
-      <ClerkLoading>
-        <p>Loading...</p>
-      </ClerkLoading>
-      <ClerkLoaded>
-        <SignedOut>
-          <Waitlist />
-        </SignedOut>
-        <SignedIn>
-          <UserButton showName={size.width > 768} />
-          <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
-        </SignedIn>
-      </ClerkLoaded>
+      <Show when="signed-out">
+        <Waitlist fallback={<p>Loading the waitlist...</p>} />
+      </Show>
+      <Show when="signed-in">
+        <UserButton showName={size.width > 768} />
+        <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
+      </Show>
       <A href="/protected" class="bg-slate-200 rounded-md px-3 py-1">
         Protected Page
       </A>

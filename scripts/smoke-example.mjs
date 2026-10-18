@@ -135,6 +135,26 @@ async function runChecks(baseUrl) {
     head.includes('window.__clerk_init_state = '),
     head.includes('window.__clerk_init_state') ? '' : 'no state script in <head>'
   );
+  check(
+    '<Show when="signed-out"> and SignInButton render on the server',
+    />\s*Sign in\s*<\/button>/.test(html)
+  );
+  check(
+    'a custom SignInButton child is not wrapped in another button',
+    !/<button[^>]*>\s*<button/.test(html)
+  );
+
+  const waitlistHtml = await (
+    await fetch(new URL('/waitlist', baseUrl), {
+      redirect: 'manual',
+      headers: { accept: '*/*' }
+    })
+  ).text();
+  check(
+    'a UI component renders its host and fallback on the server',
+    waitlistHtml.includes('data-clerk-component="Waitlist"') &&
+      waitlistHtml.includes('Loading the waitlist...')
+  );
 
   const browser = await chromium.launch();
   try {
@@ -161,6 +181,11 @@ async function runChecks(baseUrl) {
       'the page hydrated once (one heading)',
       (await page.locator('h1').count()) === 1
     );
+    check(
+      'buttons are not nested after hydration',
+      (await page.locator('button button').count()) === 0 &&
+        (await page.getByRole('button', { name: /sign in/i }).count()) === 1
+    );
 
     // The example's SignInButton uses the default redirect mode.
     await signInButton.click();
@@ -176,7 +201,36 @@ async function runChecks(baseUrl) {
       await page.getByText('You are not signed in').isVisible()
     );
 
+    await page.goto(new URL('/waitlist', baseUrl).href, { waitUntil: 'networkidle' });
+    const waitlistRendered = await page
+      .waitForFunction(
+        () =>
+          (document.querySelector('[data-clerk-component="Waitlist"]')?.childElementCount ?? 0) > 0,
+        null,
+        { timeout: 30_000 }
+      )
+      .then(() => true)
+      .catch(() => false);
+    check(
+      'the Waitlist fallback gives way to Clerk once it renders',
+      waitlistRendered && !(await page.getByText('Loading the waitlist...').isVisible())
+    );
+
     check('no page errors or console errors', errors.length === 0, errors.join(' | '));
+
+    // A separate page, since a blocked script logs errors on purpose.
+    const blocked = await browser.newPage();
+    await blocked.route(/\/npm\/@clerk\/clerk-js@/, (route) => route.abort());
+    await blocked.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    const failedShown = await blocked
+      .getByText('Clerk failed to load.')
+      .waitFor({ timeout: 30_000 })
+      .then(() => true)
+      .catch(() => false);
+    check(
+      'ClerkFailed replaces ClerkLoading when the clerk-js script is blocked',
+      failedShown && !(await blocked.getByText('Loading...').isVisible())
+    );
   } finally {
     await browser.close();
   }
