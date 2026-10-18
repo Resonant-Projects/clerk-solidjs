@@ -11,6 +11,7 @@ import {
   createMemo,
   createSignal,
   JSX,
+  on,
   onCleanup,
   Show,
   untrack,
@@ -29,6 +30,7 @@ import { createClerkQuery } from '../../query/create-clerk-query';
 type StripePaymentElement = {
   mount: (node: HTMLElement) => void;
   on: (event: 'ready', handler: () => void) => void;
+  update: (options: Record<string, unknown>) => void;
   destroy: () => void;
 };
 type StripeElements = {
@@ -36,6 +38,7 @@ type StripeElements = {
     type: 'payment',
     options: Record<string, unknown>
   ) => StripePaymentElement;
+  update: (options: Record<string, unknown>) => void;
 };
 type Stripe = {
   elements: (options: Record<string, unknown>) => StripeElements;
@@ -97,6 +100,24 @@ type PaymentElementContextValue = {
 };
 
 const PaymentElementContext = createContext<PaymentElementContextValue>();
+
+/**
+ * The options in `next` that differ from `previous`, or `undefined` if none
+ * do, as Stripe's React binding sends them to `update()`. They are plain
+ * data, so JSON compares them.
+ */
+const changedOptions = (
+  next: Record<string, unknown>,
+  previous: Record<string, unknown>
+) => {
+  let changed: Record<string, unknown> | undefined;
+  for (const key of Object.keys(next)) {
+    if (JSON.stringify(next[key]) !== JSON.stringify(previous[key])) {
+      changed = { ...changed, [key]: next[key] };
+    }
+  }
+  return changed;
+};
 
 const usePaymentElementContext = (name: string) => {
   const context = useContext(PaymentElementContext);
@@ -201,6 +222,8 @@ export const PaymentElementProvider = (
   };
 
   // New Elements for each client secret, as upstream keys <Elements> by it.
+  // Other options update them in place: new Elements would discard what the
+  // user has typed.
   const elements = createMemo(() => {
     const instance = stripe();
     const clientSecret = initializedPaymentMethod()?.externalClientSecret;
@@ -208,10 +231,17 @@ export const PaymentElementProvider = (
     return instance.elements({
       loader: 'never',
       clientSecret,
-      appearance: { variables: props.stripeAppearance },
-      locale: locale()
+      appearance: { variables: untrack(() => props.stripeAppearance) },
+      locale: untrack(locale)
     });
   });
+  createEffect(
+    on(
+      () => props.stripeAppearance,
+      (variables) => untrack(elements)?.update({ appearance: { variables } }),
+      { defer: true }
+    )
+  );
 
   const [isReady, setReady] = createSignal(false);
   createEffect(() => {
@@ -223,8 +253,10 @@ export const PaymentElementProvider = (
   const initializePaymentMethod = async () => {
     const current = untrack(resource);
     if (!current) return undefined;
+    // The key of the payer it was asked for, even if the payer changes first.
+    const key = untrack(initializeKey);
     const result = await current.initializePaymentMethod({ gateway: 'stripe' });
-    getClerkQueryClient()?.setQueryData(untrack(initializeKey), result);
+    getClerkQueryClient()?.setQueryData(key, result);
     return result;
   };
 
@@ -280,18 +312,38 @@ export const PaymentElement = (props: {
     };
   };
 
+  const options = (): Record<string, unknown> => ({
+    layout: { type: 'tabs', defaultCollapsed: false },
+    paymentMethodOrder: context.initializedPaymentMethod()?.paymentMethodOrder,
+    applePay: applePay()
+  });
+
+  // One payment element per Elements. Later option changes go through
+  // update(), as in Stripe's React binding: destroying the element would
+  // discard what the user has typed.
   createEffect(() => {
     const elements = context.elements();
     if (!elements || !node) return;
-    const element = elements.create('payment', {
-      layout: { type: 'tabs', defaultCollapsed: false },
-      paymentMethodOrder:
-        context.initializedPaymentMethod()?.paymentMethodOrder,
-      applePay: applePay()
-    });
+    let current = untrack(options);
+    const element = elements.create('payment', current);
     element.on('ready', () => context.setReady(true));
     element.mount(node);
-    onCleanup(() => element.destroy());
+    createEffect(
+      on(
+        options,
+        (next) => {
+          const updates = changedOptions(next, current);
+          current = next;
+          if (updates) element.update(updates);
+        },
+        { defer: true }
+      )
+    );
+    onCleanup(() => {
+      element.destroy();
+      // A destroyed form is not ready, nor its replacement until Stripe says.
+      context.setReady(false);
+    });
   });
 
   return (

@@ -1,6 +1,7 @@
 import type { UserResource } from '@clerk/shared/types';
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { QueryClient } from '@tanstack/query-core';
+import { createSignal, Show } from 'solid-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClerkProvider } from '../..';
 import {
@@ -22,9 +23,10 @@ const fakeStripe = () => {
     on: vi.fn((event: string, handler: () => void) => {
       handlers[event] = handler;
     }),
+    update: vi.fn(),
     destroy: vi.fn()
   };
-  const elements = { create: vi.fn(() => element) };
+  const elements = { create: vi.fn(() => element), update: vi.fn() };
   const stripe = {
     elements: vi.fn(() => elements),
     confirmSetup: vi.fn(async () => ({
@@ -34,28 +36,32 @@ const fakeStripe = () => {
   return { stripe, elements, element, ready: () => handlers.ready?.() };
 };
 
+const initialized = (secret = 'seti_secret') => ({
+  externalClientSecret: secret,
+  externalGatewayId: 'acct_1',
+  paymentMethodOrder: ['card']
+});
+
+const signedInAs = (user: UserResource) => ({
+  user,
+  session: {
+    id: `sess_${user.id}`,
+    status: 'active',
+    user,
+    lastActiveToken: { jwt: { claims: {} } }
+  } as any
+});
+
 const setup = () => {
   const fake = fakeStripe();
   const loadStripe = vi.fn(async () => fake.stripe);
-  const initializePaymentMethod = vi.fn(async () => ({
-    externalClientSecret: 'seti_secret',
-    externalGatewayId: 'acct_1',
-    paymentMethodOrder: ['card']
-  }));
+  const initializePaymentMethod = vi.fn(async () => initialized());
   const user = {
     id: 'user_1',
     organizationMemberships: [],
     initializePaymentMethod
   } as unknown as UserResource;
-  const { clerkJS } = createFakeClerkJS({
-    user,
-    session: {
-      id: 'sess_1',
-      status: 'active',
-      user,
-      lastActiveToken: { jwt: { claims: {} } }
-    } as any
-  });
+  const { clerkJS, emit } = createFakeClerkJS(signedInAs(user));
   Object.assign(clerkJS, {
     __internal_loadStripeJs: vi.fn(async () => loadStripe),
     __internal_getOption: () => undefined,
@@ -70,13 +76,16 @@ const setup = () => {
       displayConfig: {}
     }
   });
-  return { clerkJS, fake, loadStripe, initializePaymentMethod };
+  return { clerkJS, emit, fake, loadStripe, initializePaymentMethod };
 };
 
+let queryClient: QueryClient;
+
 beforeEach(() => {
-  __setClerkQueryClientForTest(
-    new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  );
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  });
+  __setClerkQueryClientForTest(queryClient);
 });
 
 afterEach(() => {
@@ -165,5 +174,140 @@ describe('PaymentElement', () => {
         }
       }
     });
+  });
+
+  it('updates the form in place when its options change, keeping what was typed', async () => {
+    const { clerkJS, fake } = setup();
+    const [description, setDescription] = createSignal('Monthly');
+    const [appearance, setAppearance] = createSignal({ colorPrimary: 'red' });
+    const checkout = {
+      plan: { name: 'Pro' },
+      planPeriod: 'month',
+      totals: { grandTotal: { amount: 1000 } }
+    } as any;
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <PaymentElementProvider
+          checkout={checkout}
+          paymentDescription={description()}
+          stripeAppearance={appearance() as any}
+        >
+          <PaymentElement />
+        </PaymentElementProvider>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(fake.element.mount).toHaveBeenCalled());
+
+    setDescription('Billed monthly');
+    expect(fake.element.update).toHaveBeenCalledWith({
+      applePay: expect.objectContaining({
+        recurringPaymentRequest: expect.objectContaining({
+          paymentDescription: 'Billed monthly'
+        })
+      })
+    });
+    setAppearance({ colorPrimary: 'blue' });
+    expect(fake.elements.update).toHaveBeenCalledWith({
+      appearance: { variables: { colorPrimary: 'blue' } }
+    });
+
+    expect(fake.stripe.elements).toHaveBeenCalledTimes(1);
+    expect(fake.elements.create).toHaveBeenCalledTimes(1);
+    expect(fake.element.destroy).not.toHaveBeenCalled();
+  });
+
+  it('is not ready once the form unmounts, nor again until Stripe says so', async () => {
+    const { clerkJS, fake } = setup();
+    const [shown, setShown] = createSignal(true);
+    let payment!: ReturnType<typeof usePaymentElement>;
+    const Form = () => {
+      payment = usePaymentElement();
+      return (
+        <Show when={shown()}>
+          <PaymentElement fallback={<p>Loading payment form...</p>} />
+        </Show>
+      );
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <PaymentElementProvider>
+          <Form />
+        </PaymentElementProvider>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(fake.element.mount).toHaveBeenCalled());
+    fake.ready();
+    await vi.waitFor(() => expect(payment.isFormReady).toBe(true));
+
+    setShown(false);
+    expect(fake.element.destroy).toHaveBeenCalledOnce();
+    expect(payment.isFormReady).toBe(false);
+
+    setShown(true);
+    expect(fake.elements.create).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Loading payment form...')).toBeTruthy();
+    expect(payment.isFormReady).toBe(false);
+  });
+
+  it("keeps a reset's payment method with the user it was asked for", async () => {
+    const { clerkJS, emit, fake, initializePaymentMethod } = setup();
+    let payment!: ReturnType<typeof usePaymentElement>;
+    const Form = () => {
+      payment = usePaymentElement();
+      return <PaymentElement />;
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <PaymentElementProvider>
+          <Form />
+        </PaymentElementProvider>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(fake.element.mount).toHaveBeenCalled());
+
+    let finishReset!: (value: unknown) => void;
+    initializePaymentMethod.mockImplementationOnce(
+      () => new Promise((resolve) => (finishReset = resolve)) as any
+    );
+    const reset = payment.reset();
+    await vi.waitFor(() =>
+      expect(initializePaymentMethod).toHaveBeenCalledTimes(2)
+    );
+
+    const nextUser = {
+      id: 'user_2',
+      organizationMemberships: [],
+      initializePaymentMethod: vi.fn(async () => initialized('seti_user_2'))
+    } as unknown as UserResource;
+    emit(signedInAs(nextUser));
+    const keyFor = (resourceId: string) => [
+      'billing-payment-method-initialize',
+      true,
+      { resourceId },
+      {}
+    ];
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryData(keyFor('user_2'))).toEqual(
+        initialized('seti_user_2')
+      )
+    );
+
+    finishReset(initialized('seti_user_1_reset'));
+    await reset;
+    expect(queryClient.getQueryData(keyFor('user_2'))).toEqual(
+      initialized('seti_user_2')
+    );
+    expect(queryClient.getQueryData(keyFor('user_1'))).toEqual(
+      initialized('seti_user_1_reset')
+    );
   });
 });

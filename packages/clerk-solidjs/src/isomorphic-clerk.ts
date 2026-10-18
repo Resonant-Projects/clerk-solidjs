@@ -1257,7 +1257,8 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     if (this.clerkjs && this.#loaded) {
       this.clerkjs.__internal_openSubscriptionDetails(props);
     } else {
-      this.preopenSubscriptionDetails = props ?? null;
+      // `{}`, not null, so a call without props still opens it after load.
+      this.preopenSubscriptionDetails = props ?? {};
     }
   };
 
