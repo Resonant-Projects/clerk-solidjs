@@ -31,7 +31,7 @@ export const createFakeClerkJS = (initial: Partial<Resources> = {}) => {
 
   const clerkJS = {
     loaded: false as boolean,
-    load: vi.fn(async () => {
+    load: vi.fn<(options?: unknown) => Promise<void>>(async () => {
       clerkJS.loaded = true;
     }),
     addListener: vi.fn((listener: (resources: Resources) => void) => {
