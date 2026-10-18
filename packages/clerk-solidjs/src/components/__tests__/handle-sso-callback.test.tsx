@@ -128,6 +128,33 @@ describe('HandleSSOCallback', () => {
     );
   });
 
+  it("waits for the app's navigation before an existing session finishes activating", async () => {
+    let finishNavigation!: () => void;
+    let activated = false;
+    const { props, members } = setup(
+      resource({
+        status: 'needs_identifier',
+        existingSession: { sessionId: 'sess_existing' }
+      }),
+      resource({ status: 'missing_requirements' })
+    );
+    props.navigateToApp.mockImplementation(
+      () => new Promise<void>((resolve) => (finishNavigation = resolve))
+    );
+    // As clerk-js does: publish the session only after navigate settles.
+    members.setActive.mockImplementation(async ({ navigate }) => {
+      await navigate({ session: { id: 'sess_existing' } });
+      activated = true;
+    });
+
+    await vi.waitFor(() => expect(props.navigateToApp).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(activated).toBe(false);
+
+    finishNavigation();
+    await vi.waitFor(() => expect(activated).toBe(true));
+  });
+
   it('sends a failed bot-protection check back to the flow it came from', async () => {
     window.history.replaceState(null, '', '/sso-callback?intent=signUp');
     const { props, members } = setup(resource(), resource(), () => {

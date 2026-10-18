@@ -119,7 +119,11 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     const sessionId =
       signIn.existingSession?.sessionId || signUp.existingSession?.sessionId;
     if (sessionId) {
-      await instance.setActive({ session: sessionId, navigate: toApp });
+      await instance.setActive({
+        session: sessionId,
+        // clerk-js waits for this navigation before it publishes the session.
+        navigate: async (...params) => props.navigateToApp(...params)
+      });
     }
   };
 
