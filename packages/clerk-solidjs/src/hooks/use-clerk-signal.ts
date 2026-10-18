@@ -16,8 +16,10 @@ import { recordTelemetryOnce } from './utils';
  * and tracks in a reactive scope, after a component keeps it, as in
  * `const { signIn } = useSignIn()`. Methods are bound to the current object,
  * since clerk-js resources keep their state in private fields.
+ *
+ * @internal
  */
-const liveView = <T extends object>(current: () => T): T =>
+export const liveView = <T extends object>(current: () => T): T =>
   new Proxy({} as T, {
     get(_, key) {
       const target = current();

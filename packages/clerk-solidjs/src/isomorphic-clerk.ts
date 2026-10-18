@@ -11,9 +11,13 @@ import {
 } from '@clerk/shared/loadClerkJsScript';
 import type { ModuleManager } from '@clerk/shared/moduleManager';
 import type {
+  __experimental_CheckoutOptions,
   __internal_AttemptToEnableEnvironmentSettingParams,
   __internal_AttemptToEnableEnvironmentSettingResult,
+  __internal_CheckoutProps,
   __internal_EnableOrganizationsPromptProps,
+  __internal_PlanDetailsProps,
+  __internal_SubscriptionDetailsProps,
   __internal_UserVerificationModalProps,
   __internal_UserVerificationProps,
   APIKeysNamespace,
@@ -24,6 +28,8 @@ import type {
   AuthenticateWithMetamaskParams,
   AuthenticateWithOKXWalletParams,
   AuthenticateWithSolanaParams,
+  BillingNamespace,
+  CheckoutSignalValue,
   Clerk,
   ClerkAuthenticateWithWeb3Params,
   ClerkOptions,
@@ -134,23 +140,6 @@ type WithVoidReturnFunctions<T> = {
 };
 
 /**
- * `LoadedClerk` members IsomorphicClerk does not forward yet, by the
- * hill-climb feature that adds them. Every other member must exist, so a
- * member Clerk adds upstream is a type error until it is ported or listed.
- */
-type NotYetSupported =
-  // F37 to F40: billing.
-  | '__experimental_checkout'
-  | '__internal_openCheckout'
-  | '__internal_closeCheckout'
-  | '__internal_openPlanDetails'
-  | '__internal_closePlanDetails'
-  | '__internal_openSubscriptionDetails'
-  | '__internal_closeSubscriptionDetails'
-  | 'buildNewSubscriptionRedirectUrl'
-  | '__internal_loadStripeJs';
-
-/**
  * @clerk/react's contract: every `LoadedClerk` member, with methods allowed
  * to return nothing while clerk-js loads.
  */
@@ -164,9 +153,9 @@ type IsomorphicLoadedClerk = Without<
   | 'apiKeys'
   | 'oauthApplication'
   | '__internal_setActiveInProgress'
-  | NotYetSupported
 > & {
   client: ClientResource | undefined;
+  billing: BillingNamespace | undefined;
   apiKeys: APIKeysNamespace | undefined;
   oauthApplication: OAuthApplicationNamespace | undefined;
 };
@@ -187,6 +176,10 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private preOpenWaitlist?: null | WaitlistProps = null;
   private preopenInviteMembers?: null | InviteMembersModalProps = null;
   private preopenEnableOrganizationsPrompt?: null | __internal_EnableOrganizationsPromptProps =
+    null;
+  private preopenCheckout?: null | __internal_CheckoutProps = null;
+  private preopenPlanDetails: null | __internal_PlanDetailsProps = null;
+  private preopenSubscriptionDetails: null | __internal_SubscriptionDetailsProps =
     null;
   private premountSignInNodes = new Map<
     HTMLDivElement,
@@ -565,6 +558,16 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     }
   };
 
+  buildNewSubscriptionRedirectUrl = (): string | void => {
+    const callback = () =>
+      this.clerkjs?.buildNewSubscriptionRedirectUrl() || '';
+    if (this.clerkjs && this.#loaded) {
+      return callback();
+    } else {
+      this.premountMethodCalls.set('buildNewSubscriptionRedirectUrl', callback);
+    }
+  };
+
   buildTasksUrl = (): string | void => {
     const callback = () => this.clerkjs?.buildTasksUrl() || '';
     if (this.clerkjs && this.#loaded) {
@@ -828,6 +831,20 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       );
     }
 
+    if (this.preopenCheckout !== null) {
+      clerkjs.__internal_openCheckout(this.preopenCheckout);
+    }
+
+    if (this.preopenPlanDetails !== null) {
+      clerkjs.__internal_openPlanDetails(this.preopenPlanDetails);
+    }
+
+    if (this.preopenSubscriptionDetails !== null) {
+      clerkjs.__internal_openSubscriptionDetails(
+        this.preopenSubscriptionDetails
+      );
+    }
+
     this.premountSignInNodes.forEach((props, node) => {
       clerkjs.mountSignIn(node, props);
     });
@@ -1007,6 +1024,21 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       : this.#stateProxy;
   }
 
+  get billing(): BillingNamespace | undefined {
+    return this.clerkjs?.billing;
+  }
+
+  /**
+   * A checkout's signal: clerk-js's once it has loaded, and the stand-in's
+   * defaults before that and on the server.
+   */
+  __experimental_checkout = (
+    options: __experimental_CheckoutOptions
+  ): CheckoutSignalValue =>
+    this.#loaded && this.clerkjs
+      ? this.clerkjs.__experimental_checkout(options)
+      : this.#stateProxy.checkoutSignal(options);
+
   get apiKeys(): APIKeysNamespace | undefined {
     return this.clerkjs?.apiKeys;
   }
@@ -1185,6 +1217,62 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     } else {
       this.preOpenWaitlist = null;
     }
+  };
+
+  __internal_openCheckout = (props?: __internal_CheckoutProps) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_openCheckout(props);
+    } else {
+      this.preopenCheckout = props;
+    }
+  };
+
+  __internal_closeCheckout = () => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_closeCheckout();
+    } else {
+      this.preopenCheckout = null;
+    }
+  };
+
+  __internal_openPlanDetails = (props: __internal_PlanDetailsProps) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_openPlanDetails(props);
+    } else {
+      this.preopenPlanDetails = props;
+    }
+  };
+
+  __internal_closePlanDetails = () => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_closePlanDetails();
+    } else {
+      this.preopenPlanDetails = null;
+    }
+  };
+
+  __internal_openSubscriptionDetails = (
+    props?: __internal_SubscriptionDetailsProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_openSubscriptionDetails(props);
+    } else {
+      this.preopenSubscriptionDetails = props ?? null;
+    }
+  };
+
+  __internal_closeSubscriptionDetails = () => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_closeSubscriptionDetails();
+    } else {
+      this.preopenSubscriptionDetails = null;
+    }
+  };
+
+  /** Loads Stripe.js through clerk-js, once it has loaded. */
+  __internal_loadStripeJs = async () => {
+    const clerkjs = await this.#waitForClerkJS();
+    return clerkjs.__internal_loadStripeJs();
   };
 
   openInviteMembers = (props?: InviteMembersModalProps) => {

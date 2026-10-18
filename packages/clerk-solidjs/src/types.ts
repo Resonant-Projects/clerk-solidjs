@@ -157,7 +157,7 @@ export type ClerkProp =
  * Attributes for the default `<button>`. With your own element as the child,
  * set them on that element instead.
  */
-type ButtonAttributes = Omit<
+export type ButtonAttributes = Omit<
   JSX.ButtonHTMLAttributes<HTMLButtonElement>,
   'children'
 > & {

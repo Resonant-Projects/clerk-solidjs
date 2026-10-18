@@ -41,6 +41,9 @@
       "legacy": [
         "./dist/legacy/index.d.ts"
       ],
+      "experimental": [
+        "./dist/experimental/index.d.ts"
+      ],
       "webhooks": [
         "./dist/webhooks/index.d.ts"
       ],
@@ -261,6 +264,70 @@
       "import": {
         "types": "./dist/legacy/index.d.ts",
         "default": "./dist/legacy/index.js"
+      }
+    },
+    "./experimental": {
+      "worker": {
+        "solid": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/server.jsx"
+        },
+        "import": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/server.js"
+        }
+      },
+      "browser": {
+        "solid": {
+          "types": "./dist/experimental/index.d.ts",
+          "development": "./dist/experimental/dev.jsx",
+          "default": "./dist/experimental/index.jsx"
+        },
+        "development": {
+          "import": {
+            "types": "./dist/experimental/index.d.ts",
+            "default": "./dist/experimental/dev.js"
+          }
+        },
+        "import": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/index.js"
+        }
+      },
+      "deno": {
+        "solid": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/server.jsx"
+        },
+        "import": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/server.js"
+        }
+      },
+      "node": {
+        "solid": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/server.jsx"
+        },
+        "import": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/server.js"
+        }
+      },
+      "solid": {
+        "types": "./dist/experimental/index.d.ts",
+        "development": "./dist/experimental/dev.jsx",
+        "default": "./dist/experimental/index.jsx"
+      },
+      "development": {
+        "import": {
+          "types": "./dist/experimental/index.d.ts",
+          "default": "./dist/experimental/dev.js"
+        }
+      },
+      "import": {
+        "types": "./dist/experimental/index.d.ts",
+        "default": "./dist/experimental/index.js"
       }
     },
     "./webhooks": {
