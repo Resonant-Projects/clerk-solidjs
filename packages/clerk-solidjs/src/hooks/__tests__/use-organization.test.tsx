@@ -398,6 +398,82 @@ describe('sign-out', () => {
   });
 });
 
+describe('keepPreviousData across users', () => {
+  it("never shows the previous user's list while the next user's first page loads", async () => {
+    const userA = buildUser(pagedFetcher(3, 'a'));
+    const userB = {
+      ...buildUser(vi.fn(() => new Promise<never>(() => {})) as any),
+      id: 'user_2'
+    } as UserResource;
+    const { clerkJS, emit } = createFakeClerkJS({
+      user: userA,
+      session: buildSession(userA),
+      organization: null
+    });
+    let result!: ReturnType<typeof useOrganizationList>;
+    const Probe = () => {
+      result = useOrganizationList(() => ({
+        userMemberships: { keepPreviousData: true }
+      }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() =>
+      expect(result.userMemberships()?.data()).toHaveLength(3)
+    );
+
+    // A signs out and B signs in, with the hook mounted the whole time.
+    emit({ user: null, session: null });
+    await vi.waitFor(() => expect(result.userMemberships()).toBeUndefined());
+    emit({ user: userB, session: buildSession(userB) });
+    await vi.waitFor(() => expect(result.userMemberships()).toBeDefined());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(result.userMemberships()?.data()).toEqual([]);
+  });
+
+  it('keeps the previous page for the same user while the next one loads', async () => {
+    let resolveSecond!: (value: Page<{ id: string }>) => void;
+    const getOrganizationMemberships = vi.fn(
+      async (args?: { initialPage?: number }) =>
+        (args?.initialPage ?? 1) === 1
+          ? { data: [{ id: 'om_1' }], total_count: 2 }
+          : new Promise<Page<{ id: string }>>((resolve) => {
+              resolveSecond = resolve;
+            })
+    );
+    const user = buildUser(getOrganizationMemberships as any);
+    const { clerkJS } = createFakeClerkJS({
+      user,
+      session: buildSession(user),
+      organization: null
+    });
+    let result!: ReturnType<typeof useOrganizationList>;
+    const Probe = () => {
+      result = useOrganizationList(() => ({
+        userMemberships: { pageSize: 1, keepPreviousData: true }
+      }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() =>
+      expect(result.userMemberships()?.data()).toEqual([{ id: 'om_1' }])
+    );
+    result.userMemberships()!.fetchNext();
+    await vi.waitFor(() =>
+      expect(getOrganizationMemberships).toHaveBeenCalledTimes(2)
+    );
+    // Page 2 is still loading, so page 1 stays on screen.
+    expect(result.userMemberships()?.data()).toEqual([{ id: 'om_1' }]);
+    resolveSecond({ data: [{ id: 'om_2' }], total_count: 2 });
+    await vi.waitFor(() =>
+      expect(result.userMemberships()?.data()).toEqual([{ id: 'om_2' }])
+    );
+  });
+});
+
 describe('useOrganizationList', () => {
   it('fetches the user memberships once Clerk has a user', async () => {
     const getOrganizationMemberships = pagedFetcher(3, 'om');

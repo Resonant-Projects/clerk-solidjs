@@ -1,6 +1,11 @@
 import type { ClerkAPIResponseError } from '@clerk/shared/error';
 import type { ClerkPaginatedResponse } from '@clerk/shared/types';
-import { hashKey, type InfiniteData } from '@tanstack/query-core';
+import {
+  hashKey,
+  type InfiniteData,
+  type Query,
+  type QueryClient
+} from '@tanstack/query-core';
 import {
   type Accessor,
   createEffect,
@@ -73,7 +78,30 @@ export const calculateHasPreviousPage = (
   offsetCount: number
 ) => (currentPage - 1) * pageSize > offsetCount;
 
-const keepPreviousData = <T>(previousData: T): T => previousData;
+/**
+ * keepPreviousData, limited to the same owner. The observer keeps the last
+ * query that had data even after the cache is cleared, so reuse it only while
+ * that query is still cached (sign-out removes it) and belongs to the same
+ * user or organization. Otherwise a mounted list could show the previous
+ * user's data while the next user's first page loads.
+ */
+const keepPreviousDataOf =
+  <T>(client: QueryClient | undefined, key: readonly unknown[]) =>
+  (
+    previousData: T | undefined,
+    previousQuery: Query<any, any, any, any> | undefined
+  ): T | undefined => {
+    if (!client || !previousQuery) return undefined;
+    if (client.getQueryCache().get(previousQuery.queryHash) !== previousQuery) {
+      return undefined;
+    }
+    const [, previousAuthenticated, previousTracked] = previousQuery.queryKey;
+    const [, authenticated, tracked] = key;
+    return hashKey([previousAuthenticated, previousTracked]) ===
+      hashKey([authenticated, tracked])
+      ? previousData
+      : undefined;
+  };
 
 const sameKey = (a: readonly unknown[], b: readonly unknown[]) =>
   hashKey(a) === hashKey(b);
@@ -157,7 +185,12 @@ export function usePagesOrInfinite<Args, Data>(
     { equals: sameKey }
   );
 
-  const singlePageQuery = createClerkQuery(() => {
+  const singlePageQuery = createClerkQuery<
+    ClerkPaginatedResponse<Data>,
+    Error,
+    ClerkPaginatedResponse<Data>,
+    ReturnType<typeof pagesQueryKey>
+  >(() => {
     const fetcher = params().fetcher;
     return {
       queryKey: pagesQueryKey(),
@@ -165,7 +198,10 @@ export function usePagesOrInfinite<Args, Data>(
       staleTime: 60_000,
       enabled: queriesEnabled() && !triggerInfinite(),
       placeholderData: params().config.keepPreviousData
-        ? keepPreviousData
+        ? keepPreviousDataOf<ClerkPaginatedResponse<Data>>(
+            client,
+            pagesQueryKey()
+          )
         : undefined
     };
   });
