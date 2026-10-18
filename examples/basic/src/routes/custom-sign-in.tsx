@@ -10,10 +10,18 @@ export default function CustomSignIn() {
   const state = useSignIn();
   const { signIn, errors } = state;
   const [identifier, setIdentifier] = createSignal("");
+  const [submitError, setSubmitError] = createSignal("");
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
-    await signIn.create({ identifier: identifier() });
+    setSubmitError("");
+    try {
+      await signIn.create({ identifier: identifier() });
+    } catch (error) {
+      // Field errors arrive through `errors`; this is Clerk failing to load.
+      console.error("Sign-in failed", error);
+      setSubmitError("Sign-in failed. Please try again.");
+    }
   };
 
   return (
@@ -35,6 +43,11 @@ export default function CustomSignIn() {
       {errors.fields.identifier && (
         <p role="alert" class="text-red-700">
           {errors.fields.identifier.message}
+        </p>
+      )}
+      {submitError() && (
+        <p role="alert" class="text-red-700">
+          {submitError()}
         </p>
       )}
       <p data-testid="sign-in-status">{signIn.status}</p>

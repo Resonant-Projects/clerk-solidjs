@@ -257,6 +257,7 @@ string, so read it from the result:
 ```tsx
 import { useNavigate } from '@solidjs/router';
 import { useSignIn } from '@resonant-projects/clerk-solidjs';
+import { createSignal, Show } from 'solid-js';
 
 export default function SignInForm() {
   const state = useSignIn();
