@@ -124,7 +124,7 @@ export const generateNonce = (): string => {
 
 const buildDirectives = (
   strict: boolean,
-  host: string,
+  hosts: string[],
   custom: ContentSecurityPolicyOptions['directives'],
   nonce: string | undefined
 ): string => {
@@ -133,7 +133,7 @@ const buildDirectives = (
     directives[key] = new Set(values.map(formatValue));
   }
 
-  if (host) directives['connect-src']!.add(host);
+  for (const host of hosts) directives['connect-src']!.add(host);
 
   if (strict) {
     const scripts = directives['script-src']!;
@@ -163,12 +163,13 @@ const buildDirectives = (
 
 /**
  * The Content-Security-Policy headers for Clerk, and the nonce in strict
- * mode. `host` is the instance's Frontend API host.
+ * mode. `hosts` are where the browser reaches the Frontend API: the
+ * instance's host, and a proxy on another origin.
  *
  * @internal
  */
 export const createContentSecurityPolicyHeaders = (
-  host: string,
+  hosts: string[],
   options: ContentSecurityPolicyOptions
 ): { headers: [string, string][]; nonce?: string } => {
   const headers: [string, string][] = [];
@@ -176,7 +177,7 @@ export const createContentSecurityPolicyHeaders = (
 
   let policy = buildDirectives(
     options.strict ?? false,
-    host,
+    hosts,
     options.directives,
     nonce
   );

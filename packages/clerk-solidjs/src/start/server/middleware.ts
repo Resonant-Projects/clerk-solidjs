@@ -251,8 +251,17 @@ export const clerkMiddleware = (
         const host = (
           parsePublishableKey(loadedOptions.publishableKey)?.frontendApi ?? ''
         ).replace('$', '');
+        // A proxy on another origin is where the browser calls instead.
+        let proxyOrigin: string | undefined;
+        try {
+          if (loadedOptions.proxyUrl) {
+            proxyOrigin = new URL(loadedOptions.proxyUrl).origin;
+          }
+        } catch {
+          // Not an absolute URL: nothing to add.
+        }
         const csp = createContentSecurityPolicyHeaders(
-          host,
+          [host, proxyOrigin].filter((value): value is string => !!value),
           contentSecurityPolicy
         );
         csp.headers.forEach(([key, value]) => headers.set(key, value));

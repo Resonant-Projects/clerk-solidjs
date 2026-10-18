@@ -576,7 +576,10 @@ export default createHandler(
 
 `debug: true` logs, for each request, the options, the URL, the request state
 and the auth object, between `[clerk debug start]` and `[clerk debug end]` lines.
-Keys, tokens and cookies are cut short.
+It leaves credentials out. Keys are cut to their first characters and cookies to
+their names. URLs keep their parameter names but no values. Headers keep their
+values only when they carry no credentials, such as `host`, `accept` or
+`x-clerk-auth-status`; others are listed by name.
 
 #### Server-only code
 
