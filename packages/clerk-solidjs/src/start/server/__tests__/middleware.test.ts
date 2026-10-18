@@ -362,6 +362,16 @@ describe('clerkMiddleware options', () => {
     );
   });
 
+  it('builds the client with an apiVersion passed in, which authenticateRequest cannot change', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    vi.stubEnv('CLERK_API_VERSION', 'v1');
+
+    await clerkMiddleware({ ...options, apiVersion: 'v2' })(fetchEvent());
+
+    expect(backend.clientOptions.at(-1)!.apiVersion).toBe('v2');
+    expect(backend.authenticateRequest.mock.calls[0]![1].apiVersion).toBe('v2');
+  });
+
   it('reads the env per request, not at import', async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
     const middleware = clerkMiddleware();
@@ -511,11 +521,27 @@ describe('auth()', () => {
         'redirect_url'
       )
     ).toBe('http://localhost:3000/protected?tab=2');
+  });
 
-    // SolidStart's single-flight render runs with a page event of its own.
+  it('sends a single-flight render back to the page it renders, not the one that called the action', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    // An action on /dashboard that redirects to /protected.
+    const event = fetchEvent('http://localhost:3000/_server', {
+      method: 'POST',
+      headers: {
+        'X-Server-Id': 'src/routes/dashboard.tsx#save',
+        referer: 'http://localhost:3000/dashboard'
+      }
+    });
+    await clerkMiddleware(options)(event);
+
+    // SolidStart renders /protected with a page request that carries the
+    // action's headers, X-Server-Id and Referer included.
     const pageEvent = {
       ...event,
-      request: new Request('http://localhost:3000/protected?tab=2')
+      request: new Request('http://localhost:3000/protected?tab=2', {
+        headers: new Headers(event.request.headers)
+      })
     };
     const fromSingleFlight = provideRequestEvent(pageEvent, () =>
       auth().redirectToSignIn()

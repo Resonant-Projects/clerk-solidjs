@@ -26,6 +26,7 @@ export const loadOptions = (
     overrides.apiUrl ||
     getEnvVariable('CLERK_API_URL') ||
     apiUrlFromPublishableKey(publishableKey);
+  const apiVersion = overrides.apiVersion || env.API_VERSION;
   const domain =
     handleValueOrFn(overrides.domain, new URL(request.url)) || env.DOMAIN;
   const isSatellite =
@@ -81,6 +82,7 @@ export const loadOptions = (
     publishableKey,
     jwtKey,
     apiUrl,
+    apiVersion,
     domain,
     isSatellite,
     proxyUrl,

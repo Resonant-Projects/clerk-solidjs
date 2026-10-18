@@ -107,7 +107,9 @@ export const clerkMiddleware = (
       machineSecretKey: loadedOptions.machineSecretKey,
       publishableKey: loadedOptions.publishableKey,
       jwtKey: loadedOptions.jwtKey,
+      // Fixed when the client is built: authenticateRequest() ignores both.
       apiUrl: loadedOptions.apiUrl,
+      apiVersion: loadedOptions.apiVersion,
       domain: loadedOptions.domain,
       proxyUrl: loadedOptions.proxyUrl,
       isSatellite: loadedOptions.isSatellite

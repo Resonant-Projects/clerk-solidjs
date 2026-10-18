@@ -31,23 +31,25 @@ const isServerFunctionRequest = (request: Request) =>
 
 /**
  * Where a sign-in started now should come back to: the page, not the
- * endpoint. A browser-invoked server function's request is to `/_server`, so
- * use its Referer, as SolidStart does for redirects; a single-flight render
- * runs with a page event of its own.
+ * endpoint. A single-flight render after a server function runs with a page
+ * request of its own, so use its URL; SolidStart copies the function's
+ * headers onto it, `X-Server-Id` and Referer included. Otherwise a
+ * browser-invoked server function's request is to `/_server`, so use its
+ * Referer, as SolidStart does for redirects.
  */
 const defaultReturnBackUrl = (clerkRequest: ClerkRequest): string => {
   const current = getRequestEvent()?.request;
-  if (current && isServerFunctionRequest(current)) {
-    const referer = current.headers.get('referer');
+  if (current && current.url !== clerkRequest.url) {
+    return current.url;
+  }
+  if (isServerFunctionRequest(clerkRequest)) {
+    const referer = clerkRequest.headers.get('referer');
     try {
       if (referer) return new URL(referer).toString();
     } catch {
       // Not a URL; fall back to the app root.
     }
     return new URL('/', clerkRequest.clerkUrl).toString();
-  }
-  if (current && current.url !== clerkRequest.url) {
-    return current.url;
   }
   return clerkRequest.clerkUrl.toString();
 };
