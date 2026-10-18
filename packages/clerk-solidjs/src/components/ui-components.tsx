@@ -46,7 +46,6 @@ import { createCustomElementPortals } from '../utils/custom-element-portals';
 import {
   buildCustomPages,
   buildUserButtonMenuItems,
-  logBuildWarnings,
   MenuAction,
   MenuItems,
   MenuLink,
@@ -54,7 +53,8 @@ import {
   OrganizationProfileLink,
   OrganizationProfilePage,
   otherChildren,
-  resolveCustomChildren,
+  useBuildWarnings,
+  useCustomChildren,
   userButtonCustomPagesOptions,
   userProfileCustomPagesOptions,
   UserProfileLink,
@@ -333,7 +333,7 @@ const _UserProfile = withClerk(
       'fallback'
     ]);
     const portals = createCustomElementPortals();
-    const entries = resolveCustomChildren(() => local.children);
+    const entries = useCustomChildren(() => local.children);
     const pages = createMemo(() =>
       buildCustomPages(
         entries(),
@@ -341,7 +341,7 @@ const _UserProfile = withClerk(
         portals.handlersFor
       )
     );
-    logBuildWarnings(() => pages().warnings);
+    useBuildWarnings(() => pages().warnings);
 
     return (
       <>
@@ -386,7 +386,7 @@ const UserButtonHost = (props: UserButtonHostProps) => {
     '__experimental_asProvider'
   ]);
   const portals = createCustomElementPortals();
-  const entries = resolveCustomChildren(() => local.children);
+  const entries = useCustomChildren(() => local.children);
   const pages = createMemo(() =>
     buildCustomPages(
       entries(),
@@ -400,7 +400,7 @@ const UserButtonHost = (props: UserButtonHostProps) => {
   const menu = createMemo(() =>
     buildUserButtonMenuItems(entries(), portals.handlersFor)
   );
-  logBuildWarnings(() => [...pages().warnings, ...menu().warnings]);
+  useBuildWarnings(() => [...pages().warnings, ...menu().warnings]);
 
   const mountProps = () => ({
     ...clerkProps,
@@ -484,16 +484,19 @@ export function UserButtonOutlet(
     logErrorInDevMode(
       '<UserButton.__experimental_Outlet /> renders only inside <UserButton __experimental_asProvider>.'
     );
-    return null;
   }
   return (
-    <Portal
-      component="UserButton"
-      mount={context.mount}
-      unmount={context.unmount}
-      updateProps={context.updateProps}
-      props={{ ...context.props(), ...outletProps }}
-    />
+    <Show when={context}>
+      {(outlet) => (
+        <Portal
+          component="UserButton"
+          mount={outlet().mount}
+          unmount={outlet().unmount}
+          updateProps={outlet().updateProps}
+          props={{ ...outlet().props(), ...outletProps }}
+        />
+      )}
+    </Show>
   );
 }
 
@@ -519,7 +522,7 @@ const _OrganizationProfile = withClerk(
       'fallback'
     ]);
     const portals = createCustomElementPortals();
-    const entries = resolveCustomChildren(() => local.children);
+    const entries = useCustomChildren(() => local.children);
     const pages = createMemo(() =>
       buildCustomPages(
         entries(),
@@ -527,7 +530,7 @@ const _OrganizationProfile = withClerk(
         portals.handlersFor
       )
     );
-    logBuildWarnings(() => pages().warnings);
+    useBuildWarnings(() => pages().warnings);
 
     return (
       <>
@@ -591,7 +594,7 @@ const OrganizationSwitcherHost = (props: OrganizationSwitcherHostProps) => {
     '__experimental_asProvider'
   ]);
   const portals = createCustomElementPortals();
-  const entries = resolveCustomChildren(() => local.children);
+  const entries = useCustomChildren(() => local.children);
   const pages = createMemo(() =>
     buildCustomPages(
       entries(),
@@ -602,7 +605,7 @@ const OrganizationSwitcherHost = (props: OrganizationSwitcherHostProps) => {
       portals.handlersFor
     )
   );
-  logBuildWarnings(() => pages().warnings);
+  useBuildWarnings(() => pages().warnings);
 
   const mountProps = () => ({
     ...clerkProps,
@@ -681,16 +684,19 @@ export function OrganizationSwitcherOutlet(
     logErrorInDevMode(
       '<OrganizationSwitcher.__experimental_Outlet /> renders only inside <OrganizationSwitcher __experimental_asProvider>.'
     );
-    return null;
   }
   return (
-    <Portal
-      component="OrganizationSwitcher"
-      mount={context.mount}
-      unmount={context.unmount}
-      updateProps={context.updateProps}
-      props={{ ...context.props(), ...outletProps }}
-    />
+    <Show when={context}>
+      {(outlet) => (
+        <Portal
+          component="OrganizationSwitcher"
+          mount={outlet().mount}
+          unmount={outlet().unmount}
+          updateProps={outlet().updateProps}
+          props={{ ...outlet().props(), ...outletProps }}
+        />
+      )}
+    </Show>
   );
 }
 
@@ -736,7 +742,7 @@ const _UserProfileModal = withClerk(
       '__experimental_startPath'
     ]);
     const portals = createCustomElementPortals();
-    const entries = resolveCustomChildren(() => local.children);
+    const entries = useCustomChildren(() => local.children);
     const pages = createMemo(() =>
       buildCustomPages(
         entries(),

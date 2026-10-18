@@ -111,7 +111,7 @@ const MenuItemTokenizer = createTokenizer<MenuItemToken>({
  * Logs a builder's warnings in development. An effect, so they are not
  * logged from the memo that builds, nor on the server.
  */
-export const logBuildWarnings = (warnings: Accessor<string[]>) =>
+export const useBuildWarnings = (warnings: Accessor<string[]>) =>
   createEffect(() => {
     for (const message of warnings()) logErrorInDevMode(message);
   });
@@ -193,7 +193,7 @@ export const MenuLink = createToken<UserButtonLinkProps, MenuItemToken>(
  * Resolves the children of a Clerk component into custom page and menu item
  * tokens, keeping any other JSX so it can be reported as ignored.
  */
-export const resolveCustomChildren = (children: Accessor<JSX.Element>) =>
+export const useCustomChildren = (children: Accessor<JSX.Element>) =>
   resolveTokens(CustomChildrenTokenizer, children, {
     includeJSXElements: true
   });
