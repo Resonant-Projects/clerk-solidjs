@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX, Show } from 'solid-js';
+import { createComputed, createMemo, For, type JSX, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { isServer, Portal } from 'solid-js/web';
 
@@ -53,14 +53,26 @@ export const createCustomElementPortals = () => {
   );
   // Clerk compares these callbacks between renders, so keep one pair per id.
   const handlers = new Map<string, CustomElementHandlers>();
+  // The pair whose mount put each id's node there.
+  const mountedBy = new Map<string, CustomElementHandlers>();
 
   const handlersFor = (id: string): CustomElementHandlers => {
     let entry = handlers.get(id);
     if (!entry) {
-      entry = {
-        mount: (node) => setNodes(id, node),
-        unmount: () => setNodes(id, undefined)
+      const pair: CustomElementHandlers = {
+        mount: (node) => {
+          mountedBy.set(id, pair);
+          setNodes(id, node);
+        },
+        // A forgotten pair's unmount can arrive after a new pair for the
+        // same id (the item came back) mounted; it leaves that node alone.
+        unmount: () => {
+          if (mountedBy.get(id) !== pair) return;
+          mountedBy.delete(id);
+          setNodes(id, undefined);
+        }
       };
+      entry = pair;
       handlers.set(id, entry);
     }
     return entry;
@@ -75,6 +87,17 @@ export const createCustomElementPortals = () => {
     // (a sibling page renamed or added) must not remount content that Clerk
     // is showing, or it loses local state such as a half-filled form.
     const ids = createMemo(() => [...renderers().keys()]);
+
+    // Forget the handlers of ids that are gone (a page removed or renamed),
+    // so the map does not grow with every change. A node stays until Clerk
+    // unmounts it, through the handler it already holds: it is how a modal
+    // that is still open is told apart from a closed one.
+    createComputed(() => {
+      const current = renderers();
+      for (const id of [...handlers.keys()]) {
+        if (!current.has(id)) handlers.delete(id);
+      }
+    });
 
     return (
       <For each={ids()}>

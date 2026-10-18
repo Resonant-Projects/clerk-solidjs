@@ -18,6 +18,7 @@ const navigation = vi.hoisted(() => ({
 vi.mock('@clerk/shared/internal/clerk-js/windowNavigate', () => navigation);
 
 import { IsomorphicClerk } from '../isomorphic-clerk';
+import type { IsomorphicClerkOptions } from '../types';
 
 const createClerkJS = () => {
   const clerkJS = {
@@ -466,6 +467,72 @@ describe('IsomorphicClerk Core 3 loading', () => {
     await loadedClerk(isomorphicClerk);
 
     expect(members.__internal_openSubscriptionDetails).not.toHaveBeenCalled();
+  });
+
+  it("loads a headless runtime's Clerk without scripts, UI or window globals", async () => {
+    window.__clerk_publishable_key = undefined;
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: clerkJS as any,
+      experimental: { runtimeEnvironment: 'headless' } as any
+    });
+    await loadedClerk(isomorphicClerk);
+
+    expect(clerkJS.load).toHaveBeenCalledOnce();
+    expect(loadOptions(clerkJS).ui).toBeUndefined();
+    expect(scripts.loadClerkJSScript).not.toHaveBeenCalled();
+    expect(scripts.loadClerkUIScript).not.toHaveBeenCalled();
+    expect(window.__clerk_publishable_key).toBeUndefined();
+    expect(globalThis.Clerk).toBeUndefined();
+  });
+
+  it('loads a headless Clerk instance that carries its own key, without one here', async () => {
+    // No publishableKey: the instance has its own.
+    const isomorphicClerk = new IsomorphicClerk({
+      Clerk: clerkJS as any,
+      experimental: { runtimeEnvironment: 'headless' } as any
+    } as IsomorphicClerkOptions);
+    await loadedClerk(isomorphicClerk);
+
+    expect(clerkJS.load).toHaveBeenCalledOnce();
+    expect(loadOptions(clerkJS).ui).toBeUndefined();
+    expect(scripts.loadClerkUIScript).not.toHaveBeenCalled();
+  });
+
+  it('reports a headless load that fails, and still runs addOnLoaded callbacks', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    clerkJS.load.mockRejectedValueOnce(new Error('offline'));
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: clerkJS as any,
+      experimental: { runtimeEnvironment: 'headless' } as any
+    });
+    const onLoaded = vi.fn();
+    isomorphicClerk.addOnLoaded(onLoaded);
+
+    await vi.waitFor(() => expect(isomorphicClerk.status).toBe('error'));
+    expect(onLoaded).toHaveBeenCalled();
+    expect(isomorphicClerk.loaded).toBe(false);
+    error.mockRestore();
+  });
+
+  it('reports a headless Clerk constructor that throws as a failed load', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const Throwing = class {
+      constructor() {
+        throw new Error('bad options');
+      }
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Throwing as any,
+      experimental: { runtimeEnvironment: 'headless' } as any
+    });
+
+    // It fails during construction, so the status is all a caller can see.
+    await vi.waitFor(() => expect(isomorphicClerk.status).toBe('error'));
+    expect(isomorphicClerk.loaded).toBe(false);
+    error.mockRestore();
   });
 
   it('skips directory sync and device verification on a clerk-js without them', async () => {

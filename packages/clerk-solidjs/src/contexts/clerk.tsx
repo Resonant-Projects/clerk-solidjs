@@ -1,11 +1,12 @@
 import { getEnvVariable } from '@clerk/shared/getEnvVariable';
 import { isPublishableKey } from '@clerk/shared/keys';
-import { JSX, mergeProps, splitProps, untrack } from 'solid-js';
+import { JSX, mergeProps, splitProps, untrack, useContext } from 'solid-js';
 import { errorThrower } from '../errors/error-thrower';
 import { multipleClerkProvidersError } from '../errors/messages';
 import type { ClerkProviderProps, IsomorphicClerkOptions, Ui } from '../types';
-import { isConstructor, withMaxAllowedInstancesGuard } from '../utils';
+import { isConstructor } from '../utils';
 import { ClerkContextProvider } from './clerk-context';
+import { ClerkInstanceContext } from './clerk-instance';
 
 /** `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY`, as in @clerk/react. */
 const publishableKeyFromEnv = () =>
@@ -55,10 +56,18 @@ function ClerkProviderBase<TUi extends Ui = Ui>(
   );
 }
 
-const ClerkProvider = withMaxAllowedInstancesGuard(
-  ClerkProviderBase,
-  'ClerkProvider',
-  multipleClerkProvidersError
-) as typeof ClerkProviderBase;
+/**
+ * One ClerkProvider per tree. The check reads the context, as @clerk/react's
+ * does: separate roots and islands each get their own, and nothing is
+ * counted across requests on the server.
+ */
+const ClerkProvider = (<TUi extends Ui = Ui>(
+  props: ClerkProviderProps<TUi>
+): JSX.Element => {
+  if (useContext(ClerkInstanceContext)) {
+    errorThrower.throw(multipleClerkProvidersError);
+  }
+  return ClerkProviderBase(props);
+}) as typeof ClerkProviderBase;
 
 export { ClerkProvider };
