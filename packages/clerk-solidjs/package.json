@@ -38,6 +38,9 @@
       "start/server": [
         "./dist/start/server/index.d.ts"
       ],
+      "legacy": [
+        "./dist/legacy/index.d.ts"
+      ],
       "webhooks": [
         "./dist/webhooks/index.d.ts"
       ],
@@ -263,6 +266,98 @@
     },
     "./start/env": {
       "types": "./start-env.d.ts"
+    },
+    "./legacy": {
+      "worker": {
+        "solid": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/server.jsx"
+        },
+        "import": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/server.js"
+        },
+        "require": {
+          "types": "./dist/legacy/index.d.cts",
+          "default": "./dist/legacy/server.cjs"
+        }
+      },
+      "browser": {
+        "solid": {
+          "types": "./dist/legacy/index.d.ts",
+          "development": "./dist/legacy/dev.jsx",
+          "default": "./dist/legacy/index.jsx"
+        },
+        "development": {
+          "import": {
+            "types": "./dist/legacy/index.d.ts",
+            "default": "./dist/legacy/dev.js"
+          },
+          "require": {
+            "types": "./dist/legacy/index.d.cts",
+            "default": "./dist/legacy/dev.cjs"
+          }
+        },
+        "import": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/index.js"
+        },
+        "require": {
+          "types": "./dist/legacy/index.d.cts",
+          "default": "./dist/legacy/index.cjs"
+        }
+      },
+      "deno": {
+        "solid": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/server.jsx"
+        },
+        "import": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/server.js"
+        },
+        "require": {
+          "types": "./dist/legacy/index.d.cts",
+          "default": "./dist/legacy/server.cjs"
+        }
+      },
+      "node": {
+        "solid": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/server.jsx"
+        },
+        "import": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/server.js"
+        },
+        "require": {
+          "types": "./dist/legacy/index.d.cts",
+          "default": "./dist/legacy/server.cjs"
+        }
+      },
+      "solid": {
+        "types": "./dist/legacy/index.d.ts",
+        "development": "./dist/legacy/dev.jsx",
+        "default": "./dist/legacy/index.jsx"
+      },
+      "development": {
+        "import": {
+          "types": "./dist/legacy/index.d.ts",
+          "default": "./dist/legacy/dev.js"
+        },
+        "require": {
+          "types": "./dist/legacy/index.d.cts",
+          "default": "./dist/legacy/dev.cjs"
+        }
+      },
+      "import": {
+        "types": "./dist/legacy/index.d.ts",
+        "default": "./dist/legacy/index.js"
+      },
+      "require": {
+        "types": "./dist/legacy/index.d.cts",
+        "default": "./dist/legacy/index.cjs"
+      }
     },
     "./webhooks": {
       "import": {

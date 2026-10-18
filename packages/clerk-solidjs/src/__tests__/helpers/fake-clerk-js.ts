@@ -72,3 +72,64 @@ export const createFakeClerkJS = (initial: Partial<Resources> = {}) => {
 };
 
 export type FakeClerkJS = ReturnType<typeof createFakeClerkJS>['clerkJS'];
+
+type SignalName = 'signIn' | 'signUp' | 'waitlist';
+type FakeSignalValue = {
+  errors: { fields: Record<string, unknown>; raw: unknown; global: unknown };
+  fetchStatus: 'idle' | 'fetching';
+} & Partial<Record<SignalName, object | null>>;
+
+const emptyErrors = () => ({ fields: {}, raw: null, global: null });
+
+/**
+ * A stand-in for clerk-js's `__internal_state`. Each signal returns its
+ * current value; `__internal_effect` runs its callback at once and again on
+ * every `set`, until disposed, as clerk-js's alien-signals effect does.
+ */
+export const createFakeState = (
+  initial: Partial<Record<SignalName, object | null>> = {}
+) => {
+  const effects = new Set<() => void>();
+  const values: Record<SignalName, FakeSignalValue> = {
+    signIn: {
+      errors: emptyErrors(),
+      fetchStatus: 'idle',
+      signIn: initial.signIn ?? null
+    },
+    signUp: {
+      errors: emptyErrors(),
+      fetchStatus: 'idle',
+      signUp: initial.signUp ?? null
+    },
+    waitlist: {
+      errors: emptyErrors(),
+      fetchStatus: 'idle',
+      waitlist: initial.waitlist ?? {}
+    }
+  };
+  const state = {
+    signInSignal: () => values.signIn,
+    signUpSignal: () => values.signUp,
+    waitlistSignal: () => values.waitlist,
+    __internal_effect: vi.fn((callback: () => void) => {
+      effects.add(callback);
+      callback();
+      return () => {
+        effects.delete(callback);
+      };
+    }),
+    __internal_computed:
+      <T>(getter: (previous?: T) => T) =>
+      () =>
+        getter(),
+    get __internal_waitlist() {
+      return values.waitlist.waitlist;
+    }
+  };
+  /** Replaces part of one signal's value, as clerk-js does on an update. */
+  const set = (name: SignalName, next: Partial<FakeSignalValue>) => {
+    values[name] = { ...values[name], ...next };
+    [...effects].forEach((effect) => effect());
+  };
+  return { state, set, effects };
+};

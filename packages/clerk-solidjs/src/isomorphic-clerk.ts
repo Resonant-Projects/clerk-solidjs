@@ -1,22 +1,36 @@
 import { inBrowser } from '@clerk/shared/browser';
 import { clerkEvents, createClerkEventBus } from '@clerk/shared/clerkEventBus';
 import {
+  ALLOWED_PROTOCOLS,
+  windowNavigate
+} from '@clerk/shared/internal/clerk-js/windowNavigate';
+import {
   loadClerkJSScript,
-  loadClerkUIScript
+  loadClerkUIScript,
+  setClerkJSLoadingErrorPackageName
 } from '@clerk/shared/loadClerkJsScript';
+import type { ModuleManager } from '@clerk/shared/moduleManager';
 import type {
+  __internal_AttemptToEnableEnvironmentSettingParams,
+  __internal_AttemptToEnableEnvironmentSettingResult,
+  __internal_EnableOrganizationsPromptProps,
   __internal_UserVerificationModalProps,
   __internal_UserVerificationProps,
+  APIKeysNamespace,
+  APIKeysProps,
+  AuthenticateWithBaseParams,
   AuthenticateWithCoinbaseWalletParams,
   AuthenticateWithGoogleOneTapParams,
   AuthenticateWithMetamaskParams,
   AuthenticateWithOKXWalletParams,
+  AuthenticateWithSolanaParams,
   Clerk,
   ClerkAuthenticateWithWeb3Params,
   ClerkOptions,
   ClerkStatus,
   ClerkUIConstructor,
   ClientResource,
+  ConfigureSSOProps,
   CreateOrganizationParams,
   CreateOrganizationProps,
   DomainOrProxyUrl,
@@ -25,15 +39,21 @@ import type {
   GoogleOneTapProps,
   HandleEmailLinkVerificationParams,
   HandleOAuthCallbackParams,
+  InviteMembersModalProps,
   JoinWaitlistParams,
   ListenerCallback,
+  ListenerOptions,
   LoadedClerk,
+  OAuthApplicationNamespace,
+  OAuthConsentProps,
+  OAuthDeviceVerificationProps,
   OrganizationListProps,
   OrganizationProfileProps,
   OrganizationResource,
   OrganizationSwitcherProps,
   PricingTableProps,
   RedirectOptions,
+  Resources,
   SDKMetadata,
   SetActiveParams,
   SignInProps,
@@ -42,7 +62,9 @@ import type {
   SignUpProps,
   SignUpRedirectOptions,
   SignUpResource,
+  State,
   UnsubscribeCallback,
+  UserAvatarProps,
   UserButtonProps,
   UserProfileProps,
   WaitlistProps,
@@ -54,6 +76,7 @@ import { handleValueOrFn, logErrorInDevMode } from '@clerk/shared/utils';
 import { errorThrower } from './errors/error-thrower';
 import { unsupportedNonBrowserDomainOrProxyUrlFunction } from './errors/messages';
 import { installGlobalPolyfill } from './polyfills';
+import { StateProxy } from './state-proxy';
 import type {
   BrowserClerk,
   BrowserClerkConstructor,
@@ -109,8 +132,6 @@ type WithVoidReturnFunctions<T> = {
  * member Clerk adds upstream is a type error until it is ported or listed.
  */
 type NotYetSupported =
-  // F24: Core 3 signal hooks.
-  | '__internal_state'
   // F26: session tasks.
   | 'buildTasksUrl'
   | 'redirectToTasks'
@@ -126,36 +147,6 @@ type NotYetSupported =
   | '__internal_resolvePendingProtectCheck'
   | '__internal_resumeAfterProtectCheck'
   | '__internal_protectChallengeLoadTimeoutMs'
-  // F28: remaining instance members.
-  | 'authenticateWithBase'
-  | 'authenticateWithSolana'
-  | 'uiVersion'
-  | '__internal_windowNavigate'
-  | '__internal_moduleManager'
-  | '__internal_lastEmittedResources'
-  | '__internal_hasOAuthTransport'
-  | '__internal_oauthTransport'
-  | '__internal_country'
-  | 'openInviteMembers'
-  | 'closeInviteMembers'
-  | '__internal_attemptToEnableEnvironmentSetting'
-  | '__internal_openEnableOrganizationsPrompt'
-  | '__internal_closeEnableOrganizationsPrompt'
-  | '__internal_mountConfigureSSO'
-  | '__internal_unmountConfigureSSO'
-  | '__internal_mountConfigureDirectorySync'
-  | '__internal_unmountConfigureDirectorySync'
-  // F30, F31, F32: APIKeys, UserAvatar, OAuthConsent and device verification.
-  | 'mountAPIKeys'
-  | 'unmountAPIKeys'
-  | 'mountUserAvatar'
-  | 'unmountUserAvatar'
-  | 'mountOAuthConsent'
-  | 'unmountOAuthConsent'
-  | '__internal_mountOAuthConsent'
-  | '__internal_unmountOAuthConsent'
-  | '__internal_mountOAuthDeviceVerification'
-  | '__internal_unmountOAuthDeviceVerification'
   // F37 to F40: billing.
   | '__experimental_checkout'
   | '__internal_openCheckout'
@@ -184,6 +175,8 @@ type IsomorphicLoadedClerk = Without<
   | NotYetSupported
 > & {
   client: ClientResource | undefined;
+  apiKeys: APIKeysNamespace | undefined;
+  oauthApplication: OAuthApplicationNamespace | undefined;
 };
 
 export class IsomorphicClerk implements IsomorphicLoadedClerk {
@@ -200,6 +193,9 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private preopenOrganizationProfile?: null | OrganizationProfileProps = null;
   private preopenCreateOrganization?: null | CreateOrganizationProps = null;
   private preOpenWaitlist?: null | WaitlistProps = null;
+  private preopenInviteMembers?: null | InviteMembersModalProps = null;
+  private preopenEnableOrganizationsPrompt?: null | __internal_EnableOrganizationsPromptProps =
+    null;
   private premountSignInNodes = new Map<
     HTMLDivElement,
     SignInProps | undefined
@@ -244,10 +240,35 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     HTMLDivElement,
     PricingTableProps | undefined
   >();
+  private premountUserAvatarNodes = new Map<
+    HTMLDivElement,
+    UserAvatarProps | undefined
+  >();
+  private premountAPIKeysNodes = new Map<
+    HTMLDivElement,
+    APIKeysProps | undefined
+  >();
+  private premountConfigureSSONodes = new Map<
+    HTMLDivElement,
+    ConfigureSSOProps | undefined
+  >();
+  private premountConfigureDirectorySyncNodes = new Map<
+    HTMLDivElement,
+    ConfigureSSOProps | undefined
+  >();
+  private premountOAuthConsentNodes = new Map<
+    HTMLDivElement,
+    OAuthConsentProps | undefined
+  >();
+  private premountOAuthDeviceVerificationNodes = new Map<
+    HTMLDivElement,
+    OAuthDeviceVerificationProps | undefined
+  >();
   // A separate Map of `addListener` method calls to handle multiple listeners.
   private premountAddListenerCalls = new Map<
     ListenerCallback,
     {
+      options?: ListenerOptions;
       unsubscribe: UnsubscribeCallback;
       nativeUnsubscribe?: UnsubscribeCallback;
     }
@@ -261,6 +282,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   #proxyUrl: DomainOrProxyUrl['proxyUrl'];
   #publishableKey: string;
   #sdkMetadata: SDKMetadata;
+  #stateProxy: StateProxy;
 
   get publishableKey(): string {
     return this.#publishableKey;
@@ -329,10 +351,46 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     return this.#proxyUrl || '';
   }
 
+  /**
+   * An option clerk-js was loaded with. Before it loads, and on the server,
+   * the option this instance was created with.
+   */
   public __internal_getOption<K extends keyof ClerkOptions>(
     key: K
   ): ClerkOptions[K] | undefined {
-    return this.clerkjs?.__internal_getOption(key);
+    return this.clerkjs?.__internal_getOption
+      ? this.clerkjs.__internal_getOption(key)
+      : (this.options as ClerkOptions)[key];
+  }
+
+  /**
+   * Navigates the window. An older clerk-js lacks this, so navigate here
+   * with the same protocol allowlist rather than do nothing.
+   */
+  public __internal_windowNavigate: Clerk['__internal_windowNavigate'] = (
+    to,
+    opts
+  ) => {
+    const clerkjs = this.clerkjs;
+    if (typeof clerkjs?.__internal_windowNavigate === 'function') {
+      clerkjs.__internal_windowNavigate(to, opts);
+      return;
+    }
+    if (!inBrowser()) {
+      return;
+    }
+    const allowedProtocols = opts?.useStaticAllowlistOnly
+      ? ALLOWED_PROTOCOLS
+      : [
+          ...ALLOWED_PROTOCOLS,
+          ...(this.options.allowedRedirectProtocols ?? [])
+        ];
+    windowNavigate(to, { allowedProtocols });
+  };
+
+  /** clerk-js's module manager, `undefined` until it loads. */
+  public get __internal_moduleManager(): ModuleManager | undefined {
+    return this.clerkjs?.__internal_moduleManager;
   }
 
   constructor(options: IsomorphicClerkOptions) {
@@ -344,6 +402,9 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     this.Clerk = Clerk;
     this.mode = inBrowser() ? 'browser' : 'server';
     installGlobalPolyfill();
+    // Errors loading clerk-js name this package, not @clerk/shared's default.
+    setClerkJSLoadingErrorPackageName(PACKAGE_NAME);
+    this.#stateProxy = new StateProxy(this);
     // Options can be a Solid props proxy, which ignores writes, so the
     // default is kept here and passed to clerk-js explicitly.
     this.#sdkMetadata = options?.sdkMetadata ?? SDK_METADATA;
@@ -693,7 +754,10 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
     this.premountMethodCalls.forEach((cb) => cb());
     this.premountAddListenerCalls.forEach((listenerHandlers, listener) => {
-      listenerHandlers.nativeUnsubscribe = clerkjs.addListener(listener);
+      listenerHandlers.nativeUnsubscribe = clerkjs.addListener(
+        listener,
+        listenerHandlers.options
+      );
     });
 
     if (this.preopenSignIn !== null) {
@@ -726,6 +790,16 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
     if (this.preOpenWaitlist !== null) {
       clerkjs.openWaitlist(this.preOpenWaitlist);
+    }
+
+    if (this.preopenInviteMembers !== null) {
+      clerkjs.openInviteMembers(this.preopenInviteMembers);
+    }
+
+    if (this.preopenEnableOrganizationsPrompt) {
+      clerkjs.__internal_openEnableOrganizationsPrompt(
+        this.preopenEnableOrganizationsPrompt
+      );
     }
 
     this.premountSignInNodes.forEach((props, node) => {
@@ -768,6 +842,35 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       clerkjs.mountPricingTable(node, props);
     });
 
+    this.premountUserAvatarNodes.forEach((props, node) => {
+      clerkjs.mountUserAvatar(node, props);
+    });
+
+    this.premountAPIKeysNodes.forEach((props, node) => {
+      clerkjs.mountAPIKeys(node, props);
+    });
+
+    this.premountConfigureSSONodes.forEach((props, node) => {
+      clerkjs.__internal_mountConfigureSSO(node, props);
+    });
+
+    // An older clerk-js has no directory sync or device verification.
+    if (typeof clerkjs.__internal_mountConfigureDirectorySync === 'function') {
+      this.premountConfigureDirectorySyncNodes.forEach((props, node) => {
+        clerkjs.__internal_mountConfigureDirectorySync(node, props);
+      });
+    }
+
+    this.premountOAuthConsentNodes.forEach((props, node) => {
+      clerkjs.__internal_mountOAuthConsent(node, props);
+    });
+
+    if (typeof clerkjs.__internal_mountOAuthDeviceVerification === 'function') {
+      this.premountOAuthDeviceVerificationNodes.forEach((props, node) => {
+        clerkjs.__internal_mountOAuthDeviceVerification(node, props);
+      });
+    }
+
     this.#loaded = true;
 
     // Status listeners move to clerk-js, which now owns the status, and
@@ -796,6 +899,10 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
 
   get version() {
     return this.clerkjs?.version;
+  }
+
+  get uiVersion(): string | undefined {
+    return this.clerkjs?.uiVersion;
   }
 
   get client(): ClientResource | undefined {
@@ -854,6 +961,41 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     } else {
       return false;
     }
+  }
+
+  /**
+   * The signals behind the Core 3 `useSignIn`, `useSignUp` and
+   * `useWaitlist`: clerk-js's once it has loaded, and a stand-in with
+   * defaults before that and on the server.
+   */
+  get __internal_state(): State {
+    return this.#loaded && this.clerkjs
+      ? this.clerkjs.__internal_state
+      : this.#stateProxy;
+  }
+
+  get apiKeys(): APIKeysNamespace | undefined {
+    return this.clerkjs?.apiKeys;
+  }
+
+  get oauthApplication(): OAuthApplicationNamespace | undefined {
+    return this.clerkjs?.oauthApplication;
+  }
+
+  get __internal_lastEmittedResources(): Resources | undefined {
+    return this.clerkjs?.__internal_lastEmittedResources;
+  }
+
+  get __internal_hasOAuthTransport(): boolean {
+    return this.clerkjs?.__internal_hasOAuthTransport || false;
+  }
+
+  get __internal_oauthTransport() {
+    return this.clerkjs?.__internal_oauthTransport || null;
+  }
+
+  get __internal_country(): string | null | undefined {
+    return this.clerkjs?.__internal_country;
   }
 
   __internal_setEnvironment = (
@@ -1017,6 +1159,55 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       this.clerkjs.closeWaitlist();
     } else {
       this.preOpenWaitlist = null;
+    }
+  };
+
+  openInviteMembers = (props?: InviteMembersModalProps) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.openInviteMembers(props);
+    } else {
+      this.preopenInviteMembers = props;
+    }
+  };
+
+  closeInviteMembers = () => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.closeInviteMembers();
+    } else {
+      this.preopenInviteMembers = null;
+    }
+  };
+
+  __internal_openEnableOrganizationsPrompt = (
+    props: __internal_EnableOrganizationsPromptProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_openEnableOrganizationsPrompt(props);
+    } else {
+      this.preopenEnableOrganizationsPrompt = props;
+    }
+  };
+
+  __internal_closeEnableOrganizationsPrompt = () => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_closeEnableOrganizationsPrompt();
+    } else {
+      this.preopenEnableOrganizationsPrompt = null;
+    }
+  };
+
+  __internal_attemptToEnableEnvironmentSetting = (
+    options: __internal_AttemptToEnableEnvironmentSettingParams
+  ): __internal_AttemptToEnableEnvironmentSettingResult | void => {
+    const callback = () =>
+      this.clerkjs?.__internal_attemptToEnableEnvironmentSetting(options);
+    if (this.clerkjs && this.#loaded) {
+      return callback() as __internal_AttemptToEnableEnvironmentSettingResult;
+    } else {
+      this.premountMethodCalls.set(
+        '__internal_attemptToEnableEnvironmentSetting',
+        callback
+      );
     }
   };
 
@@ -1224,9 +1415,148 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     }
   };
 
-  addListener = (listener: ListenerCallback): UnsubscribeCallback => {
+  mountUserAvatar = (node: HTMLDivElement, props?: UserAvatarProps) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.mountUserAvatar(node, props);
+    } else {
+      this.premountUserAvatarNodes.set(node, props);
+    }
+  };
+
+  unmountUserAvatar = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.unmountUserAvatar(node);
+    } else {
+      this.premountUserAvatarNodes.delete(node);
+    }
+  };
+
+  mountAPIKeys = (node: HTMLDivElement, props?: APIKeysProps) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.mountAPIKeys(node, props);
+    } else {
+      this.premountAPIKeysNodes.set(node, props);
+    }
+  };
+
+  unmountAPIKeys = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.unmountAPIKeys(node);
+    } else {
+      this.premountAPIKeysNodes.delete(node);
+    }
+  };
+
+  __internal_mountConfigureSSO = (
+    node: HTMLDivElement,
+    props?: ConfigureSSOProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_mountConfigureSSO(node, props);
+    } else {
+      this.premountConfigureSSONodes.set(node, props);
+    }
+  };
+
+  __internal_unmountConfigureSSO = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_unmountConfigureSSO(node);
+    } else {
+      this.premountConfigureSSONodes.delete(node);
+    }
+  };
+
+  __internal_mountConfigureDirectorySync = (
+    node: HTMLDivElement,
+    props?: ConfigureSSOProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      // An older clerk-js has no directory sync.
+      if (
+        typeof this.clerkjs.__internal_mountConfigureDirectorySync ===
+        'function'
+      ) {
+        this.clerkjs.__internal_mountConfigureDirectorySync(node, props);
+      }
+    } else {
+      this.premountConfigureDirectorySyncNodes.set(node, props);
+    }
+  };
+
+  __internal_unmountConfigureDirectorySync = (node: HTMLDivElement) => {
+    if (
+      this.clerkjs &&
+      this.#loaded &&
+      typeof this.clerkjs.__internal_unmountConfigureDirectorySync ===
+        'function'
+    ) {
+      this.clerkjs.__internal_unmountConfigureDirectorySync(node);
+    }
+    this.premountConfigureDirectorySyncNodes.delete(node);
+  };
+
+  __internal_mountOAuthConsent = (
+    node: HTMLDivElement,
+    props?: OAuthConsentProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_mountOAuthConsent(node, props);
+    } else {
+      this.premountOAuthConsentNodes.set(node, props);
+    }
+  };
+
+  __internal_unmountOAuthConsent = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.__internal_unmountOAuthConsent(node);
+    } else {
+      this.premountOAuthConsentNodes.delete(node);
+    }
+  };
+
+  mountOAuthConsent = (node: HTMLDivElement, props?: OAuthConsentProps) => {
+    this.__internal_mountOAuthConsent(node, props);
+  };
+
+  unmountOAuthConsent = (node: HTMLDivElement) => {
+    this.__internal_unmountOAuthConsent(node);
+  };
+
+  __internal_mountOAuthDeviceVerification = (
+    node: HTMLDivElement,
+    props?: OAuthDeviceVerificationProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      // An older clerk-js has no device verification.
+      if (
+        typeof this.clerkjs.__internal_mountOAuthDeviceVerification ===
+        'function'
+      ) {
+        this.clerkjs.__internal_mountOAuthDeviceVerification(node, props);
+      }
+    } else {
+      this.premountOAuthDeviceVerificationNodes.set(node, props);
+    }
+  };
+
+  __internal_unmountOAuthDeviceVerification = (node: HTMLDivElement) => {
+    if (
+      this.clerkjs &&
+      this.#loaded &&
+      typeof this.clerkjs.__internal_unmountOAuthDeviceVerification ===
+        'function'
+    ) {
+      this.clerkjs.__internal_unmountOAuthDeviceVerification(node);
+    }
+    this.premountOAuthDeviceVerificationNodes.delete(node);
+  };
+
+  addListener = (
+    listener: ListenerCallback,
+    options?: ListenerOptions
+  ): UnsubscribeCallback => {
     if (this.clerkjs) {
-      return this.clerkjs.addListener(listener);
+      return this.clerkjs.addListener(listener, options);
     } else {
       const unsubscribe = () => {
         const listenerHandlers = this.premountAddListenerCalls.get(listener);
@@ -1236,6 +1566,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
         }
       };
       this.premountAddListenerCalls.set(listener, {
+        options,
         unsubscribe,
         nativeUnsubscribe: undefined
       });
@@ -1430,6 +1761,24 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       return callback() as Promise<void>;
     } else {
       this.premountMethodCalls.set('authenticateWithOKXWallet', callback);
+    }
+  };
+
+  authenticateWithBase = async (params?: AuthenticateWithBaseParams) => {
+    const callback = () => this.clerkjs?.authenticateWithBase(params);
+    if (this.clerkjs && this.#loaded) {
+      return callback() as Promise<void>;
+    } else {
+      this.premountMethodCalls.set('authenticateWithBase', callback);
+    }
+  };
+
+  authenticateWithSolana = async (params: AuthenticateWithSolanaParams) => {
+    const callback = () => this.clerkjs?.authenticateWithSolana(params);
+    if (this.clerkjs && this.#loaded) {
+      return callback() as Promise<void>;
+    } else {
+      this.premountMethodCalls.set('authenticateWithSolana', callback);
     }
   };
 

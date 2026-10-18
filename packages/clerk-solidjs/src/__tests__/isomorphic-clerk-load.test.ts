@@ -4,10 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const scripts = vi.hoisted(() => ({
   loadClerkJSScript: vi.fn(),
-  loadClerkUIScript: vi.fn()
+  loadClerkUIScript: vi.fn(),
+  setClerkJSLoadingErrorPackageName: vi.fn()
 }));
 
 vi.mock('@clerk/shared/loadClerkJsScript', () => scripts);
+
+const navigation = vi.hoisted(() => ({
+  ALLOWED_PROTOCOLS: ['http:', 'https:'],
+  windowNavigate: vi.fn()
+}));
+
+vi.mock('@clerk/shared/internal/clerk-js/windowNavigate', () => navigation);
 
 import { IsomorphicClerk } from '../isomorphic-clerk';
 
@@ -346,5 +354,209 @@ describe('IsomorphicClerk Core 3 loading', () => {
     await loadedClerk(isomorphicClerk);
 
     expect(loadOptions(clerkJS).sdkMetadata).toBe(sdkMetadata);
+  });
+
+  it('names this package in clerk-js loading errors', () => {
+    new IsomorphicClerk({ publishableKey: 'pk_test_XXX' });
+
+    expect(scripts.setClerkJSLoadingErrorPackageName).toHaveBeenCalledWith(
+      PACKAGE_NAME
+    );
+  });
+
+  it('opens and mounts the Core 3 components called for before clerk-js loads', async () => {
+    const members = {
+      mountUserAvatar: vi.fn(),
+      mountAPIKeys: vi.fn(),
+      __internal_mountConfigureSSO: vi.fn(),
+      __internal_mountConfigureDirectorySync: vi.fn(),
+      __internal_mountOAuthConsent: vi.fn(),
+      __internal_mountOAuthDeviceVerification: vi.fn(),
+      openInviteMembers: vi.fn(),
+      __internal_openEnableOrganizationsPrompt: vi.fn()
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, members) as any
+    });
+    const node = () => document.createElement('div');
+    const [avatar, keys, sso, sync, consent, device, unmounted] = [
+      node(),
+      node(),
+      node(),
+      node(),
+      node(),
+      node(),
+      node()
+    ];
+    isomorphicClerk.mountUserAvatar(avatar, { rounded: true });
+    isomorphicClerk.mountAPIKeys(keys, { perPage: 5 });
+    isomorphicClerk.__internal_mountConfigureSSO(sso);
+    isomorphicClerk.__internal_mountConfigureDirectorySync(sync);
+    isomorphicClerk.mountOAuthConsent(consent, { scope: 'openid' });
+    isomorphicClerk.__internal_mountOAuthDeviceVerification(device);
+    isomorphicClerk.mountAPIKeys(unmounted);
+    isomorphicClerk.unmountAPIKeys(unmounted);
+    isomorphicClerk.openInviteMembers({ appearance: {} } as any);
+    isomorphicClerk.__internal_openEnableOrganizationsPrompt({
+      caller: 'OrganizationSwitcher'
+    } as any);
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(members.mountUserAvatar).toHaveBeenCalledWith(avatar, {
+      rounded: true
+    });
+    expect(members.mountAPIKeys).toHaveBeenCalledTimes(1);
+    expect(members.mountAPIKeys).toHaveBeenCalledWith(keys, { perPage: 5 });
+    expect(members.__internal_mountConfigureSSO).toHaveBeenCalledWith(
+      sso,
+      undefined
+    );
+    expect(members.__internal_mountConfigureDirectorySync).toHaveBeenCalledWith(
+      sync,
+      undefined
+    );
+    expect(members.__internal_mountOAuthConsent).toHaveBeenCalledWith(consent, {
+      scope: 'openid'
+    });
+    expect(
+      members.__internal_mountOAuthDeviceVerification
+    ).toHaveBeenCalledWith(device, undefined);
+    expect(members.openInviteMembers).toHaveBeenCalledWith({ appearance: {} });
+    expect(
+      members.__internal_openEnableOrganizationsPrompt
+    ).toHaveBeenCalledWith({ caller: 'OrganizationSwitcher' });
+  });
+
+  it('skips directory sync and device verification on a clerk-js without them', async () => {
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: clerkJS as any
+    });
+    const node = document.createElement('div');
+    isomorphicClerk.__internal_mountConfigureDirectorySync(node);
+    isomorphicClerk.__internal_mountOAuthDeviceVerification(node);
+
+    await loadedClerk(isomorphicClerk);
+    // After load too: neither call throws on the older clerk-js.
+    isomorphicClerk.__internal_mountConfigureDirectorySync(node);
+    isomorphicClerk.__internal_unmountConfigureDirectorySync(node);
+    isomorphicClerk.__internal_mountOAuthDeviceVerification(node);
+    isomorphicClerk.__internal_unmountOAuthDeviceVerification(node);
+  });
+
+  it('passes addListener options given before load to clerk-js', async () => {
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: clerkJS as any
+    });
+    const listener = vi.fn();
+    isomorphicClerk.addListener(listener, { skipInitialEmit: true });
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(clerkJS.addListener).toHaveBeenCalledWith(listener, {
+      skipInitialEmit: true
+    });
+  });
+
+  it('reads its own options before clerk-js loads, and clerk-js after', async () => {
+    const getOption = vi.fn(() => '/from-clerk-js');
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      signInUrl: '/sign-in',
+      Clerk: Object.assign(clerkJS, { __internal_getOption: getOption }) as any
+    });
+    expect(isomorphicClerk.__internal_getOption('signInUrl')).toBe('/sign-in');
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(isomorphicClerk.__internal_getOption('signInUrl')).toBe(
+      '/from-clerk-js'
+    );
+    expect(getOption).toHaveBeenCalledWith('signInUrl');
+  });
+
+  it('queues authenticateWithBase and authenticateWithSolana until clerk-js loads', async () => {
+    const members = {
+      authenticateWithBase: vi.fn(async () => undefined),
+      authenticateWithSolana: vi.fn(async () => undefined)
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, members) as any
+    });
+    void isomorphicClerk.authenticateWithBase({ redirectUrl: '/done' });
+    void isomorphicClerk.authenticateWithSolana({ walletName: 'phantom' });
+    expect(members.authenticateWithBase).not.toHaveBeenCalled();
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(members.authenticateWithBase).toHaveBeenCalledWith({
+      redirectUrl: '/done'
+    });
+    expect(members.authenticateWithSolana).toHaveBeenCalledWith({
+      walletName: 'phantom'
+    });
+  });
+
+  it("serves the signal stand-in until clerk-js loads, then clerk-js's state", async () => {
+    const state = { signInSignal: vi.fn() };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, { __internal_state: state }) as any
+    });
+    const standIn = isomorphicClerk.__internal_state;
+    expect(standIn).not.toBe(state);
+    expect(standIn.signInSignal().signIn?.status).toBe('needs_identifier');
+    // Its own waitlist, not a read of itself.
+    expect(standIn.__internal_waitlist.id).toBe('');
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(isomorphicClerk.__internal_state).toBe(state);
+  });
+
+  it('navigates the window itself, with the same allowlist, on a clerk-js without __internal_windowNavigate', async () => {
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      allowedRedirectProtocols: ['myapp:'],
+      Clerk: clerkJS as any
+    });
+    await loadedClerk(isomorphicClerk);
+
+    isomorphicClerk.__internal_windowNavigate('myapp://done');
+    expect(navigation.windowNavigate).toHaveBeenLastCalledWith('myapp://done', {
+      allowedProtocols: [...navigation.ALLOWED_PROTOCOLS, 'myapp:']
+    });
+
+    isomorphicClerk.__internal_windowNavigate('https://example.com', {
+      useStaticAllowlistOnly: true
+    });
+    expect(navigation.windowNavigate).toHaveBeenLastCalledWith(
+      'https://example.com',
+      { allowedProtocols: navigation.ALLOWED_PROTOCOLS }
+    );
+  });
+
+  it("uses clerk-js's __internal_windowNavigate when it has one", async () => {
+    const windowNavigate = vi.fn();
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, {
+        __internal_windowNavigate: windowNavigate
+      }) as any
+    });
+    await loadedClerk(isomorphicClerk);
+
+    isomorphicClerk.__internal_windowNavigate('/next', {
+      useStaticAllowlistOnly: true
+    });
+
+    expect(windowNavigate).toHaveBeenCalledWith('/next', {
+      useStaticAllowlistOnly: true
+    });
+    expect(navigation.windowNavigate).not.toHaveBeenCalled();
   });
 });

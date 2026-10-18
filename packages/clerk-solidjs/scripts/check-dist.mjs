@@ -3,9 +3,9 @@
 //
 // 1. Every path in package.json `exports` exists in dist.
 // 2. For the browser, node and solid conditions (with and without
-//    `development`), the ESM files `.` and `./start` resolve to reach exactly
-//    one copy of the Clerk contexts, so `/start`'s ClerkProvider and the
-//    root entry's hooks share it.
+//    `development`), the ESM files `.`, `./start` and `./legacy` resolve to
+//    reach exactly one copy of the Clerk contexts, the same one, so
+//    `/start`'s ClerkProvider and the other entries' hooks share it.
 // 3. The ESM files import without throwing in node.
 //
 // Run it after `pnpm build`.
@@ -69,6 +69,9 @@ const moduleGraph = (entry) => {
   return seen;
 };
 
+/** The entries that use the Clerk contexts. */
+const contextSubpaths = ['.', './start', './legacy'];
+
 const conditionSets = [
   ['browser', 'import'],
   ['browser', 'development', 'import'],
@@ -81,7 +84,7 @@ const conditionSets = [
 for (const conditions of conditionSets) {
   const label = conditions.join('+');
   const contextFiles = {};
-  for (const subpath of ['.', './start']) {
+  for (const subpath of contextSubpaths) {
     const target = resolveExport(pkg.exports[subpath], conditions);
     if (!target) {
       fail(`${label}: ${subpath} resolves to nothing`);
@@ -97,15 +100,16 @@ for (const conditions of conditionSets) {
       );
     }
   }
-  const [root] = contextFiles['.'] ?? [];
-  const [start] = contextFiles['./start'] ?? [];
-  if (root && start && root !== start) {
+  const copies = new Set(
+    contextSubpaths.flatMap((subpath) => contextFiles[subpath] ?? [])
+  );
+  if (copies.size > 1) {
     fail(
-      `${label}: . and ./start use different copies of the Clerk contexts (${path.relative(packageDir, root)}, ${path.relative(packageDir, start)})`
+      `${label}: ${contextSubpaths.join(', ')} use different copies of the Clerk contexts (${[...copies].map((file) => path.relative(packageDir, file)).join(', ')})`
     );
-  } else if (root && start) {
+  } else if (copies.size === 1) {
     console.log(
-      `PASS  ${label}: . and ./start share ${path.relative(packageDir, root)}`
+      `PASS  ${label}: ${contextSubpaths.join(', ')} share ${path.relative(packageDir, [...copies][0])}`
     );
   }
 }
@@ -116,6 +120,7 @@ for (const conditions of conditionSets) {
 // Solid-aware bundler such as SolidStart's can load it.
 for (const subpath of [
   '.',
+  './legacy',
   './errors',
   './server',
   './start/server',

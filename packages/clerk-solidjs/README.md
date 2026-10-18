@@ -237,6 +237,69 @@ const canManageMembers = () =>
 const isPro = () => has({ plan: 'pro' });
 ```
 
+### Custom sign-in and sign-up flows
+
+`useSignIn()`, `useSignUp()` and `useWaitlist()` are Clerk Core 3's
+signal-based hooks, as in `@clerk/react` 6. Each returns the resource,
+`errors` and `fetchStatus`, kept current from clerk-js. Their methods wait for
+Clerk to load, so a form can call them right away. On the server they return
+defaults.
+
+The resource and `errors` stay reactive when destructured. `fetchStatus` is a
+string, so read it from the result:
+
+```tsx
+import { useNavigate } from '@solidjs/router';
+import { useSignIn } from '@resonant-projects/clerk-solidjs';
+import { createSignal, Show } from 'solid-js';
+
+export default function SignInForm() {
+  const state = useSignIn();
+  const { signIn, errors } = state;
+  const navigate = useNavigate();
+  const [identifier, setIdentifier] = createSignal('');
+  const [password, setPassword] = createSignal('');
+
+  const submit = async (event: SubmitEvent) => {
+    event.preventDefault();
+    await signIn.password({ identifier: identifier(), password: password() });
+    if (signIn.status === 'complete') {
+      await signIn.finalize({ navigate: () => navigate('/') });
+    }
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <input onInput={(e) => setIdentifier(e.currentTarget.value)} />
+      <Show when={errors.fields.identifier}>{(e) => <p>{e().message}</p>}</Show>
+      <input
+        type="password"
+        onInput={(e) => setPassword(e.currentTarget.value)}
+      />
+      <button disabled={state.fetchStatus === 'fetching'}>Sign in</button>
+    </form>
+  );
+}
+```
+
+The Core 2 hooks, with `isLoaded`, the client's `signIn` or `signUp` and
+`setActive`, are in `@resonant-projects/clerk-solidjs/legacy`, like
+`@clerk/react/legacy`.
+
+### Reverification
+
+`useReverification(fetcher)` wraps a call that may need the user to verify
+again, such as one to a server function that returns `reverificationError()`.
+It opens Clerk's reverification modal, then runs the call again once the user
+has verified. Pass `onNeedsReverification` to show your own prompt instead.
+
+```tsx
+const { user } = useUser();
+const setPrimaryEmail = useReverification((emailAddressId: string) =>
+  user()!.update({ primaryEmailAddressId: emailAddressId })
+);
+```
+
 ### Custom menu items and pages
 
 The components take the same children as `@clerk/react`. Icons and page bodies render
