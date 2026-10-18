@@ -586,7 +586,8 @@ cookies to their names. URLs keep their parameter names but no values. Headers k
 their values only when they carry no credentials, such as `host`, `accept` or
 `x-clerk-auth-status`; others are listed by name. Options and the auth object's
 debug data keep booleans, numbers and Clerk's own settings, such as `domain`;
-other text values are cut.
+other text values are cut. The policy Clerk generates is logged as sent, since every
+browser receives it.
 
 #### Server-only code
 
