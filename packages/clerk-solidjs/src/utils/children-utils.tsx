@@ -55,9 +55,13 @@ const composeClickHandler = (
   let childHandler = target.$$click;
   // Solid calls a bound handler as (data, event), otherwise as (event).
   const composed = function (this: Element, ...args: unknown[]) {
-    // Like a disabled button: neither the child's handler nor Clerk's runs.
-    if (isDisabled()) return;
     const event = args[args.length - 1] as MouseEvent;
+    // Like a disabled button: no handler runs, and the click does nothing
+    // natively either (a submit button child would submit its form).
+    if (isDisabled()) {
+      event.preventDefault();
+      return;
+    }
     const result = childHandler?.apply(this, args);
     // Only wait for a handler that returns a promise. Otherwise onClick runs
     // during the dispatch, so its stopPropagation() still stops ancestors.

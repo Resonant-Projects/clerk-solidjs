@@ -173,6 +173,23 @@ describe('Clerk buttons', () => {
     warn.mockRestore();
   });
 
+  it('cancel the native action of a disabled element child, such as submitting a form', async () => {
+    const clerkJS = createClerkJS();
+    const onSubmit = vi.fn((event: SubmitEvent) => event.preventDefault());
+    renderInProvider(clerkJS, () => (
+      <form onSubmit={onSubmit}>
+        <SignInButton disabled>
+          <button type="submit">Continue</button>
+        </SignInButton>
+      </form>
+    ));
+    await loaded(clerkJS);
+
+    await userEvent.click(screen.getByText('Continue'));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(clerkJS.redirectToSignIn).not.toHaveBeenCalled();
+  });
+
   it('wrap a text child in the default button, with its attributes', async () => {
     const clerkJS = createClerkJS();
     const onClick = vi.fn();
