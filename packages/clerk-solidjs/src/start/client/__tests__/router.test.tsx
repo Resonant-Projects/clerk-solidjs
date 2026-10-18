@@ -232,6 +232,70 @@ describe('SolidStart routing wrappers', () => {
     expect(pathsSent(clerkJS, 'mountSignIn')).toEqual(['/sign-in']);
   });
 
+  it('keep their path while a navigation away suspends on the next route', async () => {
+    let release!: () => void;
+    const slowData = new Promise<string>((resolve) => {
+      release = () => resolve('slow data');
+    });
+    const Slow = () => {
+      const [data] = createResource(() => slowData);
+      return <p>{data()}</p>;
+    };
+    const { clerkJS } = createFakeClerkJS();
+    const history = createMemoryHistory();
+    history.set({ value: '/sign-in/factor-one' });
+    render(() => (
+      <MemoryRouter
+        history={history}
+        root={(props) => (
+          <RootClerkProvider
+            publishableKey={TEST_PUBLISHABLE_KEY}
+            Clerk={clerkJS as any}
+          >
+            <Suspense>{props.children}</Suspense>
+          </RootClerkProvider>
+        )}
+      >
+        <Route path="/sign-in/*rest" component={() => <SignIn />} />
+        <Route path="/slow" component={Slow} />
+      </MemoryRouter>
+    ));
+    await vi.waitFor(() => expect(clerkJS.mountSignIn).toHaveBeenCalled());
+
+    history.set({ value: '/slow' });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    release();
+    await vi.waitFor(() => expect(screen.getByText('slow data')).toBeTruthy());
+
+    expect(pathsSent(clerkJS, 'mountSignIn')).toEqual(['/sign-in']);
+  });
+
+  it('follow a route whose path alternatives first match where its layout does', async () => {
+    const Account = (props: { children?: JSX.Element }) => (
+      <>{props.children}</>
+    );
+    const { clerkJS, go } = renderRoutes('/account', () => (
+      <Route path="/account" component={Account}>
+        <Route
+          path={['/*rest', '/:slug/profile/*rest']}
+          component={() => <UserProfile />}
+        />
+      </Route>
+    ));
+    await vi.waitFor(() =>
+      expect((clerkJS as any).mountUserProfile).toHaveBeenCalled()
+    );
+
+    go('/account/acme/profile');
+
+    await vi.waitFor(() =>
+      expect(pathsSent(clerkJS, 'mountUserProfile').at(-1)).toBe(
+        '/account/acme/profile'
+      )
+    );
+    expect((clerkJS as any).mountUserProfile).toHaveBeenCalledTimes(1);
+  });
+
   it('reject a path with hash routing, as @clerk/react does', () => {
     const consoleError = vi
       .spyOn(console, 'error')

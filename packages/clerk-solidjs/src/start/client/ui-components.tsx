@@ -1,6 +1,6 @@
 import type { RoutingOptions } from '@clerk/shared/types';
-import { useCurrentMatches, useResolvedPath } from '@solidjs/router';
-import { Accessor, createMemo, JSX, mergeProps, untrack } from 'solid-js';
+import { useResolvedPath } from '@solidjs/router';
+import { Accessor, JSX, mergeProps, untrack } from 'solid-js';
 import {
   OrganizationList as BaseOrganizationList,
   OrganizationProfile as BaseOrganizationProfile,
@@ -18,24 +18,13 @@ import {
  * The path of the route rendering the component, without its catch-all
  * part: `/sign-in` for `/sign-in/factor-one` on a `sign-in/[...rest]` route,
  * and `/account` for a component an `account` layout renders above a child
- * route. It follows that route's parameters, since the router keeps the
- * component mounted when only they change. While navigating to another
- * route, the router reports the next route before this one unmounts; the
- * path then stays as it was.
+ * route. It is the router's own context for that route, so it follows the
+ * route's parameters and path alternatives, which change without a remount.
+ * The router disposes that context when it navigates to another route, so a
+ * component on its way out is not sent the next route's path.
  */
-const useRoutePath = (): Accessor<string | undefined> => {
-  const matches = useCurrentMatches();
-  // The path of the route whose component tree this is in.
-  const ownPath = useResolvedPath(() => '');
-  const ownRoute = untrack(
-    () => matches().find((match) => match.path === ownPath())?.route.key
-  );
-  return createMemo<string | undefined>(
-    (previous) =>
-      matches().find((match) => match.route.key === ownRoute)?.path ?? previous,
-    untrack(ownPath)
-  );
-};
+const useRoutePath = (): Accessor<string | undefined> =>
+  useResolvedPath(() => '');
 
 /**
  * @clerk/react's useRoutingProps: path routing by default, with `path`
