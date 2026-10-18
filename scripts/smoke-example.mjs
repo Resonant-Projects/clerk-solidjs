@@ -435,10 +435,11 @@ async function runSignedInChecks(browser, baseUrl) {
     email_address: [`smoke-${Date.now()}+clerk_test@example.com`],
     skip_password_requirement: true,
   });
-  const context = await browser.newContext({
-    viewport: { width: 900, height: 800 },
-  });
+  let context;
   try {
+    context = await browser.newContext({
+      viewport: { width: 900, height: 800 },
+    });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -530,7 +531,8 @@ async function runSignedInChecks(browser, baseUrl) {
       errors.join(" | "),
     );
   } finally {
-    await context.close();
+    // A context that failed to open or close must not keep the user.
+    await context?.close().catch(() => {});
     await backendApi("DELETE", `users/${user.id}`);
   }
 }
