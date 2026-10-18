@@ -43,6 +43,17 @@ const appendHeaders = (target: Headers, headers: Headers) => {
 };
 
 /**
+ * Stages headers for the response h3 builds once the route has run. h3 adds
+ * `event.res.headers` to a body and to a Response below 400, and `errHeaders`
+ * to an error, a not-found and a Response from 400 up. It uses one or the
+ * other, never both, so headers staged on both are added once.
+ */
+const stageHeaders = (res: H3EventLike['res'], headers: Headers) => {
+  if (res?.headers) appendHeaders(res.headers, headers);
+  if (res?.errHeaders) appendHeaders(res.errHeaders, headers);
+};
+
+/**
  * A copy of the Response with the headers added. Never the route's own
  * object: a Response a route reuses across requests must not keep one
  * visitor's session cookies, and some Responses have immutable headers.
@@ -152,7 +163,8 @@ export const clerkMiddleware = (
       const fetchEvent = event as FetchEvent;
       const result = await authenticate(fetchEvent);
       if ('redirect' in result) return result.redirect;
-      appendHeaders(fetchEvent.response.headers, result.headers);
+      // SolidStart's FetchEvent.response is h3's event.res.
+      stageHeaders(fetchEvent.response as H3EventLike['res'], result.headers);
       return;
     }
 
@@ -169,29 +181,20 @@ export const clerkMiddleware = (
     const result = await authenticate(fetchEvent);
     if ('redirect' in result) return result.redirect;
 
+    const res = h3Event.res ?? (fetchEvent.response as H3EventLike['res']);
     let response: unknown;
     try {
       response = await next();
     } catch (error) {
-      // h3 builds error responses from errHeaders only.
-      if (h3Event.res?.errHeaders) {
-        appendHeaders(h3Event.res.errHeaders, result.headers);
-      }
+      stageHeaders(res, result.headers);
       throw error;
     }
-    // h3 merges event.res.headers only into responses below 400, so headers
-    // go on a returned Response itself, on errHeaders for a returned error
-    // (h3 builds its response from those alone), and on event.res otherwise.
+    // A Response gets them itself, so h3 adds nothing twice. Anything else
+    // (a body, an error, nothing, h3's not-found) becomes a response later.
     if (response instanceof Response) {
       return withHeaders(response, result.headers);
     }
-    if (response instanceof Error) {
-      if (h3Event.res?.errHeaders) {
-        appendHeaders(h3Event.res.errHeaders, result.headers);
-      }
-      return response;
-    }
-    appendHeaders(fetchEvent.response.headers, result.headers);
+    stageHeaders(res, result.headers);
     return response;
   }
 

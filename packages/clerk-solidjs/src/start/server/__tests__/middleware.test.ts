@@ -242,7 +242,9 @@ describe('clerkMiddleware as an h3 middleware', () => {
 
     expect(await result).toBe(failure);
     expect(h3Event.res.errHeaders.getSetCookie()).toHaveLength(2);
-    expect(event.response.headers.getSetCookie()).toEqual([]);
+    // Also staged for a body, in case an error handler replaces the error:
+    // h3 uses one or the other (middleware.h3.test.ts checks the result).
+    expect(event.response.headers.getSetCookie()).toHaveLength(2);
   });
 
   it('copies a Response with immutable headers to add them', async () => {
