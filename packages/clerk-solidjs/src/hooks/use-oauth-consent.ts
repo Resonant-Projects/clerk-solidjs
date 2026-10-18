@@ -8,9 +8,11 @@ import { Accessor, createMemo } from 'solid-js';
 import { useClerkLoadState } from '../contexts/clerk-status';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { useUserContext } from '../contexts/user';
+import { getClerkQueryClient } from '../query/clerk-query-client';
 import { createClerkQuery } from '../query/create-clerk-query';
 import { createCacheKeys, STABLE_KEYS } from '../query/keys';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
+import { keepPreviousDataOf } from './use-pages-or-infinite';
 import { recordTelemetryOnce } from './utils';
 
 export type UseOAuthConsentParams = Pick<
@@ -69,20 +71,25 @@ export function useOAuthConsent(
   const query = createClerkQuery(() => {
     const isEnabled = enabled();
     const args = request();
+    const queryKey = createCacheKeys({
+      stablePrefix: STABLE_KEYS.OAUTH_CONSENT_INFO_KEY,
+      authenticated: true,
+      tracked: { userId: user()?.id ?? null },
+      untracked: { args }
+    }).queryKey;
     return {
-      queryKey: createCacheKeys({
-        stablePrefix: STABLE_KEYS.OAUTH_CONSENT_INFO_KEY,
-        authenticated: true,
-        tracked: { userId: user()?.id ?? null },
-        untracked: { args }
-      }).queryKey,
+      queryKey,
       // The args this key was built from.
       queryFn: ({ queryKey }) =>
         clerk().oauthApplication!.getConsentInfo(queryKey[3].args),
       enabled: isEnabled,
+      // Only the same user's previous info, and only while it is cached.
       placeholderData:
         (params().keepPreviousData ?? true) && isEnabled
-          ? (previous: OAuthConsentInfo | undefined) => previous
+          ? keepPreviousDataOf<OAuthConsentInfo>(
+              getClerkQueryClient(),
+              queryKey
+            )
           : undefined
     };
   });

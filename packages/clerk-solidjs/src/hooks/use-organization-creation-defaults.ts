@@ -7,9 +7,11 @@ import { Accessor } from 'solid-js';
 import { useClerkLoadState } from '../contexts/clerk-status';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { useUserContext } from '../contexts/user';
+import { getClerkQueryClient } from '../query/clerk-query-client';
 import { createClerkQuery } from '../query/create-clerk-query';
 import { createCacheKeys, STABLE_KEYS } from '../query/keys';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
+import { keepPreviousDataOf } from './use-pages-or-infinite';
 import { recordTelemetryOnce } from './utils';
 
 export type UseOrganizationCreationDefaultsParams = {
@@ -50,23 +52,27 @@ export function useOrganizationCreationDefaults(
     const featureEnabled =
       clerk().__internal_environment?.organizationSettings
         ?.organizationCreationDefaults?.enabled ?? false;
+    const queryKey = createCacheKeys({
+      stablePrefix: STABLE_KEYS.ORGANIZATION_CREATION_DEFAULTS_KEY,
+      authenticated: !!currentUser,
+      tracked: { userId: currentUser?.id ?? null },
+      untracked: { args: {} }
+    }).queryKey;
     return {
-      queryKey: createCacheKeys({
-        stablePrefix: STABLE_KEYS.ORGANIZATION_CREATION_DEFAULTS_KEY,
-        authenticated: !!currentUser,
-        tracked: { userId: currentUser?.id ?? null },
-        untracked: { args: {} }
-      }).queryKey,
+      queryKey,
       queryFn: () => currentUser!.getOrganizationCreationDefaults(),
       enabled:
         !!currentUser &&
         (params().enabled ?? true) &&
         featureEnabled &&
         loaded(),
+      // Only the same user's previous defaults, and only while cached.
       placeholderData:
         (params().keepPreviousData ?? true)
-          ? (previous: OrganizationCreationDefaultsResource | undefined) =>
-              previous
+          ? keepPreviousDataOf<OrganizationCreationDefaultsResource>(
+              getClerkQueryClient(),
+              queryKey
+            )
           : undefined
     };
   });

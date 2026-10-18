@@ -87,7 +87,7 @@ export const calculateHasPreviousPage = (
  * user or organization. Otherwise a mounted list could show the previous
  * user's data while the next user's first page loads.
  */
-const keepPreviousDataOf =
+export const keepPreviousDataOf =
   <T>(client: QueryClient | undefined, key: readonly unknown[]) =>
   (
     previousData: T | undefined,

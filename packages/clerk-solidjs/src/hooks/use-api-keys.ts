@@ -63,9 +63,11 @@ export function useAPIKeys<T extends UseAPIKeysParams>(
   return usePagesOrInfinite<GetAPIKeysParams, APIKeyResource>(() => {
     const apiKeys = clerk().apiKeys;
     return {
+      // The subject from the key's args, so every page of a query matches
+      // the subject it is cached under.
       fetcher: apiKeys?.getAll
         ? (args: GetAPIKeysParams) =>
-            apiKeys.getAll({ ...args, subject: safeValues().subject })
+            apiKeys.getAll({ ...args, subject: args.subject ?? '' })
         : undefined,
       config: {
         keepPreviousData: safeValues().keepPreviousData,

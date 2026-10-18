@@ -16,7 +16,10 @@ import {
   createFakeClerkJS,
   TEST_PUBLISHABLE_KEY
 } from '../../__tests__/helpers/fake-clerk-js';
-import { __setClerkQueryClientForTest } from '../../query/clerk-query-client';
+import {
+  __setClerkQueryClientForTest,
+  getClerkQueryClient
+} from '../../query/clerk-query-client';
 
 const signedInUser = (fields: Record<string, unknown> = {}) =>
   ({
@@ -105,6 +108,89 @@ describe('useAPIKeys', () => {
     await vi.waitFor(() => expect(clerkJS.load).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(getAll).not.toHaveBeenCalled();
+  });
+});
+
+describe('useAPIKeys subjects', () => {
+  it("refetches a cached list with its own subject, not the hook's current one", async () => {
+    const getAll = vi.fn(async (args: any) => ({
+      data: [{ id: `${args.subject}_${args.initialPage}` }],
+      total_count: 4
+    }));
+    const clerkJS = setup({ apiKeys: { getAll } });
+    const [subject, setSubject] = createSignal('org_a');
+    let keys!: ReturnType<typeof useAPIKeys>;
+    renderInProvider(clerkJS, () => {
+      keys = useAPIKeys(() => ({
+        subject: subject(),
+        infinite: true,
+        pageSize: 1
+      }));
+      return null;
+    });
+    await vi.waitFor(() => expect(keys.data()).toHaveLength(1));
+    keys.fetchNext();
+    await vi.waitFor(() => expect(keys.data()).toHaveLength(2));
+
+    setSubject('org_b');
+    await vi.waitFor(() => expect(keys.data()?.[0]?.id).toBe('org_b_1'));
+    getAll.mockClear();
+    // org_a's list, still cached, refetches both of its pages.
+    await getClerkQueryClient()!.refetchQueries({ type: 'all' });
+
+    const subjects = getAll.mock.calls.map(([args]) => args.subject);
+    expect(subjects.filter((value) => value === 'org_a')).toHaveLength(2);
+  });
+});
+
+describe('previous data across accounts', () => {
+  it("does not show the previous user's consent info to the next user", async () => {
+    let finishSecond!: (info: unknown) => void;
+    const getConsentInfo = vi
+      .fn()
+      .mockResolvedValueOnce({ oauthApplicationName: 'For user 1' })
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishSecond = resolve))
+      );
+    const { clerkJS, emit } = (() => {
+      const fake = createFakeClerkJS({
+        user: signedInUser(),
+        session: {
+          id: 'sess_1',
+          status: 'active',
+          user: signedInUser(),
+          lastActiveToken: { jwt: { claims: {} } }
+        } as any
+      });
+      Object.assign(fake.clerkJS, { oauthApplication: { getConsentInfo } });
+      return fake;
+    })();
+    let consent!: ReturnType<typeof useOAuthConsent>;
+    renderInProvider(clerkJS, () => {
+      consent = useOAuthConsent(() => ({ oauthClientId: 'client_a' }));
+      return null;
+    });
+    await vi.waitFor(() =>
+      expect(consent.data()?.oauthApplicationName).toBe('For user 1')
+    );
+
+    const nextUser = signedInUser({ id: 'user_2' });
+    emit({
+      user: nextUser,
+      session: {
+        id: 'sess_2',
+        status: 'active',
+        user: nextUser,
+        lastActiveToken: { jwt: { claims: {} } }
+      } as any
+    });
+    await vi.waitFor(() => expect(getConsentInfo).toHaveBeenCalledTimes(2));
+    expect(consent.data()).toBeUndefined();
+
+    finishSecond({ oauthApplicationName: 'For user 2' });
+    await vi.waitFor(() =>
+      expect(consent.data()?.oauthApplicationName).toBe('For user 2')
+    );
   });
 });
 
