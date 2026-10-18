@@ -58,6 +58,14 @@ export const redactOptions = (options: Record<string, unknown>) => {
   return redacted;
 };
 
+const safeDecode = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 const isClerkParam = (name: string) =>
   name.startsWith('__clerk') || name.startsWith('__dev');
 
@@ -81,7 +89,7 @@ const redactUrlString = (value: string): string => {
       url.searchParams.set(name, redactUrlString(param));
     }
   }
-  if (/__clerk|__dev/.test(url.hash)) url.hash = '…';
+  if (/__clerk|__dev/.test(safeDecode(url.hash))) url.hash = '…';
   return url.toString();
 };
 
@@ -106,7 +114,9 @@ const redactHeaderValue = (key: string, value: string) => {
     return `${value.split(' ')[0]} …`;
   }
   if (/^https?:\/\//i.test(value)) return redactUrlString(value);
-  if (value.startsWith('/') && /__clerk|__dev/.test(value)) {
+  // Parsed, not matched as text: a name can be percent-encoded
+  // (`%5F%5Fclerk_ticket`), and URLSearchParams decodes it.
+  if (value.startsWith('/') && !value.startsWith('//')) {
     const url = new URL(redactUrlString(new URL(value, 'http://path').href));
     return `${url.pathname}${url.search}${url.hash}`;
   }

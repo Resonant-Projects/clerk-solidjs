@@ -357,7 +357,9 @@ describe('debug', () => {
             cookie: `__session=eyJsessionsecret; __client_uat=1700000000; theme=dark`,
             referer:
               'http://localhost:3000/sign-in?__clerk_ticket=tkt_impersonationticket&x=2',
-            'x-forwarded-uri': '/accept?__clerk_ticket=tkt_forwardedticket'
+            'x-forwarded-uri': '/accept?__clerk_ticket=tkt_forwardedticket',
+            'x-original-url':
+              '/accept?%5F%5Fclerk_ticket=tkt_encodedticket#%5F%5Fclerk_x=tkt_hashticket'
           }
         }
       )
@@ -372,7 +374,9 @@ describe('debug', () => {
       '1700000000',
       'cHJveHlzZWNyZXQ',
       'tkt_impersonationticket',
-      'tkt_forwardedticket'
+      'tkt_forwardedticket',
+      'tkt_encodedticket',
+      'tkt_hashticket'
     ]) {
       expect(output).not.toContain(secret);
     }
