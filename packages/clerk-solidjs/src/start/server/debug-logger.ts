@@ -58,14 +58,43 @@ export const redactOptions = (options: Record<string, unknown>) => {
   return redacted;
 };
 
+const isClerkParam = (name: string) =>
+  name.startsWith('__clerk') || name.startsWith('__dev');
+
 /**
- * Headers as an object, with each Set-Cookie cut to its name: session
- * cookies are live credentials.
+ * A URL with the values of Clerk's own query parameters (`__clerk_*` and
+ * `__dev_*`) cut out, in it and in any URL it carries as a parameter (a
+ * handshake's `redirect_url`): they carry handshake, dev-browser and
+ * sign-in tokens. A fragment that mentions them is cut too.
+ */
+const redactUrlString = (value: string): string => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return value;
+  }
+  for (const [name, param] of [...url.searchParams]) {
+    if (isClerkParam(name)) {
+      url.searchParams.set(name, '…');
+    } else if (/^https?:\/\//i.test(param)) {
+      url.searchParams.set(name, redactUrlString(param));
+    }
+  }
+  if (/__clerk|__dev/.test(url.hash)) url.hash = '…';
+  return url.toString();
+};
+
+/**
+ * Headers as an object, with each Set-Cookie cut to its name (session
+ * cookies are live credentials) and Clerk's tokens cut out of a redirect's
+ * Location.
  */
 export const redactHeaders = (headers: Headers) => {
   const result: Record<string, string | string[]> = {};
   headers.forEach((value, key) => {
-    if (key !== 'set-cookie') result[key] = value;
+    if (key === 'location') result[key] = redactUrlString(value);
+    else if (key !== 'set-cookie') result[key] = value;
   });
   const cookies = headers.getSetCookie?.() ?? [];
   if (cookies.length) {
@@ -84,20 +113,6 @@ const cookieNames = (cookie: string) =>
     .join('; ');
 
 /**
- * The URL with the values of Clerk's own query parameters (`__clerk_*` and
- * `__dev_*`) cut out: they carry handshake, dev-browser and sign-in tokens.
- */
-const redactUrl = (url: URL) => {
-  const redacted = new URL(url);
-  for (const name of [...redacted.searchParams.keys()]) {
-    if (name.startsWith('__clerk') || name.startsWith('__dev')) {
-      redacted.searchParams.set(name, '…');
-    }
-  }
-  return redacted.toString();
-};
-
-/**
  * The request as `ClerkRequest.toJSON()` describes it, without credentials:
  * cookies by name, the Authorization scheme only, and Clerk's tokens cut
  * out of the URL. `toJSON()` itself includes them all.
@@ -110,7 +125,7 @@ export const redactRequest = (request: ClerkRequest) => {
     else headers[key] = value;
   });
   return {
-    url: redactUrl(request.clerkUrl),
+    url: redactUrlString(request.clerkUrl.href),
     method: request.method,
     headers,
     cookies: [...request.cookies.keys()]

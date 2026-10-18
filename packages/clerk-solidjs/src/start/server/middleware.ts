@@ -76,6 +76,20 @@ const stageHeaders = (res: H3EventLike['res'], headers: Headers) => {
 };
 
 /**
+ * h3 sets the headers staged on `event.res` over a returned Response's own,
+ * so a policy the route staged there would replace Clerk's. Replace it there
+ * too.
+ */
+const replaceStagedPolicy = (res: H3EventLike['res'], headers: Headers) => {
+  for (const key of REPLACED_HEADERS) {
+    const value = headers.get(key);
+    if (value === null) continue;
+    if (res?.headers?.has(key)) res.headers.set(key, value);
+    if (res?.errHeaders?.has(key)) res.errHeaders.set(key, value);
+  }
+};
+
+/**
  * A copy of the Response with the headers added. Never the route's own
  * object: a Response a route reuses across requests must not keep one
  * visitor's session cookies, and some Responses have immutable headers.
@@ -289,6 +303,7 @@ export const clerkMiddleware = (
     // A Response gets them itself, so h3 adds nothing twice. Anything else
     // (a body, an error, nothing, h3's not-found) becomes a response later.
     if (response instanceof Response) {
+      replaceStagedPolicy(res, result.headers);
       return withHeaders(response, result.headers);
     }
     stageHeaders(res, result.headers);

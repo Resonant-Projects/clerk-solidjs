@@ -375,6 +375,30 @@ describe('debug', () => {
     expect(output).toContain('tab=1');
   });
 
+  it("cuts Clerk's tokens out of a handshake redirect's Location", async () => {
+    const headers = new Headers();
+    const back = new URL('http://localhost:3000/dashboard');
+    back.searchParams.set('__clerk_handshake', 'eyJnestedhandshake');
+    const handshake = new URL('https://clerk.example.com/v1/client/handshake');
+    handshake.searchParams.set('redirect_url', back.toString());
+    handshake.searchParams.set('__clerk_db_jwt', 'dvb_handshakedevbrowser');
+    headers.set('location', handshake.toString());
+    backend.authenticateRequest.mockResolvedValue(
+      requestState(headers, { status: 'handshake' })
+    );
+
+    const response = (await clerkMiddleware({ ...options, debug: true })(
+      fetchEvent()
+    )) as Response;
+
+    // The redirect itself is untouched.
+    expect(response.headers.get('location')).toBe(handshake.toString());
+    const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
+    expect(output).not.toContain('dvb_handshakedevbrowser');
+    expect(output).not.toContain('eyJnestedhandshake');
+    expect(output).toContain('clerk.example.com/v1/client/handshake');
+  });
+
   it('logs nothing without it', async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
 
