@@ -597,6 +597,18 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       clerkjs.mountUserButton(node, props);
     });
 
+    this.premountOrganizationProfileNodes.forEach((props, node) => {
+      clerkjs.mountOrganizationProfile(node, props);
+    });
+
+    this.premountCreateOrganizationNodes.forEach((props, node) => {
+      clerkjs.mountCreateOrganization(node, props);
+    });
+
+    this.premountOrganizationSwitcherNodes.forEach((props, node) => {
+      clerkjs.mountOrganizationSwitcher(node, props);
+    });
+
     this.premountOrganizationListNodes.forEach((props, node) => {
       clerkjs.mountOrganizationList(node, props);
     });

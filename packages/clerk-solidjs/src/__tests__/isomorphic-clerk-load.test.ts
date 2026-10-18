@@ -117,6 +117,40 @@ describe('IsomorphicClerk Core 3 loading', () => {
     expect(clerkJS.load).toHaveBeenCalledOnce();
   });
 
+  it('mounts organization components rendered before clerk-js loads', async () => {
+    const mounts = {
+      mountOrganizationProfile: vi.fn(),
+      mountCreateOrganization: vi.fn(),
+      mountOrganizationSwitcher: vi.fn()
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, mounts) as any
+    });
+    expect(isomorphicClerk.loaded).toBe(false);
+    const profileNode = document.createElement('div');
+    const createNode = document.createElement('div');
+    const switcherNode = document.createElement('div');
+    isomorphicClerk.mountOrganizationProfile(profileNode, { routing: 'hash' });
+    isomorphicClerk.mountCreateOrganization(createNode, { routing: 'hash' });
+    isomorphicClerk.mountOrganizationSwitcher(switcherNode, {
+      hidePersonal: true
+    });
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(mounts.mountOrganizationProfile).toHaveBeenCalledWith(profileNode, {
+      routing: 'hash'
+    });
+    expect(mounts.mountCreateOrganization).toHaveBeenCalledWith(createNode, {
+      routing: 'hash'
+    });
+    expect(mounts.mountOrganizationSwitcher).toHaveBeenCalledWith(
+      switcherNode,
+      { hidePersonal: true }
+    );
+  });
+
   it('logs instead of rejecting when the UI script fails', async () => {
     const consoleError = vi
       .spyOn(console, 'error')
