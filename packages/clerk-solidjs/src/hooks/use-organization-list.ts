@@ -14,6 +14,7 @@ import { IsomorphicClerk } from '../isomorphic-clerk';
 import { createCacheKeys, STABLE_KEYS } from '../query/keys';
 import type { PaginatedHookConfig } from '../types';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
+import { useAttemptToEnableOrganizations } from './use-attempt-to-enable-organizations';
 import { createSafeValues, usePagesOrInfinite } from './use-pages-or-infinite';
 import { recordTelemetryOnce } from './utils';
 
@@ -35,6 +36,16 @@ export const useOrganizationList = (
   params?: Accessor<UseOrganizationListParams>
 ) => {
   useAssertWrappedByClerkProvider('useOrganizationList');
+  // A call without list params is not using organizations; the prompt is for
+  // the lists.
+  useAttemptToEnableOrganizations('useOrganizationList', () => {
+    const current = params?.();
+    return (
+      current?.userMemberships !== undefined ||
+      current?.userInvitations !== undefined ||
+      current?.userSuggestions !== undefined
+    );
+  });
 
   const clerk = useClerkInstanceContext();
   const user = useUserContext();

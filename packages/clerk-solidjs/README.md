@@ -335,6 +335,33 @@ const setPrimaryEmail = useReverification((emailAddressId: string) =>
 );
 ```
 
+### More components and hooks
+
+As in `@clerk/react`:
+
+- `<PricingTable>` shows your plans; its `fallback` stays until Clerk has
+  fetched them.
+- `<APIKeys>` manages API keys, and `useAPIKeys()` pages through them:
+  `useAPIKeys(() => ({ subject: organization()?.id }))`.
+- `<UserAvatar>` is the signed-in user's avatar.
+- `<OAuthConsent>` and `useOAuthConsent()` cover an OAuth application's
+  consent screen. `<OAuthDeviceVerification>` and
+  `useOAuthDeviceVerification()` cover the device flow: `lookup`, then
+  `approve` or `deny`.
+- `<InviteMembersButton>` opens the invite-members modal.
+- `useOrganizationCreationDefaults()` suggests a new organization's name and
+  slug, when the instance has that turned on.
+- `getToken()` returns the session token outside any component.
+
+Hook params that can change are accessors, and results are accessors, as in
+the other hooks. On a development instance without organizations,
+`useOrganization()` and `useOrganizationList()` with list params trigger
+Clerk's prompt to turn them on.
+
+Wrap part of the app in `<UNSAFE_PortalProvider getContainer={() => el}>` to
+render Clerk's components, popovers and modals inside `el`, such as a dialog,
+instead of `document.body`.
+
 ### Custom menu items and pages
 
 The components take the same children as `@clerk/react`. Icons and page bodies render

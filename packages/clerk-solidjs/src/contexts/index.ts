@@ -24,3 +24,5 @@ export {
    */
   ClerkProvider
 } from './clerk';
+
+export { UNSAFE_PortalProvider } from './portal';

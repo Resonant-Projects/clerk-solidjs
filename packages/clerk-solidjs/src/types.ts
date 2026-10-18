@@ -11,6 +11,7 @@ import type {
   InternalClerkScriptProps,
   LoadedClerk,
   RedirectUrlProp,
+  InviteMembersButtonProps as SharedInviteMembersButtonProps,
   IsomorphicClerkOptions as SharedIsomorphicClerkOptions,
   SignInButtonProps as SharedSignInButtonProps,
   SignUpButtonProps as SharedSignUpButtonProps,
@@ -173,6 +174,9 @@ export type SignUpButtonProps = ButtonAttributes &
     /** Sent with the modal sign-up. */
     unsafeMetadata?: SignUpUnsafeMetadata;
   };
+
+export type InviteMembersButtonProps = ButtonAttributes &
+  SharedInviteMembersButtonProps;
 
 export type SignOutButtonProps = ButtonAttributes &
   Pick<SignOutOptions, 'redirectUrl' | 'sessionId'>;

@@ -1,5 +1,6 @@
 import type { SignInProps } from '@clerk/shared/types';
 import { splitProps } from 'solid-js';
+import { usePortalRoot } from '../contexts/portal';
 import type { SignInButtonProps, WithClerkProp } from '../types';
 import { ClerkButton } from '../utils';
 import { withClerk } from './with-clerk';
@@ -29,6 +30,8 @@ export const SignInButton = withClerk(
         'oauthFlow'
       ]
     );
+    // Modals open in an UNSAFE_PortalProvider's container, if any.
+    const getContainer = usePortalRoot();
 
     const signIn = () => {
       const opts: SignInProps = {
@@ -41,9 +44,11 @@ export const SignInButton = withClerk(
         oauthFlow: clerkProps.oauthFlow
       };
       if (clerkProps.mode === 'modal') {
-        return clerkProps
-          .clerk()
-          .openSignIn({ ...opts, appearance: clerkProps.appearance });
+        return clerkProps.clerk().openSignIn({
+          ...opts,
+          appearance: clerkProps.appearance,
+          getContainer
+        });
       }
       return clerkProps.clerk().redirectToSignIn({
         ...opts,

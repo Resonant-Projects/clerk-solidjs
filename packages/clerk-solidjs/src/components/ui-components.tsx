@@ -1,14 +1,19 @@
 import type {
+  APIKeysProps,
   CreateOrganizationProps,
   GoogleOneTapProps,
+  OAuthConsentProps,
+  OAuthDeviceVerificationProps,
   OrganizationListProps,
   OrganizationProfileProps,
   OrganizationSwitcherProps,
+  PricingTableProps,
   SignInProps,
   SignUpProps,
   TaskChooseOrganizationProps,
   TaskResetPasswordProps,
   TaskSetupMFAProps,
+  UserAvatarProps,
   UserButtonProps,
   UserProfileModalProps,
   UserProfileProps,
@@ -29,6 +34,7 @@ import {
   splitProps,
   untrack
 } from 'solid-js';
+import { usePortalRoot } from '../contexts/portal';
 import { IsomorphicClerk } from '../isomorphic-clerk';
 import type { MountProps, OpenProps, WithClerkProp } from '../types';
 import { createCustomElementPortals } from '../utils/custom-element-portals';
@@ -153,10 +159,15 @@ const Portal: Component<HostProps> = (props) => {
   let mounted = false;
   const [rendered, setRendered] = createSignal(false);
 
+  // An UNSAFE_PortalProvider's container, unless the props name their own.
+  const getContainer = usePortalRoot();
   // Spreading reads every key, so this re-runs when any prop changes, whether
   // the caller passes a splitProps proxy or an object literal. Clerk keeps the
   // object it is given, so it gets a plain copy rather than a live Solid proxy.
-  const snapshot = createMemo(() => ({ ...props.props }));
+  const snapshot = createMemo(() => ({
+    ...(getContainer && { getContainer }),
+    ...props.props
+  }));
 
   onMount(() => {
     if (!node) return;
@@ -657,4 +668,106 @@ export const TaskSetupMFA = withClerk(
     );
   },
   { component: 'TaskSetupMFA', renderWhileLoading: true }
+);
+
+/** Clerk's pricing table for your plans. The fallback shows until it has fetched the plans. */
+export const PricingTable = withClerk(
+  (props: WithClerkProp<PricingTableProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="PricingTable"
+        fallback={local.fallback}
+        mount={local.clerk().mountPricingTable}
+        unmount={local.clerk().unmountPricingTable}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        // Clerk marks the table ready once it has fetched the plans.
+        readySelector='[data-component-status="ready"]'
+        props={rest}
+      />
+    );
+  },
+  { component: 'PricingTable', renderWhileLoading: true }
+);
+
+/** Lists and manages the user's or organization's API keys. */
+export const APIKeys = withClerk(
+  (props: WithClerkProp<APIKeysProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="ApiKeys"
+        fallback={local.fallback}
+        mount={local.clerk().mountAPIKeys}
+        unmount={local.clerk().unmountAPIKeys}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'ApiKeys', renderWhileLoading: true }
+);
+
+/** The signed-in user's avatar. */
+export const UserAvatar = withClerk(
+  (props: WithClerkProp<UserAvatarProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="UserAvatar"
+        fallback={local.fallback}
+        mount={local.clerk().mountUserAvatar}
+        unmount={local.clerk().unmountUserAvatar}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'UserAvatar', renderWhileLoading: true }
+);
+
+/** The consent screen an OAuth application shows the signed-in user. */
+export const OAuthConsent = withClerk(
+  (props: WithClerkProp<OAuthConsentProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="OAuthConsent"
+        fallback={local.fallback}
+        mount={local.clerk().__internal_mountOAuthConsent}
+        unmount={local.clerk().__internal_unmountOAuthConsent}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'OAuthConsent', renderWhileLoading: true }
+);
+
+/** The flow a signed-in user authorizes a device or app with. */
+export const OAuthDeviceVerification = withClerk(
+  (props: WithClerkProp<OAuthDeviceVerificationProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="OAuthDeviceVerification"
+        fallback={local.fallback}
+        mount={local.clerk().__internal_mountOAuthDeviceVerification}
+        unmount={local.clerk().__internal_unmountOAuthDeviceVerification}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'OAuthDeviceVerification', renderWhileLoading: true }
 );
