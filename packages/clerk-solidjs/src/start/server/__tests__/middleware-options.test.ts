@@ -343,6 +343,57 @@ describe('contentSecurityPolicy', () => {
     );
   });
 
+  it('quotes the keywords of every directive, including those only one directive takes', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: {
+        directives: {
+          'script-src': ['wasm-unsafe-eval', 'report-sample'],
+          'require-trusted-types-for': ['script'],
+          'trusted-types': ['appPolicy', 'allow-duplicates'],
+          // Elsewhere, `script` is a host.
+          'connect-src': ['script']
+        }
+      }
+    })(event);
+
+    const policy = event.response.headers.get('content-security-policy');
+    expect(directive(policy, 'script-src')).toEqual(
+      expect.arrayContaining(["'wasm-unsafe-eval'", "'report-sample'"])
+    );
+    expect(directive(policy, 'require-trusted-types-for')).toEqual([
+      "'script'"
+    ]);
+    expect(directive(policy, 'trusted-types')).toEqual([
+      'appPolicy',
+      "'allow-duplicates'"
+    ]);
+    expect(directive(policy, 'connect-src')).toContain('script');
+  });
+
+  it("has one report-to directive, Clerk's group, with reportTo and a report-to directive", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: {
+        directives: { 'report-to': ['app-group'] },
+        reportTo: 'https://example.com/csp'
+      }
+    })(event);
+
+    const policy: string = event.response.headers.get(
+      'content-security-policy'
+    );
+    // Browsers ignore every report-to directive after the first.
+    expect(policy.match(/(^|;\s*)report-to\s/g)).toHaveLength(1);
+    expect(directive(policy, 'report-to')).toEqual(['csp-endpoint']);
+  });
+
   it("replaces the route's own policy rather than adding a second", async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
     const response = (await runH3(
