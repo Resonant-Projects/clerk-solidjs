@@ -4,15 +4,17 @@ type Entry = string | Record<string, unknown>;
 
 /**
  * The last pass over every line logged, whatever it came from: the value of
- * any `__clerk*` or `__dev*` parameter, plain or percent-encoded, and
- * anything shaped like a JWT, are cut. The redactors below handle the known
- * places; this catches tokens anywhere else, such as in a Link header.
+ * any query parameter whose name, once decoded, starts with `__clerk` or
+ * `__dev` (so `__cl%65rk_ticket` too), and anything shaped like a JWT, are
+ * cut. The redactors below handle the known places; this catches tokens
+ * anywhere else, such as a URL inside a Link header.
  */
 const scrub = (output: string) =>
   output
     .replace(
-      /((?:__|%5F%5F)(?:clerk|dev)[A-Za-z0-9_%]*=)[^&#\s;,"'<>\\]+/gi,
-      '$1…'
+      /([?&;#\s<"']|^)([^=&#\s;,"'<>?]+)=([^&#\s;,"'<>\\]*)/gm,
+      (match, separator: string, name: string) =>
+        isClerkParam(safeDecode(name)) ? `${separator}${name}=…` : match
     )
     .replace(/eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, 'eyJ…');
 

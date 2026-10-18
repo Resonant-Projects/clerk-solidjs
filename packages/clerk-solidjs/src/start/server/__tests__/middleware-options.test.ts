@@ -389,7 +389,7 @@ describe('debug', () => {
             referer:
               'http://localhost:3000/sign-in?__clerk_ticket=tkt_impersonationticket&x=2',
             'x-forwarded-uri': '/accept?__clerk_ticket=tkt_forwardedticket',
-            link: '<http://localhost:3000/x?__clerk_ticket=tkt_linkticket>; rel=preload',
+            link: '<http://localhost:3000/x?__clerk_ticket=tkt_linkticket>; rel=preload, <https://app.example.com/accept?a=1&__cl%65rk_ticket=tkt_encodedlinkticket>; rel=next',
             'x-custom-token':
               'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyXzEifQ.c2lnbmF0dXJlc2VjcmV0',
             'x-network-path':
@@ -415,6 +415,7 @@ describe('debug', () => {
       'tkt_hashticket',
       'tkt_networkpathticket',
       'tkt_linkticket',
+      'tkt_encodedlinkticket',
       'c2lnbmF0dXJlc2VjcmV0'
     ]) {
       expect(output).not.toContain(secret);
