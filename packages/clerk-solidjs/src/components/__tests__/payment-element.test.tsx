@@ -310,4 +310,43 @@ describe('PaymentElement', () => {
       initialized('seti_user_1_reset')
     );
   });
+
+  it('keeps the form through a background refetch, even of a new Stripe instance', async () => {
+    const { clerkJS, fake, loadStripe, initializePaymentMethod } = setup();
+    const other = fakeStripe();
+    loadStripe
+      .mockResolvedValueOnce(fake.stripe)
+      .mockResolvedValue(other.stripe);
+    let payment!: ReturnType<typeof usePaymentElement>;
+    const Form = () => {
+      payment = usePaymentElement();
+      return <PaymentElement />;
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <PaymentElementProvider>
+          <Form />
+        </PaymentElementProvider>
+      </ClerkProvider>
+    ));
+    await vi.waitFor(() => expect(fake.element.mount).toHaveBeenCalled());
+    fake.ready();
+    await vi.waitFor(() => expect(payment.isFormReady).toBe(true));
+
+    await queryClient.refetchQueries();
+    await vi.waitFor(() => expect(loadStripe).toHaveBeenCalledTimes(2));
+    expect(initializePaymentMethod).toHaveBeenCalledTimes(2);
+    // query-core delivers the refetched results on a later tick.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(fake.stripe.elements).toHaveBeenCalledTimes(1);
+    expect(other.stripe.elements).not.toHaveBeenCalled();
+    expect(fake.element.destroy).not.toHaveBeenCalled();
+    expect(payment.isFormReady).toBe(true);
+    await payment.submit();
+    expect(fake.stripe.confirmSetup).toHaveBeenCalled();
+  });
 });

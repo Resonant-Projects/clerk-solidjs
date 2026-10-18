@@ -208,7 +208,13 @@ export const PaymentElementProvider = (
     };
   });
 
-  const stripe = () => stripeQuery().data as Stripe | null | undefined;
+  const loadedStripe = () => stripeQuery().data as Stripe | null | undefined;
+  // Memos, so a refetch that changes only the query's state recreates
+  // nothing: createClerkQuery publishes every result.
+  const hasStripe = createMemo(() => !!loadedStripe());
+  const clientSecret = createMemo(
+    () => initializedPaymentMethod()?.externalClientSecret
+  );
 
   const locale = () => {
     try {
@@ -221,20 +227,26 @@ export const PaymentElementProvider = (
     }
   };
 
-  // New Elements for each client secret, as upstream keys <Elements> by it.
-  // Other options update them in place: new Elements would discard what the
-  // user has typed.
-  const elements = createMemo(() => {
-    const instance = stripe();
-    const clientSecret = initializedPaymentMethod()?.externalClientSecret;
-    if (!instance || !clientSecret) return undefined;
-    return instance.elements({
-      loader: 'never',
-      clientSecret,
-      appearance: { variables: untrack(() => props.stripeAppearance) },
-      locale: untrack(locale)
-    });
+  // New Elements for each client secret, as upstream keys <Elements> by it,
+  // from the Stripe instance loaded then: like Stripe's React binding, a
+  // later instance does not replace it. Other options update the Elements in
+  // place. New Elements would discard what the user has typed.
+  const stripeElements = createMemo(() => {
+    const secret = clientSecret();
+    if (!hasStripe() || !secret) return undefined;
+    const instance = untrack(loadedStripe)!;
+    return {
+      stripe: instance,
+      elements: instance.elements({
+        loader: 'never',
+        clientSecret: secret,
+        appearance: { variables: untrack(() => props.stripeAppearance) },
+        locale: untrack(locale)
+      })
+    };
   });
+  const stripe = () => stripeElements()?.stripe;
+  const elements = () => stripeElements()?.elements;
   createEffect(
     on(
       () => props.stripeAppearance,
