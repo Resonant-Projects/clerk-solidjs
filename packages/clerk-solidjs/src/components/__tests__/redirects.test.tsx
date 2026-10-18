@@ -19,16 +19,23 @@ import {
   TEST_PUBLISHABLE_KEY
 } from '../../__tests__/helpers/fake-clerk-js';
 
+// clerk-js reads its options synchronously, which is what used to make a
+// tracking effect redirect again when a prop changed.
+const readsOptions = () =>
+  vi.fn(async (options?: object) => {
+    JSON.stringify(options);
+  });
+
 const createClerkJS = () => {
   const { clerkJS, emit } = createFakeClerkJS();
   const redirects = {
-    redirectToSignIn: vi.fn(async () => {}),
-    redirectToSignUp: vi.fn(async () => {}),
+    redirectToSignIn: readsOptions(),
+    redirectToSignUp: readsOptions(),
     redirectToAfterSignOut: vi.fn(),
     redirectToUserProfile: vi.fn(async () => {}),
     redirectToOrganizationProfile: vi.fn(async () => {}),
     redirectToCreateOrganization: vi.fn(async () => {}),
-    handleRedirectCallback: vi.fn(async () => {})
+    handleRedirectCallback: readsOptions()
   };
   return { clerkJS: Object.assign(clerkJS, redirects), emit };
 };
