@@ -485,6 +485,18 @@ describe('IsomorphicClerk Core 3 loading', () => {
     expect(globalThis.Clerk).toBeUndefined();
   });
 
+  it('loads a headless Clerk instance that carries its own key, without one here', async () => {
+    const isomorphicClerk = new IsomorphicClerk({
+      Clerk: clerkJS as any,
+      experimental: { runtimeEnvironment: 'headless' } as any
+    });
+    await loadedClerk(isomorphicClerk);
+
+    expect(clerkJS.load).toHaveBeenCalledOnce();
+    expect(loadOptions(clerkJS).ui).toBeUndefined();
+    expect(scripts.loadClerkUIScript).not.toHaveBeenCalled();
+  });
+
   it('reports a headless load that fails, and still runs addOnLoaded callbacks', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     clerkJS.load.mockRejectedValueOnce(new Error('offline'));

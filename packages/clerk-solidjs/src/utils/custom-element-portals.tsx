@@ -53,14 +53,26 @@ export const createCustomElementPortals = () => {
   );
   // Clerk compares these callbacks between renders, so keep one pair per id.
   const handlers = new Map<string, CustomElementHandlers>();
+  // The pair whose mount put each id's node there.
+  const mountedBy = new Map<string, CustomElementHandlers>();
 
   const handlersFor = (id: string): CustomElementHandlers => {
     let entry = handlers.get(id);
     if (!entry) {
-      entry = {
-        mount: (node) => setNodes(id, node),
-        unmount: () => setNodes(id, undefined)
+      const pair: CustomElementHandlers = {
+        mount: (node) => {
+          mountedBy.set(id, pair);
+          setNodes(id, node);
+        },
+        // A forgotten pair's unmount can arrive after a new pair for the
+        // same id (the item came back) mounted; it leaves that node alone.
+        unmount: () => {
+          if (mountedBy.get(id) !== pair) return;
+          mountedBy.delete(id);
+          setNodes(id, undefined);
+        }
       };
+      entry = pair;
       handlers.set(id, entry);
     }
     return entry;

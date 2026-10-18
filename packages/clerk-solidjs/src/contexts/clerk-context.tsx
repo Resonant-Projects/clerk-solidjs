@@ -160,7 +160,7 @@ const useLoadedIsomorphicClerk = (
   );
 
   onCleanup(() => {
-    IsomorphicClerk.clearInstance();
+    IsomorphicClerk.releaseInstance(instance);
   });
 
   return { isomorphicClerk, status, loaded };
