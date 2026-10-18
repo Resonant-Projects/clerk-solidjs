@@ -1,4 +1,5 @@
 import { defineHandler, H3, HTTPError, redirect, type H3Event } from 'h3';
+import { getRequestEvent } from 'solid-js/web';
 import { provideRequestEvent } from 'solid-js/web/storage';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEST_PUBLISHABLE_KEY } from '../../../__tests__/helpers/fake-clerk-js';
@@ -128,6 +129,86 @@ describe.each([
         '__session=a; Path=/',
         '__client_uat=0; Path=/'
       ]);
+    }
+  );
+});
+
+describe("clerkMiddleware's Content-Security-Policy, on a real h3 app", () => {
+  const ROUTE_POLICY = "default-src 'none'";
+  // The route stages its own policy the way an app would, on event.res.
+  const stagesPolicy = (result: () => unknown) => (): unknown => {
+    (
+      getRequestEvent()!.response as unknown as { headers: Headers }
+    ).headers.set('content-security-policy', ROUTE_POLICY);
+    return result();
+  };
+
+  it.each([
+    ['a Response', () => new Response('page')],
+    ['a 4xx Response', () => new Response('no', { status: 403 })],
+    ['a body that is not a Response', () => ({ ok: true })]
+  ])('replaces a policy the route staged, for %s', async (_name, result) => {
+    backend.authenticateRequest.mockResolvedValue(signedOut());
+    const app = solidStartApp(
+      clerkMiddleware({
+        ...options,
+        contentSecurityPolicy: { strict: true }
+      }) as Middleware,
+      stagesPolicy(result)
+    );
+
+    const response = await app.fetch(new Request('http://localhost:3000/page'));
+
+    const policy = response.headers.get('content-security-policy');
+    expect(policy).not.toBe(ROUTE_POLICY);
+    expect(policy).toContain('clerk.example.com');
+    expect(policy).toMatch(/'nonce-[A-Za-z0-9+/]+=*'/);
+  });
+
+  it.each([
+    ['staged', 'a Response', () => new Response('page')],
+    ['staged', 'a body that is not a Response', () => ({ ok: true })],
+    [
+      'on its Response',
+      'a Response',
+      () =>
+        new Response('page', {
+          headers: {
+            'reporting-endpoints':
+              'nel="https://nel.example.com/report", csp-endpoint="https://old.example.com/csp"'
+          }
+        })
+    ]
+  ])(
+    "keeps the route's other reporting groups, %s, for %s",
+    async (where, _name, result) => {
+      backend.authenticateRequest.mockResolvedValue(signedOut());
+      const route = (): unknown => {
+        if (where === 'staged') {
+          (
+            getRequestEvent()!.response as unknown as { headers: Headers }
+          ).headers.set(
+            'reporting-endpoints',
+            'nel="https://nel.example.com/report", csp-endpoint="https://old.example.com/csp"'
+          );
+        }
+        return result();
+      };
+      const app = solidStartApp(
+        clerkMiddleware({
+          ...options,
+          contentSecurityPolicy: { reportTo: 'https://report.example.com/csp' }
+        }) as Middleware,
+        route
+      );
+
+      const response = await app.fetch(
+        new Request('http://localhost:3000/page')
+      );
+
+      expect(response.headers.get('reporting-endpoints')).toBe(
+        'nel="https://nel.example.com/report", csp-endpoint="https://report.example.com/csp"'
+      );
     }
   );
 });

@@ -6,6 +6,9 @@ export type { ClerkMiddleware } from './middleware';
 export type {
   ClerkMiddlewareOptions,
   ClerkMiddlewareOptionsCallback,
+  ContentSecurityPolicyDirective,
+  ContentSecurityPolicyOptions,
+  FrontendApiProxyOptions,
   LoaderOptions,
   SessionAuthObjectWithRedirect
 } from './types';

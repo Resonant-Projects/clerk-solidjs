@@ -3,6 +3,9 @@ import {
   constants,
   createClerkRequest
 } from '@clerk/backend/internal';
+import { clerkFrontendApiProxy, matchProxyPath } from '@clerk/backend/proxy';
+import { parsePublishableKey } from '@clerk/shared/keys';
+import { handleNetlifyCacheInDevInstance } from '@clerk/shared/netlifyCacheHandler';
 import { patchRequest } from '@clerk/shared/patchRequest';
 import type { RequestMiddleware } from '@solidjs/start/middleware';
 import { getRequestEvent } from 'solid-js/web';
@@ -10,6 +13,13 @@ import { getRequestEvent } from 'solid-js/web';
 import { errorThrower } from '../../errors/error-thrower';
 import { createAuthenticate } from './auth';
 import { clerkClient } from './clerk-client';
+import { createContentSecurityPolicyHeaders } from './content-security-policy';
+import {
+  createDebugLogger,
+  redactConfig,
+  redactHeaders,
+  redactRequest
+} from './debug-logger';
 import { loadOptions } from './load-options';
 import { CLERK_LOCALS, clerkLocals } from './locals';
 import type {
@@ -37,9 +47,55 @@ export interface ClerkMiddleware {
   (event: H3EventLike, next: () => unknown): Promise<unknown>;
 }
 
+/** Headers that replace the route's own instead of adding a second copy. */
+const REPLACED_HEADERS = new Set([
+  constants.Headers.ContentSecurityPolicy.toLowerCase(),
+  constants.Headers.ContentSecurityPolicyReportOnly.toLowerCase(),
+  constants.Headers.ReportingEndpoints.toLowerCase()
+]);
+
+const REPORTING_ENDPOINTS = constants.Headers.ReportingEndpoints.toLowerCase();
+
+/** The `name="url"` members of a Reporting-Endpoints dictionary. */
+const reportingEndpoints = (value: string) =>
+  (value.match(/(?:[^,"]|"(?:\\.|[^"\\])*")+/g) ?? [])
+    .map((member) => member.trim())
+    .filter(Boolean);
+
+const endpointName = (member: string) =>
+  member.split('=')[0].trim().toLowerCase();
+
+/**
+ * Sets a replaced header. Reporting-Endpoints names several groups, so the
+ * route's other groups stay and only Clerk's own are replaced.
+ */
+const setReplacedHeader = (target: Headers, key: string, value: string) => {
+  const existing = target.get(key);
+  if (key !== REPORTING_ENDPOINTS || existing === null) {
+    target.set(key, value);
+    return;
+  }
+  const ours = reportingEndpoints(value);
+  const names = new Set(ours.map(endpointName));
+  target.set(
+    key,
+    [
+      ...reportingEndpoints(existing).filter(
+        (member) => !names.has(endpointName(member))
+      ),
+      ...ours
+    ].join(', ')
+  );
+};
+
 const appendHeaders = (target: Headers, headers: Headers) => {
-  // Append, so several Set-Cookie headers survive.
-  headers.forEach((value, key) => target.append(key, value));
+  // Append, so several Set-Cookie headers survive. A second CSP would be
+  // enforced as well as the first, so Clerk's replaces the route's.
+  headers.forEach((value, key) =>
+    REPLACED_HEADERS.has(key)
+      ? setReplacedHeader(target, key, value)
+      : target.append(key, value)
+  );
 };
 
 /**
@@ -51,6 +107,22 @@ const appendHeaders = (target: Headers, headers: Headers) => {
 const stageHeaders = (res: H3EventLike['res'], headers: Headers) => {
   if (res?.headers) appendHeaders(res.headers, headers);
   if (res?.errHeaders) appendHeaders(res.errHeaders, headers);
+};
+
+/**
+ * h3 sets the headers staged on `event.res` over a returned Response's own,
+ * so a policy the route staged there would replace Clerk's. Replace it there
+ * too.
+ */
+const replaceStagedPolicy = (res: H3EventLike['res'], headers: Headers) => {
+  for (const key of REPLACED_HEADERS) {
+    const value = headers.get(key);
+    if (value === null) continue;
+    if (res?.headers?.has(key)) setReplacedHeader(res.headers, key, value);
+    if (res?.errHeaders?.has(key)) {
+      setReplacedHeader(res.errHeaders, key, value);
+    }
+  }
 };
 
 /**
@@ -87,6 +159,9 @@ const withHeaders = (response: Response, headers: Headers): Response => {
  *
  * Options not passed come from the `CLERK_*` env, read per request. Pass a
  * function to compute them per request, for example from runtime bindings.
+ * `frontendApiProxy` serves Clerk's Frontend API from this app,
+ * `contentSecurityPolicy` sets a CSP that allows Clerk, and `debug` logs
+ * each request's auth.
  *
  * @example
  * // src/middleware.ts
@@ -102,56 +177,137 @@ const withHeaders = (response: Response, headers: Headers): Response => {
 export const clerkMiddleware = (
   options?: ClerkMiddlewareOptions | ClerkMiddlewareOptionsCallback
 ): ClerkMiddleware => {
-  /** Authenticates and fills `locals`; returns a handshake redirect or the headers to add. */
+  /**
+   * Authenticates and fills `locals`. Returns the Response to send instead of
+   * running the route (a handshake redirect, or a proxied Frontend API
+   * request), or the headers to add to the route's.
+   */
   const authenticate = async (
     event: FetchEvent
-  ): Promise<{ redirect: Response } | { headers: Headers }> => {
+  ): Promise<{ response: Response } | { headers: Headers }> => {
     const clerkRequest = createClerkRequest(patchRequest(event.request));
     const resolvedOptions =
       typeof options === 'function'
         ? await options({ url: clerkRequest.clerkUrl, event })
         : options;
-    const loadedOptions = loadOptions(clerkRequest, resolvedOptions);
+    const logger = createDebugLogger(
+      'clerkMiddleware',
+      !!resolvedOptions?.debug
+    );
+    try {
+      const { middlewareOptions, ...loadedOptions } = loadOptions(
+        clerkRequest,
+        resolvedOptions
+      );
+      const { contentSecurityPolicy, frontendApiProxyPath } = middlewareOptions;
+      logger.debug('options', () =>
+        redactConfig({ ...loadedOptions, ...middlewareOptions })
+      );
+      logger.debug('url', () => redactRequest(clerkRequest));
 
-    const requestState = await clerkClient({
-      secretKey: loadedOptions.secretKey,
-      machineSecretKey: loadedOptions.machineSecretKey,
-      publishableKey: loadedOptions.publishableKey,
-      jwtKey: loadedOptions.jwtKey,
-      // Fixed when the client is built: authenticateRequest() ignores both.
-      apiUrl: loadedOptions.apiUrl,
-      apiVersion: loadedOptions.apiVersion,
-      domain: loadedOptions.domain,
-      proxyUrl: loadedOptions.proxyUrl,
-      isSatellite: loadedOptions.isSatellite
-    }).authenticateRequest(clerkRequest, {
-      ...loadedOptions,
-      acceptsToken: 'any'
-    });
+      // A Frontend API request goes to Clerk as it is, before authenticating:
+      // it carries the browser's own credentials for Clerk.
+      if (
+        frontendApiProxyPath &&
+        matchProxyPath(event.request, { proxyPath: frontendApiProxyPath })
+      ) {
+        logger.debug('frontendApiProxy', `proxied to ${frontendApiProxyPath}`);
+        return {
+          response: await clerkFrontendApiProxy(event.request, {
+            proxyPath: frontendApiProxyPath,
+            publishableKey: loadedOptions.publishableKey,
+            secretKey: loadedOptions.secretKey
+          })
+        };
+      }
 
-    if (requestState.headers.get(constants.Headers.Location)) {
-      return {
-        redirect: new Response(null, {
-          status: 307,
-          headers: requestState.headers
-        })
-      };
+      const requestState = await clerkClient({
+        secretKey: loadedOptions.secretKey,
+        machineSecretKey: loadedOptions.machineSecretKey,
+        publishableKey: loadedOptions.publishableKey,
+        jwtKey: loadedOptions.jwtKey,
+        // Fixed when the client is built: authenticateRequest() ignores both.
+        apiUrl: loadedOptions.apiUrl,
+        apiVersion: loadedOptions.apiVersion,
+        domain: loadedOptions.domain,
+        proxyUrl: loadedOptions.proxyUrl,
+        isSatellite: loadedOptions.isSatellite
+      }).authenticateRequest(clerkRequest, {
+        ...loadedOptions,
+        acceptsToken: 'any'
+      });
+      logger.debug('requestState', () => ({
+        status: requestState.status,
+        reason: requestState.reason,
+        headers: redactHeaders(requestState.headers)
+      }));
+
+      const locationHeader = requestState.headers.get(
+        constants.Headers.Location
+      );
+      if (locationHeader) {
+        // Netlify would otherwise serve the cached redirect again, in a loop.
+        handleNetlifyCacheInDevInstance({
+          locationHeader,
+          requestStateHeaders: requestState.headers,
+          publishableKey: requestState.publishableKey
+        });
+        return {
+          response: new Response(null, {
+            status: 307,
+            headers: requestState.headers
+          })
+        };
+      }
+      if (requestState.status === AuthStatus.Handshake) {
+        throw errorThrower.throw('Clerk: handshake status without redirect');
+      }
+
+      const authenticateFn = createAuthenticate(clerkRequest, requestState);
+      const locals = clerkLocals(event.locals);
+      locals[CLERK_LOCALS] = { requestState, authenticate: authenticateFn };
+      // The session object, as before, even when a machine token authenticated
+      // the request: those are only returned by auth({ acceptsToken }).
+      const sessionAuth = authenticateFn() as SessionAuthObjectWithRedirect;
+      locals.auth = sessionAuth;
+      locals.clerkInitialState = getResponseClerkState(
+        requestState,
+        loadedOptions
+      ).clerkInitialState;
+      logger.debug('auth', () => ({
+        userId: sessionAuth.userId,
+        sessionId: sessionAuth.sessionId,
+        orgId: sessionAuth.orgId ?? null,
+        tokenType: sessionAuth.tokenType,
+        debug: redactConfig(sessionAuth.debug())
+      }));
+
+      const headers = new Headers(requestState.headers);
+      if (contentSecurityPolicy) {
+        const host = (
+          parsePublishableKey(loadedOptions.publishableKey)?.frontendApi ?? ''
+        ).replace('$', '');
+        // A proxy on another origin is where the browser calls instead.
+        let proxyOrigin: string | undefined;
+        try {
+          if (loadedOptions.proxyUrl) {
+            proxyOrigin = new URL(loadedOptions.proxyUrl).origin;
+          }
+        } catch {
+          // Not an absolute URL: nothing to add.
+        }
+        const csp = createContentSecurityPolicyHeaders(
+          [host, proxyOrigin].filter((value): value is string => !!value),
+          contentSecurityPolicy
+        );
+        csp.headers.forEach(([key, value]) => headers.set(key, value));
+        if (csp.nonce) locals.clerkNonce = csp.nonce;
+        logger.debug('Clerk generated CSP', () => ({ headers: csp.headers }));
+      }
+      return { headers };
+    } finally {
+      logger.commit();
     }
-    if (requestState.status === AuthStatus.Handshake) {
-      throw errorThrower.throw('Clerk: handshake status without redirect');
-    }
-
-    const authenticateFn = createAuthenticate(clerkRequest, requestState);
-    const locals = clerkLocals(event.locals);
-    locals[CLERK_LOCALS] = { requestState, authenticate: authenticateFn };
-    // The session object, as before, even when a machine token authenticated
-    // the request: those are only returned by auth({ acceptsToken }).
-    locals.auth = authenticateFn() as SessionAuthObjectWithRedirect;
-    locals.clerkInitialState = getResponseClerkState(
-      requestState,
-      loadedOptions
-    ).clerkInitialState;
-    return { headers: requestState.headers };
   };
 
   async function middleware(
@@ -162,7 +318,7 @@ export const clerkMiddleware = (
       // createMiddleware({ onRequest }) passes the FetchEvent alone.
       const fetchEvent = event as FetchEvent;
       const result = await authenticate(fetchEvent);
-      if ('redirect' in result) return result.redirect;
+      if ('response' in result) return result.response;
       // SolidStart's FetchEvent.response is h3's event.res.
       stageHeaders(fetchEvent.response as H3EventLike['res'], result.headers);
       return;
@@ -179,7 +335,7 @@ export const clerkMiddleware = (
       );
     }
     const result = await authenticate(fetchEvent);
-    if ('redirect' in result) return result.redirect;
+    if ('response' in result) return result.response;
 
     const res = h3Event.res ?? (fetchEvent.response as H3EventLike['res']);
     let response: unknown;
@@ -192,6 +348,7 @@ export const clerkMiddleware = (
     // A Response gets them itself, so h3 adds nothing twice. Anything else
     // (a body, an error, nothing, h3's not-found) becomes a response later.
     if (response instanceof Response) {
+      replaceStagedPolicy(res, result.headers);
       return withHeaders(response, result.headers);
     }
     stageHeaders(res, result.headers);

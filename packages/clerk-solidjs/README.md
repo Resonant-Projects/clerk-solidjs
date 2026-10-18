@@ -502,6 +502,73 @@ session-refresh cookies and `x-clerk-auth-*` diagnostics, and hands the request'
 auth state to the browser so the first render matches the server. The older
 `createMiddleware({ onRequest: [clerkMiddleware()] })` form still works.
 
+#### Frontend API proxy
+
+Where a network blocks Clerk's Frontend API, serve it from your app:
+
+```ts
+clerkMiddleware({ frontendApiProxy: { enabled: true } });
+```
+
+Requests under `/__clerk` (set another with `path`) go to Clerk without being
+authenticated, and the browser uses the proxy: unless you pass a `proxyUrl`, the
+proxy's URL becomes it. `enabled` can be a function of the request URL, such as
+`(url) => url.hostname.endsWith('.example.com')`.
+
+#### Content Security Policy
+
+`contentSecurityPolicy` sets a `Content-Security-Policy` header that allows Clerk,
+the instance's Frontend API, Stripe and Cloudflare Turnstile. Your `directives`
+are merged with Clerk's, and `['none']` replaces a directive. `reportOnly` and
+`reportTo` report violations instead of, or as well as, blocking them.
+
+With `strict: true`, scripts need a nonce, which is new for each request and is
+in `event.locals.clerkNonce`. Hand it to SolidStart, which adds it to its own
+scripts and to the one with Clerk's state:
+
+```tsx
+// src/middleware.ts
+export default createMiddleware([
+  clerkMiddleware({ contentSecurityPolicy: { strict: true } })
+]);
+
+// src/entry-server.tsx
+export default createHandler(
+  () => <StartServer document={/* … */} />,
+  (event) => ({ nonce: event.locals.clerkNonce })
+);
+```
+
+`'strict-dynamic'` then lets those scripts load clerk-js and Clerk's UI.
+
+Clerk's policy replaces one your route sets. A `Reporting-Endpoints` header your
+route sets keeps its other groups. In the deprecated `createMiddleware({ onRequest })`
+form, Clerk's middleware runs before the route and cannot see what the route sets
+afterwards, so a policy the route sets replaces Clerk's. Use the array form above.
+
+#### Debugging
+
+`debug: true` logs, for each request, the options, the URL, the request state
+and the auth object, between `[clerk debug start]` and `[clerk debug end]` lines.
+It leaves credentials out. Keys and tokens are cut to their first characters and
+cookies to their names. URLs keep their parameter names but no values. Headers keep
+their values only when they carry no credentials, such as `host`, `accept` or
+`x-clerk-auth-status`; others are listed by name. Options and the auth object's
+debug data keep booleans, numbers and Clerk's own settings, such as `domain`;
+other text values are cut. The policy Clerk generates is logged as sent, since every
+browser receives it.
+
+#### Server-only code
+
+`@resonant-projects/clerk-solidjs/start/server` is server-only. In a browser
+build it resolves to a stand-in with the same exports. A route file can import
+`auth` for its `"use server"` functions without bundling `@clerk/backend` into
+the browser. Calling `auth()`, `clerkClient()` or the others in the browser
+throws an error that says where to call them.
+
+On Netlify, handshake redirects on a development instance carry a cache-busting
+parameter, so Netlify does not serve one from its cache in a loop.
+
 ### The `auth()` helper
 
 With the middleware in place, `auth()` returns the request's auth object on the

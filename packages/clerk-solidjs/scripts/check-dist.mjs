@@ -10,6 +10,9 @@
 // 3. The ESM files import without throwing in node.
 // 4. Nothing is CommonJS: each CommonJS entry carried its own copy of the
 //    Clerk contexts, so 4.0 ships ESM only.
+// 5. `./start/server` gives the browser its stub, which reaches no
+//    @clerk/backend, and every server runtime the real entry, including
+//    worker builds that also set `browser`.
 //
 // Run it after `pnpm build`.
 
@@ -125,6 +128,49 @@ for (const conditions of conditionSets) {
   }
 }
 
+const serverEntry = pkg.exports['./start/server'];
+const SERVER_TARGET = './dist/start/server/index.js';
+for (const conditions of [
+  ['browser', 'import'],
+  ['browser', 'development', 'import'],
+  ['solid', 'browser', 'import']
+]) {
+  const label = conditions.join('+');
+  const target = resolveExport(serverEntry, conditions);
+  if (!target || target === SERVER_TARGET) {
+    fail(
+      `${label}: ./start/server resolves to ${target}, not its browser stub`
+    );
+    continue;
+  }
+  const backend = [...moduleGraph(path.join(packageDir, target))].filter(
+    (file) => /["']@clerk\/backend/.test(fs.readFileSync(file, 'utf8'))
+  );
+  if (backend.length) {
+    fail(`${label}: ./start/server's browser stub reaches @clerk/backend`);
+  } else {
+    console.log(`PASS  ${label}: ./start/server is ${target}`);
+  }
+}
+for (const conditions of [
+  ['node', 'import'],
+  ['workerd', 'worker', 'browser', 'import'],
+  ['worker', 'browser', 'import'],
+  ['edge-light', 'browser', 'import'],
+  ['deno', 'import'],
+  ['bun', 'node', 'import']
+]) {
+  const label = conditions.join('+');
+  const target = resolveExport(serverEntry, conditions);
+  if (target !== SERVER_TARGET) {
+    fail(
+      `${label}: ./start/server resolves to ${target}, not ${SERVER_TARGET}`
+    );
+  } else {
+    console.log(`PASS  ${label}: ./start/server is the server entry`);
+  }
+}
+
 // The precompiled ESM files must load in node. JSX files are compiled by the
 // app's bundler, so they are not imported here, and neither is `./start`: it
 // imports @solidjs/router, whose plain-node build is its DOM build, so only a
@@ -145,6 +191,40 @@ for (const subpath of [
   } catch (error) {
     fail(
       `node could not import ${subpath} (${target}): ${error instanceof Error ? error.message : error}`
+    );
+  }
+}
+
+// The browser stub loads, and says where to call what it stands in for.
+{
+  const target = resolveExport(serverEntry, ['browser', 'import']);
+  try {
+    const stub = await import(
+      pathToFileURL(path.join(packageDir, target)).href
+    );
+    const real = await import(
+      pathToFileURL(path.join(packageDir, SERVER_TARGET)).href
+    );
+    const missing = Object.keys(real).filter((name) => !(name in stub));
+    if (missing.length) {
+      fail(`./start/server's browser stub lacks ${missing.join(', ')}`);
+    }
+    let message = '';
+    try {
+      stub.auth();
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    if (!message.includes('only runs on the server')) {
+      fail(`./start/server's browser stub auth() did not throw: ${message}`);
+    } else {
+      console.log(
+        'PASS  ./start/server browser stub has every export and throws when called'
+      );
+    }
+  } catch (error) {
+    fail(
+      `node could not import ./start/server's browser stub (${target}): ${error instanceof Error ? error.message : error}`
     );
   }
 }
