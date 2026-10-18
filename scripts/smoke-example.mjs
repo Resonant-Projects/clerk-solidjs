@@ -163,6 +163,24 @@ async function runChecks(baseUrl) {
       ? ""
       : "no state script in <head>",
   );
+  // The example runs clerkMiddleware({ contentSecurityPolicy: { strict: true } })
+  // and hands its nonce to createHandler.
+  const policy = api.headers.get("content-security-policy") ?? "";
+  const nonce = policy.match(/'nonce-([^']+)'/)?.[1];
+  const scriptTags = [...html.matchAll(/<script\b[^>]*>/g)].map(([tag]) => tag);
+  const unnonced = scriptTags.filter(
+    (tag) => !tag.includes(`nonce="${nonce}"`),
+  );
+  check(
+    "a page has a strict CSP, and its nonce is on every script",
+    !!nonce &&
+      policy.includes("'strict-dynamic'") &&
+      scriptTags.length > 0 &&
+      unnonced.length === 0,
+    nonce
+      ? `${unnonced.length} of ${scriptTags.length} scripts without the nonce`
+      : "no nonce in the policy",
+  );
   check(
     '<Show when="signed-out"> and SignInButton render on the server',
     />\s*Sign in\s*<\/button>/.test(html),

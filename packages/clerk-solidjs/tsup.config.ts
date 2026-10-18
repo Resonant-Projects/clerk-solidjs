@@ -37,6 +37,11 @@ export default defineConfig((config) => {
           entry: 'src/start/server/index.ts'
         },
         {
+          // `./start/server` under the `browser` condition.
+          name: 'start/server/browser',
+          entry: 'src/start/server/browser.ts'
+        },
+        {
           name: 'legacy',
           entry: 'src/legacy.tsx',
           server_entry: true,

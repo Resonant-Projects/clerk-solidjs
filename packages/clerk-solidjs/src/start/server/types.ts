@@ -13,6 +13,20 @@ import type {
   SignUpForceRedirectUrl
 } from '@clerk/shared/types';
 import type { FetchEvent } from '@solidjs/start/server';
+import type { ContentSecurityPolicyOptions } from './content-security-policy';
+
+export type {
+  ContentSecurityPolicyDirective,
+  ContentSecurityPolicyOptions
+} from './content-security-policy';
+
+/** Proxies Clerk's Frontend API through this app. */
+export type FrontendApiProxyOptions = {
+  /** `true`, or a function of the request URL that decides per request. */
+  enabled: boolean | ((url: URL) => boolean);
+  /** The path the proxy serves. Defaults to `/__clerk`. */
+  path?: string;
+};
 
 /**
  * Options for `clerkMiddleware()`. Every `authenticateRequest()` option is
@@ -32,6 +46,22 @@ export type ClerkMiddlewareOptions = Omit<
 > & {
   secretKey?: string;
   machineSecretKey?: string;
+  /**
+   * Logs the options, the request, the request state and the auth object
+   * for each request, with keys, tokens and cookies cut short.
+   */
+  debug?: boolean;
+  /**
+   * Sets a Content-Security-Policy that allows Clerk, merged with your
+   * directives. In strict mode the nonce is in `event.locals.clerkNonce`.
+   */
+  contentSecurityPolicy?: ContentSecurityPolicyOptions;
+  /**
+   * Serves Clerk's Frontend API from this app, at `/__clerk` by default,
+   * for networks that block it. The browser uses it too: without a
+   * `proxyUrl`, the proxy's URL becomes the proxy URL.
+   */
+  frontendApiProxy?: FrontendApiProxyOptions;
 } & MultiDomainAndOrProxy &
   SignInForceRedirectUrl &
   SignInFallbackRedirectUrl &

@@ -1,4 +1,5 @@
 import type { ClerkRequest } from '@clerk/backend/internal';
+import { DEFAULT_PROXY_PATH } from '@clerk/backend/proxy';
 import { apiUrlFromPublishableKey } from '@clerk/shared/apiUrlFromPublishableKey';
 import { isDevelopmentFromSecretKey } from '@clerk/shared/keys';
 import { isHttpOrHttps, isProxyUrlRelative } from '@clerk/shared/proxy';
@@ -17,6 +18,13 @@ export const loadOptions = (
   request: ClerkRequest,
   overrides: ClerkMiddlewareOptions = {}
 ) => {
+  // The middleware's own options, which authenticateRequest() does not take.
+  const {
+    debug,
+    contentSecurityPolicy,
+    frontendApiProxy: proxy,
+    ...authenticateOptions
+  } = overrides;
   const env = commonEnvs();
   const secretKey = overrides.secretKey || env.SECRET_KEY;
   const machineSecretKey = overrides.machineSecretKey || env.MACHINE_SECRET_KEY;
@@ -32,11 +40,19 @@ export const loadOptions = (
   const isSatellite =
     handleValueOrFn(overrides.isSatellite, new URL(request.url)) ||
     env.IS_SATELLITE;
-  const relativeOrAbsoluteProxyUrl = handleValueOrFn(
-    overrides.proxyUrl,
-    request.clerkUrl,
-    env.PROXY_URL
-  );
+  // The Frontend API proxy's path, when it serves this request's URL.
+  const frontendApiProxyPath =
+    proxy &&
+    (typeof proxy.enabled === 'function'
+      ? proxy.enabled(request.clerkUrl)
+      : proxy.enabled)
+      ? proxy.path || DEFAULT_PROXY_PATH
+      : undefined;
+  // A proxyUrl passed in, then the Frontend API proxy, then the env.
+  const relativeOrAbsoluteProxyUrl =
+    handleValueOrFn(overrides.proxyUrl, request.clerkUrl) ||
+    frontendApiProxyPath ||
+    env.PROXY_URL;
   const signInUrl = overrides.signInUrl || env.SIGN_IN_URL;
   const signUpUrl = overrides.signUpUrl || env.SIGN_UP_URL;
 
@@ -72,7 +88,7 @@ export const loadOptions = (
 
   return {
     // Every other authenticateRequest option passes through.
-    ...overrides,
+    ...authenticateOptions,
     secretKey,
     machineSecretKey,
     publishableKey,
@@ -83,7 +99,12 @@ export const loadOptions = (
     isSatellite,
     proxyUrl,
     signInUrl,
-    signUpUrl
+    signUpUrl,
+    middlewareOptions: {
+      debug: !!debug,
+      contentSecurityPolicy,
+      frontendApiProxyPath
+    }
   };
 };
 

@@ -196,6 +196,13 @@
     "./start/server": {
       "import": {
         "types": "./dist/start/server/index.d.ts",
+        "workerd": "./dist/start/server/index.js",
+        "worker": "./dist/start/server/index.js",
+        "edge-light": "./dist/start/server/index.js",
+        "deno": "./dist/start/server/index.js",
+        "bun": "./dist/start/server/index.js",
+        "node": "./dist/start/server/index.js",
+        "browser": "./dist/start/server/browser/index.js",
         "default": "./dist/start/server/index.js"
       }
     },

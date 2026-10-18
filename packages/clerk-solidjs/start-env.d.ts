@@ -11,6 +11,11 @@ declare global {
     interface RequestEventLocals {
       /** The request's session auth object, set by clerkMiddleware(). */
       auth: SessionAuthObjectWithRedirect;
+      /**
+       * The request's CSP nonce, with
+       * `clerkMiddleware({ contentSecurityPolicy: { strict: true } })`.
+       */
+      clerkNonce?: string;
     }
   }
 }

@@ -19,6 +19,8 @@ export const CLERK_LOCALS = Symbol.for(
 export type ClerkLocals = {
   auth?: SessionAuthObjectWithRedirect;
   clerkInitialState?: ClerkState;
+  /** The request's CSP nonce, with `contentSecurityPolicy: { strict: true }`. */
+  clerkNonce?: string;
   [CLERK_LOCALS]?: ClerkRequestLocals;
 };
 
