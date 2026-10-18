@@ -185,6 +185,49 @@ describe('clerkMiddleware as an h3 middleware', () => {
     expect(event.response.headers.getSetCookie()).toEqual([]);
   });
 
+  it("never adds one request's cookies to a Response the route reuses", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState(clerkHeaders()));
+    const shared = new Response(null, { status: 204 });
+
+    const response = (await runH3(fetchEvent(), async () => shared)
+      .result) as Response;
+
+    expect(response).not.toBe(shared);
+    expect(response.status).toBe(204);
+    expect(response.headers.getSetCookie()).toHaveLength(2);
+    expect(shared.headers.getSetCookie()).toEqual([]);
+    expect(shared.headers.has('x-clerk-auth-status')).toBe(false);
+  });
+
+  it('keeps the WebSocket hooks h3 attaches to its upgrade Response', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState(clerkHeaders()));
+    const crossws = { open: vi.fn() };
+    // What h3's defineWebSocketHandler returns.
+    const upgrade = Object.assign(
+      new Response('WebSocket upgrade is required.', { status: 426 }),
+      { crossws }
+    );
+
+    const response = (await runH3(fetchEvent(), async () => upgrade)
+      .result) as Response & { crossws?: unknown };
+
+    expect(response.status).toBe(426);
+    expect(response.crossws).toBe(crossws);
+    expect(response.headers.get('x-clerk-auth-status')).toBe('signed-out');
+  });
+
+  it('puts headers on errHeaders for an error the route returns', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState(clerkHeaders()));
+    const event = fetchEvent();
+    const failure = new Error('returned, not thrown');
+
+    const { h3Event, result } = runH3(event, async () => failure);
+
+    expect(await result).toBe(failure);
+    expect(h3Event.res.errHeaders.getSetCookie()).toHaveLength(2);
+    expect(event.response.headers.getSetCookie()).toEqual([]);
+  });
+
   it('copies a Response with immutable headers to add them', async () => {
     backend.authenticateRequest.mockResolvedValue(requestState(clerkHeaders()));
     const event = fetchEvent();
@@ -284,6 +327,22 @@ describe('clerkMiddleware options', () => {
       sdkMetadata: { name: `${PACKAGE_NAME}/start` },
       userAgent: `${PACKAGE_NAME}@${PACKAGE_VERSION}`
     });
+  });
+
+  it('uses an apiUrl passed in over the env and the publishable key', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    vi.stubEnv('CLERK_API_URL', 'https://api.from-env.example');
+
+    await clerkMiddleware({ ...options, apiUrl: 'https://api.custom.example' })(
+      fetchEvent()
+    );
+
+    expect(backend.authenticateRequest.mock.calls[0]![1].apiUrl).toBe(
+      'https://api.custom.example'
+    );
+    expect(backend.clientOptions.at(-1)!.apiUrl).toBe(
+      'https://api.custom.example'
+    );
   });
 
   it('reads the env per request, not at import', async () => {
@@ -416,10 +475,60 @@ describe('auth()', () => {
     );
   });
 
+  it('sends a server function called from a page back to that page, not /_server', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent('http://localhost:3000/_server', {
+      method: 'POST',
+      headers: {
+        'X-Server-Id': 'src/routes/protected.tsx#getProfile',
+        referer: 'http://localhost:3000/protected?tab=2'
+      }
+    });
+    await clerkMiddleware(options)(event);
+
+    const fromServerFunction = provideRequestEvent(event, () =>
+      auth().redirectToSignIn()
+    );
+    expect(
+      new URL(fromServerFunction.headers.get('location')!).searchParams.get(
+        'redirect_url'
+      )
+    ).toBe('http://localhost:3000/protected?tab=2');
+
+    // SolidStart's single-flight render runs with a page event of its own.
+    const pageEvent = {
+      ...event,
+      request: new Request('http://localhost:3000/protected?tab=2')
+    };
+    const fromSingleFlight = provideRequestEvent(pageEvent, () =>
+      auth().redirectToSignIn()
+    );
+    expect(
+      new URL(fromSingleFlight.headers.get('location')!).searchParams.get(
+        'redirect_url'
+      )
+    ).toBe('http://localhost:3000/protected?tab=2');
+  });
+
   it('explains what is missing outside a request or without the middleware', () => {
     expect(() => auth()).toThrow(/outside a request/);
     expect(() => provideRequestEvent(fetchEvent(), () => auth())).toThrow(
       /needs clerkMiddleware\(\)/
     );
+  });
+});
+
+describe('the state handed to the browser', () => {
+  it('carries a server-only CLERK_CHECKOUT_CONTINUE_URL', async () => {
+    vi.stubEnv('CLERK_CHECKOUT_CONTINUE_URL', '/billing/done');
+    backend.authenticateRequest.mockResolvedValue(requestState());
+
+    const event = fetchEvent();
+    await clerkMiddleware(options)(event);
+
+    expect(
+      event.locals.clerkInitialState.__internal_clerk_state
+        .__newSubscriptionRedirectUrl
+    ).toBe('/billing/done');
   });
 });

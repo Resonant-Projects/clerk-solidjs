@@ -34,7 +34,8 @@ export const pickFromClerkInitState = (
     __signUpForceRedirectUrl,
     __signInFallbackRedirectUrl,
     __signUpFallbackRedirectUrl,
-    __unsafeDisableDevelopmentModeConsoleWarning
+    __unsafeDisableDevelopmentModeConsoleWarning,
+    __newSubscriptionRedirectUrl
   } = clerkInitState || {};
 
   return {
@@ -61,7 +62,8 @@ export const pickFromClerkInitState = (
     signInFallbackRedirectUrl: __signInFallbackRedirectUrl,
     signUpFallbackRedirectUrl: __signUpFallbackRedirectUrl,
     unsafe_disableDevelopmentModeConsoleWarning:
-      __unsafeDisableDevelopmentModeConsoleWarning
+      __unsafeDisableDevelopmentModeConsoleWarning,
+    newSubscriptionRedirectUrl: __newSubscriptionRedirectUrl
   };
 };
 

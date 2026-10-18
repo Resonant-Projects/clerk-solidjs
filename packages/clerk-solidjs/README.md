@@ -338,7 +338,14 @@ auth state to the browser so the first render matches the server. The older
 With the middleware in place, `auth()` returns the request's auth object on the
 server: in `"use server"` functions and queries, API routes, and middleware
 that runs after `clerkMiddleware()`. `event.locals.auth` holds the same session
-object and is typed for you.
+object. To type it, add this line to a `.d.ts` file in your app, such as
+`src/global.d.ts`:
+
+```ts
+/// <reference types="@resonant-projects/clerk-solidjs/start/env" />
+```
+
+Leave it out if your app already declares `auth` on `App.RequestEventLocals`.
 
 ```ts
 import { createAsync, query } from '@solidjs/router';

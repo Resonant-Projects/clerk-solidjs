@@ -55,6 +55,9 @@ export function getResponseClerkState(
     __telemetryDebug: isTruthy(getEnvVariable('CLERK_TELEMETRY_DEBUG')),
     __unsafeDisableDevelopmentModeConsoleWarning:
       getPublicEnvVariables().unsafeDisableDevelopmentModeConsoleWarning,
+    // A server-only CLERK_CHECKOUT_CONTINUE_URL reaches the browser this way.
+    __newSubscriptionRedirectUrl:
+      getPublicEnvVariables().newSubscriptionRedirectUrl || undefined,
     __signInForceRedirectUrl:
       additionalStateOptions.signInForceRedirectUrl ||
       getEnvVariable('CLERK_SIGN_IN_FORCE_REDIRECT_URL') ||

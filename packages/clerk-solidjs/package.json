@@ -40,6 +40,9 @@
       ],
       "webhooks": [
         "./dist/webhooks/index.d.ts"
+      ],
+      "start/env": [
+        "./start-env.d.ts"
       ]
     }
   },
@@ -258,6 +261,9 @@
         "default": "./dist/start/server/index.cjs"
       }
     },
+    "./start/env": {
+      "types": "./start-env.d.ts"
+    },
     "./webhooks": {
       "import": {
         "types": "./dist/webhooks/index.d.ts",
@@ -277,7 +283,8 @@
     "./dist/start/server.cjs": "./dist/start/index.cjs"
   },
   "files": [
-    "./dist"
+    "./dist",
+    "./start-env.d.ts"
   ],
   "scripts": {
     "build": "tsup",

@@ -11,6 +11,7 @@ import { errorThrower } from '../../errors/error-thrower';
 import { createAuthenticate } from './auth';
 import { clerkClient } from './clerk-client';
 import { loadOptions } from './load-options';
+import { CLERK_LOCALS, clerkLocals } from './locals';
 import type {
   ClerkMiddlewareOptions,
   ClerkMiddlewareOptionsCallback,
@@ -41,16 +42,22 @@ const appendHeaders = (target: Headers, headers: Headers) => {
   headers.forEach((value, key) => target.append(key, value));
 };
 
-/** Adds headers to a Response, copying it when its headers are immutable. */
+/**
+ * A copy of the Response with the headers added. Never the route's own
+ * object: a Response a route reuses across requests must not keep one
+ * visitor's session cookies, and some Responses have immutable headers.
+ * Properties set on the Response itself, such as the `crossws` hooks h3's
+ * WebSocket handler attaches, carry over.
+ */
 const withHeaders = (response: Response, headers: Headers): Response => {
-  try {
-    appendHeaders(response.headers, headers);
-    return response;
-  } catch {
-    const copy = new Response(response.body, response);
-    appendHeaders(copy.headers, headers);
-    return copy;
-  }
+  const merged = new Headers(response.headers);
+  appendHeaders(merged, headers);
+  const copy = new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: merged
+  });
+  return Object.assign(copy, response);
 };
 
 /**
@@ -116,11 +123,12 @@ export const clerkMiddleware = (
     }
 
     const authenticateFn = createAuthenticate(clerkRequest, requestState);
-    event.locals.clerk = { requestState, authenticate: authenticateFn };
+    const locals = clerkLocals(event.locals);
+    locals[CLERK_LOCALS] = { requestState, authenticate: authenticateFn };
     // The session object, as before, even when a machine token authenticated
     // the request: those are only returned by auth({ acceptsToken }).
-    event.locals.auth = authenticateFn() as SessionAuthObjectWithRedirect;
-    event.locals.clerkInitialState = getResponseClerkState(
+    locals.auth = authenticateFn() as SessionAuthObjectWithRedirect;
+    locals.clerkInitialState = getResponseClerkState(
       requestState,
       loadedOptions
     ).clerkInitialState;
@@ -164,9 +172,16 @@ export const clerkMiddleware = (
       throw error;
     }
     // h3 merges event.res.headers only into responses below 400, so headers
-    // go on a returned Response itself, and on event.res otherwise.
+    // go on a returned Response itself, on errHeaders for a returned error
+    // (h3 builds its response from those alone), and on event.res otherwise.
     if (response instanceof Response) {
       return withHeaders(response, result.headers);
+    }
+    if (response instanceof Error) {
+      if (h3Event.res?.errHeaders) {
+        appendHeaders(h3Event.res.errHeaders, result.headers);
+      }
+      return response;
     }
     appendHeaders(fetchEvent.response.headers, result.headers);
     return response;

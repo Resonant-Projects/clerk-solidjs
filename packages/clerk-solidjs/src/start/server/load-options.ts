@@ -23,7 +23,9 @@ export const loadOptions = (
   const publishableKey = overrides.publishableKey || env.PUBLISHABLE_KEY;
   const jwtKey = overrides.jwtKey || env.CLERK_JWT_KEY;
   const apiUrl =
-    getEnvVariable('CLERK_API_URL') || apiUrlFromPublishableKey(publishableKey);
+    overrides.apiUrl ||
+    getEnvVariable('CLERK_API_URL') ||
+    apiUrlFromPublishableKey(publishableKey);
   const domain =
     handleValueOrFn(overrides.domain, new URL(request.url)) || env.DOMAIN;
   const isSatellite =

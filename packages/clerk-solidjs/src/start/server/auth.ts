@@ -17,11 +17,40 @@ import {
   authCalledOutsideRequest,
   clerkMiddlewareNotConfigured
 } from '../../errors/messages';
+import { CLERK_LOCALS, clerkLocals } from './locals';
 import type { AnyRequestState, SessionAuthObjectWithRedirect } from './types';
 
 /** A redirect `redirect()` from @solidjs/router would also build. */
 const redirectResponse = (url: string) =>
   new Response(null, { status: 307, headers: { Location: url } });
+
+/** A server function called from the browser, which posts to `/_server`. */
+const isServerFunctionRequest = (request: Request) =>
+  request.headers.has('X-Server-Id') ||
+  new URL(request.url).pathname.endsWith('/_server');
+
+/**
+ * Where a sign-in started now should come back to: the page, not the
+ * endpoint. A browser-invoked server function's request is to `/_server`, so
+ * use its Referer, as SolidStart does for redirects; a single-flight render
+ * runs with a page event of its own.
+ */
+const defaultReturnBackUrl = (clerkRequest: ClerkRequest): string => {
+  const current = getRequestEvent()?.request;
+  if (current && isServerFunctionRequest(current)) {
+    const referer = current.headers.get('referer');
+    try {
+      if (referer) return new URL(referer).toString();
+    } catch {
+      // Not a URL; fall back to the app root.
+    }
+    return new URL('/', clerkRequest.clerkUrl).toString();
+  }
+  if (current && current.url !== clerkRequest.url) {
+    return current.url;
+  }
+  return clerkRequest.clerkUrl.toString();
+};
 
 /**
  * Builds the function `auth()` calls for one request: it resolves the token
@@ -57,7 +86,7 @@ export const createAuthenticate = (
           returnBackUrl:
             options.returnBackUrl === null
               ? ''
-              : options.returnBackUrl || clerkRequest.clerkUrl.toString()
+              : options.returnBackUrl || defaultReturnBackUrl(clerkRequest)
         });
       };
     return Object.assign(authObject, {
@@ -109,7 +138,7 @@ export const auth = ((options?: AuthOptions) => {
   if (!event) {
     return errorThrower.throw(authCalledOutsideRequest);
   }
-  const clerk = event.locals.clerk;
+  const clerk = clerkLocals(event.locals)[CLERK_LOCALS];
   if (!clerk) {
     return errorThrower.throw(clerkMiddlewareNotConfigured);
   }

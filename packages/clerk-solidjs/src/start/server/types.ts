@@ -13,7 +13,6 @@ import type {
   SignUpForceRedirectUrl
 } from '@clerk/shared/types';
 import type { FetchEvent } from '@solidjs/start/server';
-import type { ClerkState } from '../client/types';
 
 type LegacyRedirectProps = {
   /** @deprecated Use `signInFallbackRedirectUrl`. Removed in 4.0. */
@@ -89,18 +88,3 @@ export type ClerkRequestLocals = {
   requestState: AnyRequestState;
   authenticate: (options?: AuthOptions) => AuthObject;
 };
-
-declare global {
-  // SolidStart types `event.locals` as `App.RequestEventLocals`.
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace App {
-    interface RequestEventLocals {
-      /** The request's session auth object, set by `clerkMiddleware()`. */
-      auth: SessionAuthObjectWithRedirect;
-      /** @internal The state `clerkMiddleware()` hands to the browser. */
-      clerkInitialState?: ClerkState;
-      /** @internal Used by `auth()`. */
-      clerk?: ClerkRequestLocals;
-    }
-  }
-}

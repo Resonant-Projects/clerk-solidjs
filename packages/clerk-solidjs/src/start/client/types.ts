@@ -23,6 +23,7 @@ export type ClerkState = {
     __telemetryDisabled: boolean | undefined;
     __telemetryDebug: boolean | undefined;
     __unsafeDisableDevelopmentModeConsoleWarning: boolean | undefined;
+    __newSubscriptionRedirectUrl: string | undefined;
     __signInForceRedirectUrl: string | undefined;
     __signUpForceRedirectUrl: string | undefined;
     __signInFallbackRedirectUrl: string | undefined;
