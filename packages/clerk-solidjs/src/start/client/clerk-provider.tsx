@@ -12,6 +12,13 @@ declare global {
   }
 }
 
+/** Identifies SolidStart apps to Clerk, as `@clerk/tanstack-react-start` does. */
+const SDK_METADATA = {
+  name: `${PACKAGE_NAME}/start`,
+  version: PACKAGE_VERSION,
+  environment: process.env.NODE_ENV
+};
+
 /**
  * Reads the Clerk state `clerkMiddleware` resolved for this request. On the
  * server it comes from the request event; in the browser, from the script the
@@ -60,6 +67,7 @@ export function ClerkProvider(
   return (
     <SolidClerkProvider
       initialState={clerkSsrState}
+      sdkMetadata={SDK_METADATA}
       routerPush={(to: string) =>
         awaitableNavigate(to, {
           replace: false

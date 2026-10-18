@@ -68,6 +68,7 @@ export const mergeWithPublicEnvs = (restInitState: any) => {
     ...restInitState,
     publishableKey:
       restInitState.publishableKey || publicEnvVariables.publishableKey,
+    proxyUrl: restInitState.proxyUrl || publicEnvVariables.proxyUrl,
     domain: restInitState.domain || publicEnvVariables.domain,
     isSatellite: restInitState.isSatellite || publicEnvVariables.isSatellite,
     signInUrl: restInitState.signInUrl || publicEnvVariables.signInUrl,
@@ -87,6 +88,13 @@ export const mergeWithPublicEnvs = (restInitState: any) => {
       restInitState.__internal_clerkUIVersion ||
       publicEnvVariables.clerkUIVersion,
     signInForceRedirectUrl: restInitState.signInForceRedirectUrl,
-    prefetchUI: restInitState.prefetchUI ?? publicEnvVariables.prefetchUI
+    prefetchUI: restInitState.prefetchUI ?? publicEnvVariables.prefetchUI,
+    telemetry: {
+      ...restInitState.telemetry,
+      disabled:
+        restInitState.telemetry?.disabled ||
+        publicEnvVariables.telemetryDisabled,
+      debug: restInitState.telemetry?.debug || publicEnvVariables.telemetryDebug
+    }
   };
 };
