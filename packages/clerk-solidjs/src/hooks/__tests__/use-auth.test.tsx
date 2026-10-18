@@ -1,4 +1,5 @@
 import type {
+  ClientResource,
   OrganizationMembershipResource,
   OrganizationResource,
   SignedInSessionResource,
@@ -14,6 +15,7 @@ import {
   SignedOut,
   useAuth,
   useSession,
+  useSessionList,
   useUser
 } from '../..';
 import {
@@ -164,6 +166,30 @@ describe('useAuth', () => {
     emit({ organization: { ...organization } as OrganizationResource });
 
     expect(userIdRuns).toBe(runsAfterLoad);
+  });
+});
+
+describe('client context', () => {
+  it('passes on a client clerk-js updated in place', async () => {
+    const client = { sessions: [] as unknown[], signedInSessions: [] };
+    const { clerkJS, emit } = createFakeClerkJS({
+      client: client as unknown as ClientResource
+    });
+    let list!: ReturnType<typeof useSessionList>;
+    const Probe = () => {
+      list = useSessionList();
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => <Probe />);
+    await vi.waitFor(() => expect(list.isLoaded()).toBe(true));
+    expect(list.sessions()).toEqual([]);
+
+    // clerk-js mutates its Client singleton and emits the same reference.
+    client.sessions = [session()];
+    emit({ client: client as unknown as ClientResource });
+
+    await vi.waitFor(() => expect(list.sessions()).toHaveLength(1));
   });
 });
 

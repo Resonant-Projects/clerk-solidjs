@@ -54,12 +54,13 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
 
   const clerkCtx = () => (clerkLoaded() ? clerk() : clerk());
 
-  // Memoized by identity, so consumers re-run only when the resource changes,
-  // not on every Clerk update.
-  const client = createMemo(() => state().client);
-  const session = createMemo(() => derivedState().session);
-  const organization = createMemo(() => derivedState().organization);
-  const user = createMemo(() => derivedState().user);
+  // Not memoized: clerk-js updates resources such as its Client singleton in
+  // place and emits the same reference, so every emission must reach
+  // consumers. The auth context memoizes its derived fields instead.
+  const client = () => state().client;
+  const session = () => derivedState().session;
+  const organization = () => derivedState().organization;
+  const user = () => derivedState().user;
 
   return (
     <IsomorphicClerkContextProvider
