@@ -85,24 +85,6 @@ const redactUrlString = (value: string): string => {
   return url.toString();
 };
 
-/**
- * Headers as an object, with each Set-Cookie cut to its name (session
- * cookies are live credentials) and Clerk's tokens cut out of a redirect's
- * Location.
- */
-export const redactHeaders = (headers: Headers) => {
-  const result: Record<string, string | string[]> = {};
-  headers.forEach((value, key) => {
-    if (key === 'location') result[key] = redactUrlString(value);
-    else if (key !== 'set-cookie') result[key] = value;
-  });
-  const cookies = headers.getSetCookie?.() ?? [];
-  if (cookies.length) {
-    result['set-cookie'] = cookies.map((cookie) => `${cookie.split('=')[0]}=…`);
-  }
-  return result;
-};
-
 /** Names only, from a Cookie header. */
 const cookieNames = (cookie: string) =>
   cookie
@@ -113,21 +95,49 @@ const cookieNames = (cookie: string) =>
     .join('; ');
 
 /**
- * The request as `ClerkRequest.toJSON()` describes it, without credentials:
- * cookies by name, the Authorization scheme only, and Clerk's tokens cut
- * out of the URL. `toJSON()` itself includes them all.
+ * A header value fit to log. Credentials are cut to what identifies them
+ * (an Authorization scheme, cookie names), and any URL, absolute or a path
+ * (Location, Referer, x-forwarded-uri and the like), loses Clerk's tokens:
+ * a same-origin Referer keeps the query, which can carry `__clerk_ticket`.
  */
-export const redactRequest = (request: ClerkRequest) => {
-  const headers: Record<string, string> = {};
-  request.headers.forEach((value, key) => {
-    if (key === 'cookie') headers[key] = cookieNames(value);
-    else if (key === 'authorization') headers[key] = `${value.split(' ')[0]} …`;
-    else headers[key] = value;
-  });
-  return {
-    url: redactUrlString(request.clerkUrl.href),
-    method: request.method,
-    headers,
-    cookies: [...request.cookies.keys()]
-  };
+const redactHeaderValue = (key: string, value: string) => {
+  if (key === 'cookie') return cookieNames(value);
+  if (key === 'authorization' || key === 'proxy-authorization') {
+    return `${value.split(' ')[0]} …`;
+  }
+  if (/^https?:\/\//i.test(value)) return redactUrlString(value);
+  if (value.startsWith('/') && /__clerk|__dev/.test(value)) {
+    const url = new URL(redactUrlString(new URL(value, 'http://path').href));
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+  return value;
 };
+
+/**
+ * Headers as an object, without credentials: each Set-Cookie cut to its
+ * name, as session cookies are live credentials, and the other values as
+ * `redactHeaderValue` leaves them.
+ */
+export const redactHeaders = (headers: Headers) => {
+  const result: Record<string, string | string[]> = {};
+  headers.forEach((value, key) => {
+    if (key !== 'set-cookie') result[key] = redactHeaderValue(key, value);
+  });
+  const cookies = headers.getSetCookie?.() ?? [];
+  if (cookies.length) {
+    result['set-cookie'] = cookies.map((cookie) => `${cookie.split('=')[0]}=…`);
+  }
+  return result;
+};
+
+/**
+ * The request as `ClerkRequest.toJSON()` describes it, without credentials:
+ * headers as `redactHeaders` leaves them, cookies by name, and Clerk's
+ * tokens cut out of the URL. `toJSON()` itself includes them all.
+ */
+export const redactRequest = (request: ClerkRequest) => ({
+  url: redactUrlString(request.clerkUrl.href),
+  method: request.method,
+  headers: redactHeaders(request.headers),
+  cookies: [...request.cookies.keys()]
+});

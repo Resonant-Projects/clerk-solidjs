@@ -353,7 +353,11 @@ describe('debug', () => {
         {
           headers: {
             authorization: 'Bearer ak_live_machinetokensecret',
-            cookie: `__session=eyJsessionsecret; __client_uat=1700000000; theme=dark`
+            'proxy-authorization': 'Basic cHJveHlzZWNyZXQ=',
+            cookie: `__session=eyJsessionsecret; __client_uat=1700000000; theme=dark`,
+            referer:
+              'http://localhost:3000/sign-in?__clerk_ticket=tkt_impersonationticket&x=2',
+            'x-forwarded-uri': '/accept?__clerk_ticket=tkt_forwardedticket'
           }
         }
       )
@@ -365,7 +369,10 @@ describe('debug', () => {
       'eyJhandshake',
       'ak_live_machinetokensecret',
       'eyJsessionsecret',
-      '1700000000'
+      '1700000000',
+      'cHJveHlzZWNyZXQ',
+      'tkt_impersonationticket',
+      'tkt_forwardedticket'
     ]) {
       expect(output).not.toContain(secret);
     }
@@ -373,6 +380,8 @@ describe('debug', () => {
     expect(output).toContain('__session=…; __client_uat=…; theme=…');
     expect(output).toContain('__clerk_db_jwt=%E2%80%A6');
     expect(output).toContain('tab=1');
+    expect(output).toContain('/sign-in?__clerk_ticket=%E2%80%A6&x=2');
+    expect(output).toContain('/accept?__clerk_ticket=%E2%80%A6');
   });
 
   it("cuts Clerk's tokens out of a handshake redirect's Location", async () => {
