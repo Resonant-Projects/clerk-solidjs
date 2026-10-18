@@ -124,10 +124,20 @@ async function waitForServer(url, timeoutMs = 30_000) {
   throw new Error(`Server did not start at ${url}`);
 }
 
+// Values never printed, such as a sign-in token (a bearer credential), which
+// a Playwright error can carry in the URL it failed to load.
+const secrets = new Set();
+const redact = (text) => {
+  let result = String(text);
+  for (const secret of secrets) result = result.split(secret).join("…");
+  return result.replace(/(__clerk_ticket(?:=|%3D))[^&\s"'#<>]+/gi, "$1…");
+};
+
 const results = [];
 const check = (name, ok, detail = "") => {
-  results.push({ name, ok, detail });
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `: ${detail}` : ""}`);
+  const shown = redact(detail);
+  results.push({ name, ok, detail: shown });
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${shown ? `: ${shown}` : ""}`);
 };
 
 async function runChecks(baseUrl) {
@@ -452,6 +462,7 @@ async function runSignedInChecks(browser, baseUrl) {
       user_id: user.id,
       expires_in_seconds: 300,
     });
+    secrets.add(token);
     // <SignIn /> signs in with a ticket from the URL.
     const signInUrl = new URL("/sign-in", baseUrl);
     signInUrl.searchParams.set("__clerk_ticket", token);
@@ -572,7 +583,7 @@ async function main() {
     `\n${results.length - failed.length}/${results.length} checks passed`,
   );
   if (failed.length) {
-    console.log("\nServer output:\n" + output().slice(-4000));
+    console.log("\nServer output:\n" + redact(output().slice(-4000)));
     process.exit(1);
   }
 }
