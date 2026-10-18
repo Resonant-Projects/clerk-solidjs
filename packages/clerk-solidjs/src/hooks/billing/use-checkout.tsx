@@ -4,6 +4,7 @@ import type {
 } from '@clerk/shared/types';
 import {
   Accessor,
+  createComputed,
   createContext,
   createEffect,
   createMemo,
@@ -63,7 +64,7 @@ export const useCheckout = (
   const organization = useOrganizationContext();
 
   // Kept current, so a later sign-out or org switch reaches an ErrorBoundary.
-  createMemo(() => {
+  createComputed(() => {
     if (!isLoaded()) return;
     if (user() === null) {
       throw new Error(

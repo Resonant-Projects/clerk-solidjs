@@ -4,6 +4,16 @@
  */
 export { CheckoutButton } from './components/billing/checkout-button';
 export type { CheckoutButtonProps } from './components/billing/checkout-button';
+export {
+  PaymentElement,
+  PaymentElementProvider,
+  usePaymentElement
+} from './components/billing/payment-element';
+export type {
+  PaymentElementError,
+  PaymentElementProviderProps,
+  UsePaymentElementReturn
+} from './components/billing/payment-element';
 export { PlanDetailsButton } from './components/billing/plan-details-button';
 export type { PlanDetailsButtonProps } from './components/billing/plan-details-button';
 export { SubscriptionDetailsButton } from './components/billing/subscription-details-button';
