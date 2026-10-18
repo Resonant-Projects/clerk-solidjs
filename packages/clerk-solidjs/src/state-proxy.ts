@@ -126,6 +126,10 @@ export class StateProxy implements State {
   }
 
   get __internal_waitlist() {
+    // Before load, `state` is this stand-in, so read its own waitlist.
+    if (!inBrowser() || !this.isomorphicClerk.loaded) {
+      return this.waitlistSignalProxy.waitlist as unknown as WaitlistResource;
+    }
     return this.state.__internal_waitlist;
   }
 

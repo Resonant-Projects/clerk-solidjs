@@ -315,11 +315,13 @@ async function runChecks(baseUrl) {
     await page.goto(new URL("/custom-sign-in", baseUrl).href, {
       waitUntil: "networkidle",
     });
-    await page
+    const customSignInLoaded = await page
       .waitForFunction(() => window.Clerk?.loaded === true, null, {
         timeout: 30_000,
       })
-      .catch(() => {});
+      .then(() => true)
+      .catch(() => false);
+    check("clerk-js loads on the custom sign-in page", customSignInLoaded);
     await page
       .getByLabel("Email address")
       .fill(`nobody-${Date.now()}+clerk_test@example.com`);

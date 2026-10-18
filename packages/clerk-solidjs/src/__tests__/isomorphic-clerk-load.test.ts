@@ -510,6 +510,8 @@ describe('IsomorphicClerk Core 3 loading', () => {
     const standIn = isomorphicClerk.__internal_state;
     expect(standIn).not.toBe(state);
     expect(standIn.signInSignal().signIn?.status).toBe('needs_identifier');
+    // Its own waitlist, not a read of itself.
+    expect(standIn.__internal_waitlist.id).toBe('');
 
     await loadedClerk(isomorphicClerk);
 
