@@ -1,10 +1,13 @@
 import type {
   LoadedClerk,
   SignInResource,
+  SignUpResource,
   UserResource
 } from '@clerk/shared/types';
 import { cleanup, render, screen } from '@solidjs/testing-library';
+import { expectTypeOf } from 'expect-type';
 import {
+  type Accessor,
   createRoot,
   createSignal,
   ErrorBoundary,
@@ -136,6 +139,13 @@ describe('useEmailLink', () => {
 
     dispose();
     expect(flows.cancelEmailLinkFlow).toHaveBeenCalledTimes(2);
+  });
+
+  it('type-checks a union of resources, as it did before 4.3', () => {
+    // Compiled, not run: a wrapper typed for several resources still calls it.
+    const wrapper = (resource: Accessor<SignInResource | SignUpResource>) =>
+      useEmailLink(resource);
+    expectTypeOf(wrapper).toBeFunction();
   });
 
   it('still works called the old way, with a deprecation warning', async () => {

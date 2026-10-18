@@ -65,6 +65,13 @@ function useEmailLink(
 function useEmailLink(
   resource: Accessor<EmailAddressResource>
 ): UseEmailLinkEmailAddressReturn;
+/** Any of them, as the hook accepted before 4.3. */
+function useEmailLink(
+  resource: Accessor<EmailLinkable>
+):
+  | UseEmailLinkSignInReturn
+  | UseEmailLinkSignUpReturn
+  | UseEmailLinkEmailAddressReturn;
 function useEmailLink(
   resource: Accessor<EmailLinkable>
 ):
