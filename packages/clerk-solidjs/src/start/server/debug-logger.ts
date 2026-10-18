@@ -6,8 +6,8 @@ type Entry = string | Record<string, unknown>;
  * The last pass over every line logged, whatever it came from: the value of
  * any query parameter whose name, once decoded, starts with `__clerk` or
  * `__dev` (so `__cl%65rk_ticket` too), and anything shaped like a JWT, are
- * cut. The redactors below handle the known places; this catches tokens
- * anywhere else, such as a URL inside a Link header.
+ * cut. The redactors below already log URLs without query values and
+ * unknown headers by name only; this guards entries they do not shape.
  */
 const scrub = (output: string) =>
   output
@@ -86,27 +86,54 @@ const isClerkParam = (name: string) =>
   name.startsWith('__clerk') || name.startsWith('__dev');
 
 /**
- * A URL with the values of Clerk's own query parameters (`__clerk_*` and
- * `__dev_*`) cut out, in it and in any URL it carries as a parameter (a
- * handshake's `redirect_url`): they carry handshake, dev-browser and
- * sign-in tokens. A fragment that mentions them is cut too.
+ * Headers logged with their values, because they carry no credentials and
+ * explain a request: what it asks for, where it comes from, and Clerk's
+ * verdict. Every other header is logged by name only.
+ */
+const SAFE_HEADERS = new Set([
+  'accept',
+  'accept-language',
+  'cache-control',
+  'content-length',
+  'content-type',
+  'host',
+  'origin',
+  'sec-fetch-dest',
+  'sec-fetch-mode',
+  'sec-fetch-site',
+  'user-agent',
+  'vary',
+  'x-forwarded-host',
+  'x-forwarded-port',
+  'x-forwarded-proto',
+  'x-clerk-auth-message',
+  'x-clerk-auth-reason',
+  'x-clerk-auth-status'
+]);
+
+/** Headers whose value is a URL, logged without its query values. */
+const URL_HEADERS = new Set(['content-location', 'location', 'referer']);
+
+/**
+ * A URL with every query value and the fragment cut: tokens travel in both
+ * (handshake, dev-browser and sign-in tokens, and URLs nested in
+ * `redirect_url`). Parameter names stay, so the log still says what was
+ * sent. A path keeps the form it had.
  */
 const redactUrlString = (value: string): string => {
   let url: URL;
   try {
-    url = new URL(value);
+    url = new URL(value, 'http://path');
   } catch {
-    return value;
+    return '…';
   }
-  for (const [name, param] of [...url.searchParams]) {
-    if (isClerkParam(name)) {
-      url.searchParams.set(name, '…');
-    } else if (/^https?:\/\//i.test(param)) {
-      url.searchParams.set(name, redactUrlString(param));
-    }
-  }
-  if (/__clerk|__dev/.test(safeDecode(url.hash))) url.hash = '…';
-  return url.toString();
+  const names = [...new Set(url.searchParams.keys())];
+  const query = names.length
+    ? `?${names.map((name) => `${encodeURIComponent(name)}=…`).join('&')}`
+    : '';
+  const path = `${url.pathname}${query}${url.hash ? '#…' : ''}`;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return `${url.origin}${path}`;
+  return value.startsWith('//') ? `//${url.host}${path}` : path;
 };
 
 /** Names only, from a Cookie header. */
@@ -119,33 +146,24 @@ const cookieNames = (cookie: string) =>
     .join('; ');
 
 /**
- * A header value fit to log. Credentials are cut to what identifies them
- * (an Authorization scheme, cookie names), and any URL, absolute or a path
- * (Location, Referer, x-forwarded-uri and the like), loses Clerk's tokens:
- * a same-origin Referer keeps the query, which can carry `__clerk_ticket`.
+ * A header value fit to log: an allowlisted header as it is, a URL header
+ * without query values, cookies by name, Authorization by a recognized scheme
+ * (a bare token is cut whole), and anything else by name only.
  */
 const redactHeaderValue = (key: string, value: string) => {
   if (key === 'cookie') return cookieNames(value);
   if (key === 'authorization' || key === 'proxy-authorization') {
-    return `${value.split(' ')[0]} …`;
+    const scheme = /^(Basic|Bearer|Digest|Token)\s/i.exec(value)?.[1];
+    return scheme ? `${scheme} …` : '…';
   }
-  if (/^https?:\/\//i.test(value)) return redactUrlString(value);
-  // A network path (`//host/path`) keeps its host.
-  if (value.startsWith('//')) {
-    return redactUrlString(`https:${value}`).replace(/^https:/, '');
-  }
-  // Parsed, not matched as text: a name can be percent-encoded
-  // (`%5F%5Fclerk_ticket`), and URLSearchParams decodes it.
-  if (value.startsWith('/')) {
-    const url = new URL(redactUrlString(new URL(value, 'http://path').href));
-    return `${url.pathname}${url.search}${url.hash}`;
-  }
-  return value;
+  if (URL_HEADERS.has(key)) return redactUrlString(value);
+  if (SAFE_HEADERS.has(key)) return value;
+  return '…';
 };
 
 /**
- * Headers as an object, without credentials: each Set-Cookie cut to its
- * name, as session cookies are live credentials, and the other values as
+ * Headers as an object, without credentials: each Set-Cookie by its name,
+ * as session cookies are live credentials, and the other values as
  * `redactHeaderValue` leaves them.
  */
 export const redactHeaders = (headers: Headers) => {
@@ -162,8 +180,8 @@ export const redactHeaders = (headers: Headers) => {
 
 /**
  * The request as `ClerkRequest.toJSON()` describes it, without credentials:
- * headers as `redactHeaders` leaves them, cookies by name, and Clerk's
- * tokens cut out of the URL. `toJSON()` itself includes them all.
+ * headers as `redactHeaders` leaves them, cookies by name, and the URL
+ * without query values. `toJSON()` itself includes them all.
  */
 export const redactRequest = (request: ClerkRequest) => ({
   url: redactUrlString(request.clerkUrl.href),

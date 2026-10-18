@@ -395,7 +395,10 @@ describe('debug', () => {
             'x-network-path':
               '//app.example.com/accept?__clerk_ticket=tkt_networkpathticket',
             'x-original-url':
-              '/accept?%5F%5Fclerk_ticket=tkt_encodedticket#%5F%5Fclerk_x=tkt_hashticket'
+              '/accept?%5F%5Fclerk_ticket=tkt_encodedticket#%5F%5Fclerk_x=tkt_hashticket',
+            'x-api-key': 'ak_bareheaderkey',
+            'x-forwarded-proto': 'http',
+            'user-agent': 'smoke-agent/1.0'
           }
         }
       )
@@ -416,17 +419,48 @@ describe('debug', () => {
       'tkt_networkpathticket',
       'tkt_linkticket',
       'tkt_encodedlinkticket',
-      'c2lnbmF0dXJlc2VjcmV0'
+      'c2lnbmF0dXJlc2VjcmV0',
+      'ak_bareheaderkey'
     ]) {
       expect(output).not.toContain(secret);
     }
     expect(output).toContain('Bearer …');
     expect(output).toContain('__session=…; __client_uat=…; theme=…');
-    expect(output).toContain('__clerk_db_jwt=…');
-    expect(output).toContain('tab=1');
-    expect(output).toContain('/sign-in?__clerk_ticket=…&x=2');
-    expect(output).toContain('/accept?__clerk_ticket=…');
-    expect(output).toContain('//app.example.com/accept?__clerk_ticket=…');
+    // The URL keeps its parameter names, and no value.
+    expect(output).toContain(
+      'http://localhost:3000/dashboard?__clerk_db_jwt=…&__clerk_handshake=…&tab=…'
+    );
+    expect(output).toContain('/sign-in?__clerk_ticket=…&x=…');
+    // Headers that are not known to be safe are logged by name only.
+    expect(output).toContain('"x-forwarded-uri": "…"');
+    expect(output).toContain('"link": "…"');
+    // Known-safe headers keep their values.
+    expect(output).toContain('"x-forwarded-proto": "http"');
+    expect(output).toContain('"user-agent": "smoke-agent/1.0"');
+  });
+
+  it('cuts a bare Authorization token whole, and a ticket nested in a redirect_url', async () => {
+    const nested = new URL('https://app.example.com/sign-in');
+    nested.searchParams.set(
+      'redirect_url',
+      'https://app.example.com/accept?__clerk_ticket=tkt_nestedticket'
+    );
+    backend.authenticateRequest.mockResolvedValue(requestState());
+
+    await clerkMiddleware({ ...options, debug: true })(
+      fetchEvent(nested.toString(), {
+        headers: {
+          authorization: 'ak_bare_opaque_api_key',
+          referer: nested.toString()
+        }
+      })
+    );
+
+    const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
+    expect(output).not.toContain('ak_bare_opaque_api_key');
+    expect(output).not.toContain('tkt_nestedticket');
+    expect(output).toContain('"authorization": "…"');
+    expect(output).toContain('https://app.example.com/sign-in?redirect_url=…');
   });
 
   it("cuts Clerk's tokens out of a handshake redirect's Location", async () => {
