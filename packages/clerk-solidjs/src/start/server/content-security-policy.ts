@@ -62,7 +62,8 @@ export interface ContentSecurityPolicyOptions {
 
 type DirectiveSet = Partial<Record<string, Set<string>>>;
 
-const KEYWORDS = new Set([
+/** The keywords of a source list (`script-src`, `base-uri`, …). */
+const SOURCE_KEYWORDS = new Set([
   'inline-speculation-rules',
   'none',
   'report-sample',
@@ -74,11 +75,21 @@ const KEYWORDS = new Set([
   'wasm-unsafe-eval'
 ]);
 
-/** Keywords only one directive takes; elsewhere the same word is a host. */
+/**
+ * The keywords of the directives that take something other than a source
+ * list. Any other word there is a name (a trusted-types policy, a report-to
+ * group) or a flag, and stays bare.
+ */
 const DIRECTIVE_KEYWORDS: Partial<Record<string, Set<string>>> = {
   'require-trusted-types-for': new Set(['script']),
-  'trusted-types': new Set(['allow-duplicates'])
+  'trusted-types': new Set(['none', 'allow-duplicates'])
 };
+
+const isSourceList = (directive: string) =>
+  /-src(-elem|-attr)?$/.test(directive) ||
+  ['base-uri', 'form-action', 'frame-ancestors', 'navigate-to'].includes(
+    directive
+  );
 
 const defaultDirectives = (): Record<string, string[]> => ({
   'connect-src': [
@@ -121,9 +132,10 @@ const defaultDirectives = (): Record<string, string[]> => ({
 /** Quotes the keywords (`self`, `none`, …), which CSP requires. */
 const formatValue = (directive: string, value: string) => {
   const unquoted = value.replace(/^'|'$/g, '');
-  return KEYWORDS.has(unquoted) || DIRECTIVE_KEYWORDS[directive]?.has(unquoted)
-    ? `'${unquoted}'`
-    : value;
+  const keywords = isSourceList(directive)
+    ? SOURCE_KEYWORDS
+    : DIRECTIVE_KEYWORDS[directive];
+  return keywords?.has(unquoted) ? `'${unquoted}'` : value;
 };
 
 const isNone = (values: string[]) =>

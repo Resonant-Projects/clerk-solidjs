@@ -353,7 +353,10 @@ describe('contentSecurityPolicy', () => {
         directives: {
           'script-src': ['wasm-unsafe-eval', 'report-sample'],
           'require-trusted-types-for': ['script'],
-          'trusted-types': ['appPolicy', 'allow-duplicates'],
+          // Policy and group names stay bare, even when they spell a keyword
+          // of a source list.
+          'trusted-types': ['appPolicy', 'report-sample', 'allow-duplicates'],
+          'report-to': ['wasm-unsafe-eval'],
           // Elsewhere, `script` is a host.
           'connect-src': ['script']
         }
@@ -369,8 +372,10 @@ describe('contentSecurityPolicy', () => {
     ]);
     expect(directive(policy, 'trusted-types')).toEqual([
       'appPolicy',
+      'report-sample',
       "'allow-duplicates'"
     ]);
+    expect(directive(policy, 'report-to')).toEqual(['wasm-unsafe-eval']);
     expect(directive(policy, 'connect-src')).toContain('script');
   });
 
