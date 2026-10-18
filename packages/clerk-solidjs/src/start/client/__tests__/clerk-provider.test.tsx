@@ -4,7 +4,7 @@ import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClerkProvider } from '..';
 import { createFakeClerkJS } from '../../../__tests__/helpers/fake-clerk-js';
-import { SignedIn, SignedOut } from '../../../components';
+import { Show } from '../../../components';
 import { signedInInitState } from './fixtures';
 
 afterEach(() => {
@@ -43,12 +43,12 @@ const renderApp = () =>
     <Router
       root={() => (
         <ClerkProvider Clerk={neverLoadingClerk() as any}>
-          <SignedIn>
+          <Show when="signed-in">
             <p>signed-in</p>
-          </SignedIn>
-          <SignedOut>
+          </Show>
+          <Show when="signed-out">
             <p>signed-out</p>
-          </SignedOut>
+          </Show>
         </ClerkProvider>
       )}
     />

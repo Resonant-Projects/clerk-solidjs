@@ -14,13 +14,6 @@ import type {
 } from '@clerk/shared/types';
 import type { FetchEvent } from '@solidjs/start/server';
 
-type LegacyRedirectProps = {
-  /** @deprecated Use `signInFallbackRedirectUrl`. Removed in 4.0. */
-  afterSignInUrl?: string;
-  /** @deprecated Use `signUpFallbackRedirectUrl`. Removed in 4.0. */
-  afterSignUpUrl?: string;
-};
-
 /**
  * Options for `clerkMiddleware()`. Every `authenticateRequest()` option is
  * accepted and forwarded: `organizationSyncOptions`, `satelliteAutoSync`,
@@ -43,8 +36,7 @@ export type ClerkMiddlewareOptions = Omit<
   SignInForceRedirectUrl &
   SignInFallbackRedirectUrl &
   SignUpForceRedirectUrl &
-  SignUpFallbackRedirectUrl &
-  LegacyRedirectProps;
+  SignUpFallbackRedirectUrl;
 
 /**
  * Returns middleware options for one request, for keys or settings that are

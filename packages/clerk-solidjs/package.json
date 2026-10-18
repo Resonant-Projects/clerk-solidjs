@@ -20,7 +20,7 @@
   "license": "MIT",
   "author": "Resonant Projects",
   "type": "module",
-  "main": "./dist/index/server.cjs",
+  "main": "./dist/index/server.js",
   "module": "./dist/index/server.js",
   "types": "./dist/index/index.d.ts",
   "sideEffects": false,
@@ -59,10 +59,6 @@
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/server.js"
-        },
-        "require": {
-          "types": "./dist/index/index.d.cts",
-          "default": "./dist/index/server.cjs"
         }
       },
       "browser": {
@@ -75,19 +71,11 @@
           "import": {
             "types": "./dist/index/index.d.ts",
             "default": "./dist/index/dev.js"
-          },
-          "require": {
-            "types": "./dist/index/index.d.cts",
-            "default": "./dist/index/dev.cjs"
           }
         },
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/index.js"
-        },
-        "require": {
-          "types": "./dist/index/index.d.cts",
-          "default": "./dist/index/index.cjs"
         }
       },
       "deno": {
@@ -98,10 +86,6 @@
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/server.js"
-        },
-        "require": {
-          "types": "./dist/index/index.d.cts",
-          "default": "./dist/index/server.cjs"
         }
       },
       "node": {
@@ -112,10 +96,6 @@
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/server.js"
-        },
-        "require": {
-          "types": "./dist/index/index.d.cts",
-          "default": "./dist/index/server.cjs"
         }
       },
       "solid": {
@@ -127,39 +107,23 @@
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/dev.js"
-        },
-        "require": {
-          "types": "./dist/index/index.d.cts",
-          "default": "./dist/index/dev.cjs"
         }
       },
       "import": {
         "types": "./dist/index/index.d.ts",
         "default": "./dist/index/index.js"
-      },
-      "require": {
-        "types": "./dist/index/index.d.cts",
-        "default": "./dist/index/index.cjs"
       }
     },
     "./errors": {
       "import": {
         "types": "./dist/errors/index.d.ts",
         "default": "./dist/errors/index.js"
-      },
-      "require": {
-        "types": "./dist/errors/index.d.cts",
-        "default": "./dist/errors/index.cjs"
       }
     },
     "./server": {
       "import": {
         "types": "./dist/server/index.d.ts",
         "default": "./dist/server/index.js"
-      },
-      "require": {
-        "types": "./dist/server/index.d.cts",
-        "default": "./dist/server/index.cjs"
       }
     },
     "./start": {
@@ -171,10 +135,6 @@
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/server.js"
-        },
-        "require": {
-          "types": "./dist/start/index.d.cts",
-          "default": "./dist/start/server.cjs"
         }
       },
       "browser": {
@@ -187,19 +147,11 @@
           "import": {
             "types": "./dist/start/index.d.ts",
             "default": "./dist/start/dev.js"
-          },
-          "require": {
-            "types": "./dist/start/index.d.cts",
-            "default": "./dist/start/dev.cjs"
           }
         },
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/index.js"
-        },
-        "require": {
-          "types": "./dist/start/index.d.cts",
-          "default": "./dist/start/index.cjs"
         }
       },
       "deno": {
@@ -210,10 +162,6 @@
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/server.js"
-        },
-        "require": {
-          "types": "./dist/start/index.d.cts",
-          "default": "./dist/start/server.cjs"
         }
       },
       "node": {
@@ -224,10 +172,6 @@
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/server.js"
-        },
-        "require": {
-          "types": "./dist/start/index.d.cts",
-          "default": "./dist/start/server.cjs"
         }
       },
       "solid": {
@@ -239,29 +183,17 @@
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/dev.js"
-        },
-        "require": {
-          "types": "./dist/start/index.d.cts",
-          "default": "./dist/start/dev.cjs"
         }
       },
       "import": {
         "types": "./dist/start/index.d.ts",
         "default": "./dist/start/index.js"
-      },
-      "require": {
-        "types": "./dist/start/index.d.cts",
-        "default": "./dist/start/index.cjs"
       }
     },
     "./start/server": {
       "import": {
         "types": "./dist/start/server/index.d.ts",
         "default": "./dist/start/server/index.js"
-      },
-      "require": {
-        "types": "./dist/start/server/index.d.cts",
-        "default": "./dist/start/server/index.cjs"
       }
     },
     "./start/env": {
@@ -276,10 +208,6 @@
         "import": {
           "types": "./dist/legacy/index.d.ts",
           "default": "./dist/legacy/server.js"
-        },
-        "require": {
-          "types": "./dist/legacy/index.d.cts",
-          "default": "./dist/legacy/server.cjs"
         }
       },
       "browser": {
@@ -292,19 +220,11 @@
           "import": {
             "types": "./dist/legacy/index.d.ts",
             "default": "./dist/legacy/dev.js"
-          },
-          "require": {
-            "types": "./dist/legacy/index.d.cts",
-            "default": "./dist/legacy/dev.cjs"
           }
         },
         "import": {
           "types": "./dist/legacy/index.d.ts",
           "default": "./dist/legacy/index.js"
-        },
-        "require": {
-          "types": "./dist/legacy/index.d.cts",
-          "default": "./dist/legacy/index.cjs"
         }
       },
       "deno": {
@@ -315,10 +235,6 @@
         "import": {
           "types": "./dist/legacy/index.d.ts",
           "default": "./dist/legacy/server.js"
-        },
-        "require": {
-          "types": "./dist/legacy/index.d.cts",
-          "default": "./dist/legacy/server.cjs"
         }
       },
       "node": {
@@ -329,10 +245,6 @@
         "import": {
           "types": "./dist/legacy/index.d.ts",
           "default": "./dist/legacy/server.js"
-        },
-        "require": {
-          "types": "./dist/legacy/index.d.cts",
-          "default": "./dist/legacy/server.cjs"
         }
       },
       "solid": {
@@ -344,29 +256,17 @@
         "import": {
           "types": "./dist/legacy/index.d.ts",
           "default": "./dist/legacy/dev.js"
-        },
-        "require": {
-          "types": "./dist/legacy/index.d.cts",
-          "default": "./dist/legacy/dev.cjs"
         }
       },
       "import": {
         "types": "./dist/legacy/index.d.ts",
         "default": "./dist/legacy/index.js"
-      },
-      "require": {
-        "types": "./dist/legacy/index.d.cts",
-        "default": "./dist/legacy/index.cjs"
       }
     },
     "./webhooks": {
       "import": {
         "types": "./dist/webhooks/index.d.ts",
         "default": "./dist/webhooks/index.js"
-      },
-      "require": {
-        "types": "./dist/webhooks/index.d.cts",
-        "default": "./dist/webhooks/index.cjs"
       }
     },
     "./package.json": "./package.json"
@@ -379,7 +279,8 @@
   },
   "files": [
     "./dist",
-    "./start-env.d.ts"
+    "./start-env.d.ts",
+    "./MIGRATION.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -433,9 +334,17 @@
     "vitest": "^5.0.5"
   },
   "peerDependencies": {
-    "@solidjs/router": ">=0.14",
-    "@solidjs/start": ">=1",
-    "solid-js": ">=1"
+    "@solidjs/router": ">=0.16 <2",
+    "@solidjs/start": "^2",
+    "solid-js": "^1.9"
+  },
+  "peerDependenciesMeta": {
+    "@solidjs/router": {
+      "optional": true
+    },
+    "@solidjs/start": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22.12"

@@ -21,8 +21,6 @@ export const pickFromClerkInitState = (
     __isSatellite,
     __signInUrl,
     __signUpUrl,
-    __afterSignInUrl,
-    __afterSignUpUrl,
     __clerkJSUrl,
     __clerkJSVersion,
     __clerkUIUrl,
@@ -46,8 +44,6 @@ export const pickFromClerkInitState = (
     isSatellite: !!__isSatellite,
     signInUrl: __signInUrl,
     signUpUrl: __signUpUrl,
-    afterSignInUrl: __afterSignInUrl,
-    afterSignUpUrl: __afterSignUpUrl,
     __internal_clerkJSUrl: __clerkJSUrl,
     __internal_clerkJSVersion: __clerkJSVersion,
     __internal_clerkUIUrl: __clerkUIUrl,
@@ -78,10 +74,6 @@ export const mergeWithPublicEnvs = (restInitState: any) => {
     isSatellite: restInitState.isSatellite || publicEnvVariables.isSatellite,
     signInUrl: restInitState.signInUrl || publicEnvVariables.signInUrl,
     signUpUrl: restInitState.signUpUrl || publicEnvVariables.signUpUrl,
-    afterSignInUrl:
-      restInitState.afterSignInUrl || publicEnvVariables.afterSignInUrl,
-    afterSignUpUrl:
-      restInitState.afterSignUpUrl || publicEnvVariables.afterSignUpUrl,
     __internal_clerkJSUrl:
       restInitState.__internal_clerkJSUrl || publicEnvVariables.clerkJsUrl,
     __internal_clerkJSVersion:

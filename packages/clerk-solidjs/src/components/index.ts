@@ -5,19 +5,19 @@ export {
   ClerkLoaded,
   ClerkLoading,
   ClerkShow,
-  Protect,
   RedirectToCreateOrganization,
   RedirectToOrganizationProfile,
   RedirectToSignIn,
   RedirectToSignUp,
+  RedirectToTasks,
   RedirectToUserProfile,
-  Show,
-  SignedIn,
-  SignedOut
+  Show
 } from './control-components';
 
-export type { ProtectProps, ShowProps } from './control-components';
+export type { ShowProps } from './control-components';
 
+export { HandleSSOCallback } from './handle-sso-callback';
+export type { HandleSSOCallbackProps } from './handle-sso-callback';
 export { SignInButton } from './sign-in-button';
 export { SignInWithMetamaskButton } from './sign-in-with-metamask-button';
 export { SignOutButton } from './sign-out-button';
@@ -31,6 +31,9 @@ export {
   OrganizationSwitcher,
   SignIn,
   SignUp,
+  TaskChooseOrganization,
+  TaskResetPassword,
+  TaskSetupMFA,
   UserButton,
   UserProfile,
   UserProfileModal,

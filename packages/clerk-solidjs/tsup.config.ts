@@ -47,7 +47,7 @@ export default defineConfig((config) => {
           entry: 'src/webhooks.ts'
         }
       ],
-      cjs: true,
+      cjs: false,
       // Keep console output: it is how clerk-js load failures are reported.
       drop_console: false,
       modify_esbuild_options: (options, permutation) => {

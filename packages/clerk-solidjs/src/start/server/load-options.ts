@@ -5,7 +5,7 @@ import { isHttpOrHttps, isProxyUrlRelative } from '@clerk/shared/proxy';
 import { handleValueOrFn } from '@clerk/shared/utils';
 
 import { errorThrower } from '../../errors/error-thrower';
-import { getEnvVariable, getPublicEnvVariables } from '../utils/env';
+import { getEnvVariable } from '../utils/env';
 import { commonEnvs } from './constants';
 import type { ClerkMiddlewareOptions } from './types';
 
@@ -39,10 +39,6 @@ export const loadOptions = (
   );
   const signInUrl = overrides.signInUrl || env.SIGN_IN_URL;
   const signUpUrl = overrides.signUpUrl || env.SIGN_UP_URL;
-  const afterSignInUrl =
-    overrides.afterSignInUrl || getPublicEnvVariables().afterSignInUrl;
-  const afterSignUpUrl =
-    overrides.afterSignUpUrl || getPublicEnvVariables().afterSignUpUrl;
 
   let proxyUrl;
   if (
@@ -87,9 +83,7 @@ export const loadOptions = (
     isSatellite,
     proxyUrl,
     signInUrl,
-    signUpUrl,
-    afterSignInUrl,
-    afterSignUpUrl
+    signUpUrl
   };
 };
 

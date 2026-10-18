@@ -6,6 +6,9 @@ import type {
   OrganizationSwitcherProps,
   SignInProps,
   SignUpProps,
+  TaskChooseOrganizationProps,
+  TaskResetPasswordProps,
+  TaskSetupMFAProps,
   UserButtonProps,
   UserProfileModalProps,
   UserProfileProps,
@@ -591,4 +594,67 @@ export const GoogleOneTap = withClerk(
   },
   // Opening before clerk-js loads queues in IsomorphicClerk.
   { component: 'GoogleOneTap', renderWhileLoading: true }
+);
+
+/**
+ * Clerk's choose-organization session task. A session with this task counts
+ * as signed out until the user finishes it here.
+ */
+export const TaskChooseOrganization = withClerk(
+  (props: WithClerkProp<TaskChooseOrganizationProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="TaskChooseOrganization"
+        fallback={local.fallback}
+        mount={local.clerk().mountTaskChooseOrganization}
+        unmount={local.clerk().unmountTaskChooseOrganization}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'TaskChooseOrganization', renderWhileLoading: true }
+);
+
+/** Clerk's reset-password session task. */
+export const TaskResetPassword = withClerk(
+  (props: WithClerkProp<TaskResetPasswordProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="TaskResetPassword"
+        fallback={local.fallback}
+        mount={local.clerk().mountTaskResetPassword}
+        unmount={local.clerk().unmountTaskResetPassword}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'TaskResetPassword', renderWhileLoading: true }
+);
+
+/** Clerk's set-up-MFA session task. */
+export const TaskSetupMFA = withClerk(
+  (props: WithClerkProp<TaskSetupMFAProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="TaskSetupMFA"
+        fallback={local.fallback}
+        mount={local.clerk().mountTaskSetupMFA}
+        unmount={local.clerk().unmountTaskSetupMFA}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'TaskSetupMFA', renderWhileLoading: true }
 );

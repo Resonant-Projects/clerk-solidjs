@@ -14,6 +14,7 @@ export type {
   PaginatedResources,
   RedirectToSignInProps,
   RedirectToSignUpProps,
+  RedirectToTasksProps,
   SignInButtonProps,
   SignInWithMetamaskButtonProps,
   SignOutButtonProps,

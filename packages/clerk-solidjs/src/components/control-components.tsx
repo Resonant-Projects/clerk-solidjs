@@ -1,9 +1,6 @@
 import { deprecated } from '@clerk/shared/deprecated';
 import type {
-  CheckAuthorizationWithCustomPermissions,
   HandleOAuthCallbackParams,
-  OrganizationCustomPermissionKey,
-  OrganizationCustomRoleKey,
   PendingSessionOptions,
   ShowWhenCondition
 } from '@clerk/shared/types';
@@ -23,6 +20,7 @@ import { useAuth } from '../hooks/use-auth';
 import type {
   RedirectToSignInProps,
   RedirectToSignUpProps,
+  RedirectToTasksProps,
   WithClerkProp
 } from '../types';
 import { withClerk } from './with-clerk';
@@ -126,106 +124,6 @@ export const Show = (props: ShowProps): JSX.Element => {
 /** `Show` under a name that does not collide with solid-js's `Show`. */
 export const ClerkShow = Show;
 
-type PendingSessionProps = ParentProps<PendingSessionOptions>;
-
-/**
- * Renders its children once a user is signed in. A session with pending tasks
- * counts as signed out unless `treatPendingAsSignedOut` is `false`.
- *
- * @deprecated Use `<Show when="signed-in">`. Removed in 4.0.
- */
-export const SignedIn = (props: PendingSessionProps): JSX.Element => {
-  useAssertWrappedByClerkProvider('SignedIn');
-  deprecated('SignedIn', 'Use `<Show when="signed-in">` instead.');
-  return (
-    <Show
-      when="signed-in"
-      treatPendingAsSignedOut={props.treatPendingAsSignedOut}
-    >
-      {props.children}
-    </Show>
-  );
-};
-
-/**
- * Renders its children once Clerk has loaded and no user is signed in. A
- * session with pending tasks counts as signed out unless
- * `treatPendingAsSignedOut` is `false`.
- *
- * @deprecated Use `<Show when="signed-out">`. Removed in 4.0.
- */
-export const SignedOut = (props: PendingSessionProps): JSX.Element => {
-  useAssertWrappedByClerkProvider('SignedOut');
-  deprecated('SignedOut', 'Use `<Show when="signed-out">` instead.');
-  return (
-    <Show
-      when="signed-out"
-      treatPendingAsSignedOut={props.treatPendingAsSignedOut}
-    >
-      {props.children}
-    </Show>
-  );
-};
-
-/** @deprecated Use `ShowProps`. Removed in 4.0. */
-export type ProtectProps = ParentProps<
-  (
-    | {
-        condition?: never;
-        role: OrganizationCustomRoleKey;
-        permission?: never;
-      }
-    | {
-        condition?: never;
-        role?: never;
-        permission: OrganizationCustomPermissionKey;
-      }
-    | {
-        condition: (has: CheckAuthorizationWithCustomPermissions) => boolean;
-        role?: never;
-        permission?: never;
-      }
-    | {
-        condition?: never;
-        role?: never;
-        permission?: never;
-      }
-  ) & {
-    fallback?: JSX.Element;
-  } & PendingSessionOptions
->;
-
-/**
- * Renders its children for a signed-in user who passes the check, and
- * `fallback` otherwise. With no `role`, `permission` or `condition`, any
- * signed-in user passes.
- *
- * @deprecated Use `<Show when={…}>`: `role` and `permission` become
- * `when={{ role }}` and `when={{ permission }}`, `condition` becomes
- * `when={condition}`, and no check becomes `when="signed-in"`. Removed in 4.0.
- */
-export const Protect = (props: ProtectProps): JSX.Element => {
-  useAssertWrappedByClerkProvider('Protect');
-  deprecated('Protect', 'Use `<Show when={…}>` instead.');
-
-  const when = createMemo((): ShowWhenCondition => {
-    if (typeof props.condition === 'function') return props.condition;
-    if (props.role) return { role: props.role };
-    if (props.permission) return { permission: props.permission };
-    return 'signed-in';
-  });
-
-  return (
-    <Show
-      when={when()}
-      fallback={props.fallback}
-      treatPendingAsSignedOut={props.treatPendingAsSignedOut}
-    >
-      {props.children}
-    </Show>
-  );
-};
-
 export const RedirectToSignIn = withClerk(
   (props: WithClerkProp<RedirectToSignInProps>) => {
     const [local, redirectToSignInProps] = splitProps(props, ['clerk']);
@@ -258,6 +156,22 @@ export const RedirectToSignUp = withClerk(
     return null;
   },
   'RedirectToSignUp'
+);
+
+/**
+ * Sends the user to the session's pending tasks, such as choosing an
+ * organization, once Clerk has loaded.
+ */
+export const RedirectToTasks = withClerk(
+  (props: WithClerkProp<RedirectToTasksProps>) => {
+    const [local, redirectToTasksProps] = splitProps(props, ['clerk']);
+    onMount(() => {
+      void local.clerk().redirectToTasks({ ...redirectToTasksProps });
+    });
+
+    return null;
+  },
+  'RedirectToTasks'
 );
 
 /**
