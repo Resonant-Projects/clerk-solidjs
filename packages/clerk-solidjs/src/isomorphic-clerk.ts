@@ -53,6 +53,7 @@ import { handleValueOrFn, logErrorInDevMode } from '@clerk/shared/utils';
 
 import { errorThrower } from './errors/error-thrower';
 import { unsupportedNonBrowserDomainOrProxyUrlFunction } from './errors/messages';
+import { installGlobalPolyfill } from './polyfills';
 import type {
   BrowserClerk,
   BrowserClerkConstructor,
@@ -64,9 +65,13 @@ import type {
 } from './types';
 import { isConstructor } from './utils';
 
-if (typeof globalThis.__BUILD_DISABLE_RHC__ === 'undefined') {
-  globalThis.__BUILD_DISABLE_RHC__ = false;
-}
+/**
+ * True when the app's bundler defines `__BUILD_DISABLE_RHC__` (or the global
+ * is set) to turn off loading Clerk from the CDN. `typeof` keeps this safe
+ * when it is undefined, so nothing needs setting at import.
+ */
+const remotelyHostedCodeDisabled = () =>
+  typeof __BUILD_DISABLE_RHC__ !== 'undefined' && !!__BUILD_DISABLE_RHC__;
 
 const SDK_METADATA = {
   name: PACKAGE_NAME,
@@ -338,6 +343,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     this.options = options;
     this.Clerk = Clerk;
     this.mode = inBrowser() ? 'browser' : 'server';
+    installGlobalPolyfill();
     // Options can be a Solid props proxy, which ignores writes, so the
     // default is kept here and passed to clerk-js explicitly.
     this.#sdkMetadata = options?.sdkMetadata ?? SDK_METADATA;
@@ -568,7 +574,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     // Hot-load clerk-js from the Clerk CDN unless the app passes its own Clerk.
     if (
       (!this.Clerk || this.options.__internal_clerkJSUrl) &&
-      !__BUILD_DISABLE_RHC__ &&
+      !remotelyHostedCodeDisabled() &&
       !globalThis.Clerk
     ) {
       await loadClerkJSScript({
@@ -614,7 +620,7 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       return undefined;
     }
 
-    if (__BUILD_DISABLE_RHC__) {
+    if (remotelyHostedCodeDisabled()) {
       return undefined;
     }
 

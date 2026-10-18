@@ -23,6 +23,7 @@
   "main": "./dist/index/server.cjs",
   "module": "./dist/index/server.js",
   "types": "./dist/index/index.d.ts",
+  "sideEffects": false,
   "typesVersions": {
     "*": {
       "errors": [
@@ -42,7 +43,10 @@
   "exports": {
     ".": {
       "worker": {
-        "solid": "./dist/index/server.jsx",
+        "solid": {
+          "types": "./dist/index/index.d.ts",
+          "default": "./dist/index/server.jsx"
+        },
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/server.js"
@@ -53,7 +57,21 @@
         }
       },
       "browser": {
-        "solid": "./dist/index/index.jsx",
+        "solid": {
+          "types": "./dist/index/index.d.ts",
+          "development": "./dist/index/dev.jsx",
+          "default": "./dist/index/index.jsx"
+        },
+        "development": {
+          "import": {
+            "types": "./dist/index/index.d.ts",
+            "default": "./dist/index/dev.js"
+          },
+          "require": {
+            "types": "./dist/index/index.d.cts",
+            "default": "./dist/index/dev.cjs"
+          }
+        },
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/index.js"
@@ -64,7 +82,10 @@
         }
       },
       "deno": {
-        "solid": "./dist/index/server.jsx",
+        "solid": {
+          "types": "./dist/index/index.d.ts",
+          "default": "./dist/index/server.jsx"
+        },
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/server.js"
@@ -75,7 +96,10 @@
         }
       },
       "node": {
-        "solid": "./dist/index/server.jsx",
+        "solid": {
+          "types": "./dist/index/index.d.ts",
+          "default": "./dist/index/server.jsx"
+        },
         "import": {
           "types": "./dist/index/index.d.ts",
           "default": "./dist/index/server.js"
@@ -85,7 +109,21 @@
           "default": "./dist/index/server.cjs"
         }
       },
-      "solid": "./dist/index/index.jsx",
+      "solid": {
+        "types": "./dist/index/index.d.ts",
+        "development": "./dist/index/dev.jsx",
+        "default": "./dist/index/index.jsx"
+      },
+      "development": {
+        "import": {
+          "types": "./dist/index/index.d.ts",
+          "default": "./dist/index/dev.js"
+        },
+        "require": {
+          "types": "./dist/index/index.d.cts",
+          "default": "./dist/index/dev.cjs"
+        }
+      },
       "import": {
         "types": "./dist/index/index.d.ts",
         "default": "./dist/index/index.js"
@@ -117,7 +155,10 @@
     },
     "./start": {
       "worker": {
-        "solid": "./dist/start/server.jsx",
+        "solid": {
+          "types": "./dist/start/index.d.ts",
+          "default": "./dist/start/server.jsx"
+        },
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/server.js"
@@ -128,7 +169,21 @@
         }
       },
       "browser": {
-        "solid": "./dist/start/index.jsx",
+        "solid": {
+          "types": "./dist/start/index.d.ts",
+          "development": "./dist/start/dev.jsx",
+          "default": "./dist/start/index.jsx"
+        },
+        "development": {
+          "import": {
+            "types": "./dist/start/index.d.ts",
+            "default": "./dist/start/dev.js"
+          },
+          "require": {
+            "types": "./dist/start/index.d.cts",
+            "default": "./dist/start/dev.cjs"
+          }
+        },
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/index.js"
@@ -139,7 +194,10 @@
         }
       },
       "deno": {
-        "solid": "./dist/start/server.jsx",
+        "solid": {
+          "types": "./dist/start/index.d.ts",
+          "default": "./dist/start/server.jsx"
+        },
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/server.js"
@@ -150,7 +208,10 @@
         }
       },
       "node": {
-        "solid": "./dist/start/server.jsx",
+        "solid": {
+          "types": "./dist/start/index.d.ts",
+          "default": "./dist/start/server.jsx"
+        },
         "import": {
           "types": "./dist/start/index.d.ts",
           "default": "./dist/start/server.js"
@@ -160,7 +221,21 @@
           "default": "./dist/start/server.cjs"
         }
       },
-      "solid": "./dist/start/index.jsx",
+      "solid": {
+        "types": "./dist/start/index.d.ts",
+        "development": "./dist/start/dev.jsx",
+        "default": "./dist/start/index.jsx"
+      },
+      "development": {
+        "import": {
+          "types": "./dist/start/index.d.ts",
+          "default": "./dist/start/dev.js"
+        },
+        "require": {
+          "types": "./dist/start/index.d.cts",
+          "default": "./dist/start/dev.cjs"
+        }
+      },
       "import": {
         "types": "./dist/start/index.d.ts",
         "default": "./dist/start/index.js"
@@ -179,7 +254,8 @@
         "types": "./dist/start/server/index.d.cts",
         "default": "./dist/start/server/index.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "browser": {
     "./dist/index/server.js": "./dist/index/index.js",
@@ -202,7 +278,9 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "clean": "rimraf dist",
-    "publish:local": "pnpm dlx yalc push --replace  --sig"
+    "publish:local": "pnpm dlx yalc push --replace  --sig",
+    "check:dist": "node scripts/check-dist.mjs",
+    "vendor:clerk-ui-types": "node scripts/vendor-clerk-ui-types.mjs"
   },
   "dependencies": {
     "@clerk/backend": "^3.24.0",
@@ -244,7 +322,7 @@
     "solid-js": ">=1"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "publishConfig": {
     "access": "public",

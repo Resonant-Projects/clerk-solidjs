@@ -27,6 +27,10 @@ jobs:
         uses: ./.github/actions/ci-setup
       - name: Build
         run: pnpm run build
+      - name: Check dist
+        # exports paths exist, and `.` and `./start` share one copy of the
+        # Clerk contexts under the browser, node and solid conditions.
+        run: pnpm --filter @resonant-projects/clerk-solidjs run check:dist
       - name: Test
         run: pnpm run test
 

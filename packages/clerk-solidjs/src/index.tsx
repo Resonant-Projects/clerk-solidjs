@@ -1,7 +1,3 @@
-import './polyfills';
-
-import { setErrorThrowerOptions } from './errors/error-thrower';
-
 export * from './components';
 export * from './contexts';
 
@@ -10,7 +6,22 @@ export type {
   BrowserClerk,
   ClerkProp,
   ClerkProviderProps,
-  HeadlessBrowserClerk
+  HeadlessBrowserClerk,
+  IsomorphicClerkOptions,
+  OrganizationProfileLinkProps,
+  OrganizationProfilePageProps,
+  PaginatedHookConfig,
+  PaginatedResources,
+  RedirectToSignInProps,
+  RedirectToSignUpProps,
+  SignInButtonProps,
+  SignInWithMetamaskButtonProps,
+  SignOutButtonProps,
+  SignUpButtonProps,
+  Ui,
+  UserButtonActionProps,
+  UserButtonLinkProps,
+  UserProfileLinkProps,
+  UserProfilePageProps,
+  WithClerkProp
 } from './types';
-
-setErrorThrowerOptions({ packageName: PACKAGE_NAME });
