@@ -1,8 +1,9 @@
-import type { LoadedClerk, Without } from '@clerk/shared/types';
+import type { LoadedClerk } from '@clerk/shared/types';
 import { Accessor, Component, Show } from 'solid-js';
 import { useClerkLoadState } from '../contexts/clerk-status';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { useAssertWrappedByClerkProvider } from '../hooks/use-assert-wrapped-by-clerk-provider';
+import type { DistributiveOmit } from '../types';
 
 type WithClerkOptions = {
   component: string;
@@ -24,14 +25,16 @@ export const withClerk = <P extends { clerk: Accessor<LoadedClerk> }>(
   const displayName = options?.component || Component.name || 'Component';
   const renderWhileLoading = !!options?.renderWhileLoading;
 
-  return (props: Without<P, 'clerk'>) => {
+  // Distributive, so union props such as a button's modal-only `appearance`
+  // survive.
+  return (props: DistributiveOmit<P, 'clerk'>) => {
     useAssertWrappedByClerkProvider(displayName);
     const clerk = useIsomorphicClerkContext();
     const { loaded } = useClerkLoadState();
 
     return (
       <Show when={renderWhileLoading || loaded()}>
-        <Component {...(props as P)} clerk={clerk} />
+        <Component {...(props as unknown as P)} clerk={clerk} />
       </Show>
     );
   };

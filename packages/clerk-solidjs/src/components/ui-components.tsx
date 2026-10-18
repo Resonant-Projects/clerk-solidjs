@@ -9,16 +9,20 @@ import type {
   UserButtonProps,
   UserProfileModalProps,
   UserProfileProps,
+  WaitlistProps,
   Without
 } from '@clerk/shared/types';
 import {
   Component,
   createEffect,
   createMemo,
+  createSignal,
+  JSX,
   on,
   onCleanup,
   onMount,
   ParentProps,
+  Show,
   splitProps,
   untrack
 } from 'solid-js';
@@ -87,6 +91,11 @@ type OrganizationSwitcherPropsWithoutCustomPages = Without<
   organizationProfileProps?: Pick<OrganizationProfileProps, 'appearance'>;
 };
 
+type FallbackProp = {
+  /** Rendered until the Clerk component has rendered, including on the server. */
+  fallback?: JSX.Element;
+};
+
 const isMountProps = (props: any): props is MountProps => {
   return 'mount' in props;
 };
@@ -95,9 +104,51 @@ const isOpenProps = (props: any): props is OpenProps => {
   return 'open' in props;
 };
 
-const Portal: Component<MountProps | OpenProps> = (props) => {
+/**
+ * Calls `onReady` once Clerk has rendered into `node`: once it has children,
+ * or an element matching `selector`.
+ */
+const watchRendered = (
+  node: HTMLDivElement,
+  selector: string | undefined,
+  onReady: () => void
+) => {
+  const isReady = () =>
+    selector ? !!node.querySelector(selector) : node.childElementCount > 0;
+  if (isReady()) {
+    onReady();
+    return;
+  }
+  const observer = new MutationObserver(() => {
+    if (!isReady()) return;
+    observer.disconnect();
+    onReady();
+  });
+  observer.observe(node, {
+    childList: true,
+    subtree: true,
+    attributes: !!selector
+  });
+  onCleanup(() => observer.disconnect());
+};
+
+type HostProps = (MountProps | OpenProps) & {
+  /** Set as `data-clerk-component` on the host element. */
+  component: string;
+  fallback?: JSX.Element;
+  /** An element inside the host that means Clerk has rendered. */
+  readySelector?: string;
+};
+
+/**
+ * The element a Clerk component mounts into. It renders on the server and
+ * before clerk-js loads; IsomorphicClerk queues the mount until clerk-js is
+ * ready. `fallback` shows until Clerk has rendered.
+ */
+const Portal: Component<HostProps> = (props) => {
   let node: HTMLDivElement | undefined;
   let mounted = false;
+  const [rendered, setRendered] = createSignal(false);
 
   // Spreading reads every key, so this re-runs when any prop changes, whether
   // the caller passes a splitProps proxy or an object literal. Clerk keeps the
@@ -108,6 +159,11 @@ const Portal: Component<MountProps | OpenProps> = (props) => {
     if (!node) return;
     if (isMountProps(props)) {
       props.mount(node, untrack(snapshot));
+      watchRendered(
+        node,
+        untrack(() => props.readySelector),
+        () => setRendered(true)
+      );
     } else if (isOpenProps(props)) {
       props.open(untrack(snapshot));
     }
@@ -136,61 +192,86 @@ const Portal: Component<MountProps | OpenProps> = (props) => {
   });
 
   return (
-    <div
-      ref={(el) => {
-        node = el;
-      }}
-    />
+    <>
+      <Show when={!rendered()}>{props.fallback}</Show>
+      <div
+        ref={(el) => {
+          node = el;
+        }}
+        data-clerk-component={props.component}
+      />
+    </>
   );
 };
 
-export const SignIn = withClerk((props: WithClerkProp<SignInProps>) => {
-  const [local, rest] = splitProps(props, ['clerk']);
-  return (
-    <Portal
-      mount={local.clerk().mountSignIn}
-      unmount={local.clerk().unmountSignIn}
-      updateProps={
-        (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
-      }
-      props={rest}
-    />
-  );
-}, 'SignIn');
+export const SignIn = withClerk(
+  (props: WithClerkProp<SignInProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="SignIn"
+        fallback={local.fallback}
+        mount={local.clerk().mountSignIn}
+        unmount={local.clerk().unmountSignIn}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'SignIn', renderWhileLoading: true }
+);
 
-export const Waitlist = withClerk((props: WithClerkProp<SignInProps>) => {
-  const [local, rest] = splitProps(props, ['clerk']);
-  return (
-    <Portal
-      mount={local.clerk().mountWaitlist}
-      unmount={local.clerk().unmountWaitlist}
-      updateProps={
-        (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
-      }
-      props={rest}
-    />
-  );
-}, 'Waitlist');
+export const Waitlist = withClerk(
+  (props: WithClerkProp<WaitlistProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="Waitlist"
+        fallback={local.fallback}
+        mount={local.clerk().mountWaitlist}
+        unmount={local.clerk().unmountWaitlist}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'Waitlist', renderWhileLoading: true }
+);
 
-export const SignUp = withClerk((props: WithClerkProp<SignUpProps>) => {
-  const [local, rest] = splitProps(props, ['clerk']);
-  return (
-    <Portal
-      mount={local.clerk().mountSignUp}
-      unmount={local.clerk().unmountSignUp}
-      updateProps={
-        (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
-      }
-      props={rest}
-    />
-  );
-}, 'SignUp');
+export const SignUp = withClerk(
+  (props: WithClerkProp<SignUpProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
+    return (
+      <Portal
+        component="SignUp"
+        fallback={local.fallback}
+        mount={local.clerk().mountSignUp}
+        unmount={local.clerk().unmountSignUp}
+        updateProps={
+          (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
+        }
+        props={rest}
+      />
+    );
+  },
+  { component: 'SignUp', renderWhileLoading: true }
+);
 
 const _UserProfile = withClerk(
   (
-    props: WithClerkProp<ParentProps<Without<UserProfileProps, 'customPages'>>>
+    props: WithClerkProp<
+      ParentProps<Without<UserProfileProps, 'customPages'>> & FallbackProp
+    >
   ) => {
-    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const [local, clerkProps] = splitProps(props, [
+      'clerk',
+      'children',
+      'fallback'
+    ]);
     const portals = createCustomElementPortals();
     const entries = resolveCustomChildren(() => local.children);
     const pages = createMemo(() =>
@@ -204,6 +285,8 @@ const _UserProfile = withClerk(
     return (
       <>
         <Portal
+          component="UserProfile"
+          fallback={local.fallback}
           mount={local.clerk().mountUserProfile}
           unmount={local.clerk().unmountUserProfile}
           updateProps={
@@ -215,7 +298,7 @@ const _UserProfile = withClerk(
       </>
     );
   },
-  'UserProfile'
+  { component: 'UserProfile', renderWhileLoading: true }
 );
 
 export const UserProfile: UserProfileExportType = Object.assign(_UserProfile, {
@@ -224,8 +307,16 @@ export const UserProfile: UserProfileExportType = Object.assign(_UserProfile, {
 });
 
 const _UserButton = withClerk(
-  (props: WithClerkProp<ParentProps<UserButtonPropsWithoutCustomPages>>) => {
-    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+  (
+    props: WithClerkProp<
+      ParentProps<UserButtonPropsWithoutCustomPages> & FallbackProp
+    >
+  ) => {
+    const [local, clerkProps] = splitProps(props, [
+      'clerk',
+      'children',
+      'fallback'
+    ]);
     const portals = createCustomElementPortals();
     const entries = resolveCustomChildren(() => local.children);
     const pages = createMemo(() =>
@@ -242,6 +333,8 @@ const _UserButton = withClerk(
     return (
       <>
         <Portal
+          component="UserButton"
+          fallback={local.fallback}
           mount={local.clerk().mountUserButton}
           unmount={local.clerk().unmountUserButton}
           updateProps={
@@ -262,7 +355,7 @@ const _UserButton = withClerk(
       </>
     );
   },
-  'UserButton'
+  { component: 'UserButton', renderWhileLoading: true }
 );
 
 export const UserButton: UserButtonExportType = Object.assign(_UserButton, {
@@ -276,10 +369,15 @@ export const UserButton: UserButtonExportType = Object.assign(_UserButton, {
 const _OrganizationProfile = withClerk(
   (
     props: WithClerkProp<
-      ParentProps<Without<OrganizationProfileProps, 'customPages'>>
+      ParentProps<Without<OrganizationProfileProps, 'customPages'>> &
+        FallbackProp
     >
   ) => {
-    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const [local, clerkProps] = splitProps(props, [
+      'clerk',
+      'children',
+      'fallback'
+    ]);
     const portals = createCustomElementPortals();
     const entries = resolveCustomChildren(() => local.children);
     const pages = createMemo(() =>
@@ -293,6 +391,8 @@ const _OrganizationProfile = withClerk(
     return (
       <>
         <Portal
+          component="OrganizationProfile"
+          fallback={local.fallback}
           mount={local.clerk().mountOrganizationProfile}
           unmount={local.clerk().unmountOrganizationProfile}
           updateProps={
@@ -304,7 +404,7 @@ const _OrganizationProfile = withClerk(
       </>
     );
   },
-  'OrganizationProfile'
+  { component: 'OrganizationProfile', renderWhileLoading: true }
 );
 
 export const OrganizationProfile: OrganizationProfileExportType = Object.assign(
@@ -316,10 +416,12 @@ export const OrganizationProfile: OrganizationProfileExportType = Object.assign(
 );
 
 export const CreateOrganization = withClerk(
-  (props: WithClerkProp<CreateOrganizationProps>) => {
-    const [local, rest] = splitProps(props, ['clerk']);
+  (props: WithClerkProp<CreateOrganizationProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
     return (
       <Portal
+        component="CreateOrganization"
+        fallback={local.fallback}
         mount={local.clerk().mountCreateOrganization}
         unmount={local.clerk().unmountCreateOrganization}
         updateProps={
@@ -329,16 +431,20 @@ export const CreateOrganization = withClerk(
       />
     );
   },
-  'CreateOrganization'
+  { component: 'CreateOrganization', renderWhileLoading: true }
 );
 
 const _OrganizationSwitcher = withClerk(
   (
     props: WithClerkProp<
-      ParentProps<OrganizationSwitcherPropsWithoutCustomPages>
+      ParentProps<OrganizationSwitcherPropsWithoutCustomPages> & FallbackProp
     >
   ) => {
-    const [local, clerkProps] = splitProps(props, ['clerk', 'children']);
+    const [local, clerkProps] = splitProps(props, [
+      'clerk',
+      'children',
+      'fallback'
+    ]);
     const portals = createCustomElementPortals();
     const entries = resolveCustomChildren(() => local.children);
     const pages = createMemo(() =>
@@ -352,6 +458,8 @@ const _OrganizationSwitcher = withClerk(
     return (
       <>
         <Portal
+          component="OrganizationSwitcher"
+          fallback={local.fallback}
           mount={local.clerk().mountOrganizationSwitcher}
           unmount={local.clerk().unmountOrganizationSwitcher}
           updateProps={
@@ -369,7 +477,7 @@ const _OrganizationSwitcher = withClerk(
       </>
     );
   },
-  'OrganizationSwitcher'
+  { component: 'OrganizationSwitcher', renderWhileLoading: true }
 );
 
 export const OrganizationSwitcher: OrganizationSwitcherExportType =
@@ -379,10 +487,12 @@ export const OrganizationSwitcher: OrganizationSwitcherExportType =
   });
 
 export const OrganizationList = withClerk(
-  (props: WithClerkProp<OrganizationListProps>) => {
-    const [local, rest] = splitProps(props, ['clerk']);
+  (props: WithClerkProp<OrganizationListProps & FallbackProp>) => {
+    const [local, rest] = splitProps(props, ['clerk', 'fallback']);
     return (
       <Portal
+        component="OrganizationList"
+        fallback={local.fallback}
         mount={local.clerk().mountOrganizationList}
         unmount={local.clerk().unmountOrganizationList}
         updateProps={
@@ -392,7 +502,7 @@ export const OrganizationList = withClerk(
       />
     );
   },
-  'OrganizationList'
+  { component: 'OrganizationList', renderWhileLoading: true }
 );
 
 /** Clerk's profile modal is open; `cl-` classes are Clerk's stable appearance hooks. */
@@ -439,6 +549,7 @@ const _UserProfileModal = withClerk(
     return (
       <>
         <Portal
+          component="UserProfileModal"
           open={local.clerk().openUserProfile}
           close={local.clerk().closeUserProfile}
           props={{ ...clerkProps, customPages: pages().customPages }}
@@ -471,11 +582,13 @@ export const GoogleOneTap = withClerk(
     const [local, rest] = splitProps(props, ['clerk']);
     return (
       <Portal
+        component="GoogleOneTap"
         open={local.clerk().openGoogleOneTap}
         close={local.clerk().closeGoogleOneTap}
         props={rest}
       />
     );
   },
-  'GoogleOneTap'
+  // Opening before clerk-js loads queues in IsomorphicClerk.
+  { component: 'GoogleOneTap', renderWhileLoading: true }
 );

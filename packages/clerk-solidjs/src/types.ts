@@ -12,10 +12,10 @@ import type {
   LoadedClerk,
   RedirectUrlProp,
   IsomorphicClerkOptions as SharedIsomorphicClerkOptions,
-  SignInProps,
+  SignInButtonProps as SharedSignInButtonProps,
+  SignUpButtonProps as SharedSignUpButtonProps,
   SignInRedirectOptions,
   SignOutOptions,
-  SignUpProps,
   SignUpRedirectOptions,
   Without
 } from '@clerk/shared/types';
@@ -53,7 +53,7 @@ export type IsomorphicClerkOptions = SharedIsomorphicClerkOptions &
 
 // Distributes over the unions inside ClerkOptions (navigation, domain/proxy)
 // instead of flattening them like a plain Omit would.
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never;
 
@@ -157,34 +157,35 @@ export type ClerkProp =
   | undefined
   | null;
 
-type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
-  mode?: 'redirect' | 'modal';
+/**
+ * Attributes for the default `<button>`. With your own element as the child,
+ * set them on that element instead.
+ */
+type ButtonAttributes = Omit<
+  JSX.ButtonHTMLAttributes<HTMLButtonElement>,
+  'children'
+> & {
+  /** Text for the default button, or one element of your own. */
+  children?: JSX.Element;
 };
 
-export type SignInButtonProps = ButtonProps &
-  Pick<
-    SignInProps,
-    | 'fallbackRedirectUrl'
-    | 'forceRedirectUrl'
-    | 'signUpForceRedirectUrl'
-    | 'signUpFallbackRedirectUrl'
-  >;
+/** `@clerk/shared`'s SignInButtonProps plus `<button>` attributes. */
+export type SignInButtonProps = ButtonAttributes & SharedSignInButtonProps;
 
-export type SignOutButtonProps = ButtonProps &
+/** `@clerk/shared`'s SignUpButtonProps plus `<button>` attributes. */
+export type SignUpButtonProps = ButtonAttributes &
+  SharedSignUpButtonProps & {
+    /** Sent with the modal sign-up. */
+    unsafeMetadata?: SignUpUnsafeMetadata;
+  };
+
+export type SignOutButtonProps = ButtonAttributes &
   Pick<SignOutOptions, 'redirectUrl' | 'sessionId'>;
 
-export type SignUpButtonProps = {
-  unsafeMetadata?: SignUpUnsafeMetadata;
-} & ButtonProps &
-  Pick<
-    SignUpProps,
-    | 'fallbackRedirectUrl'
-    | 'forceRedirectUrl'
-    | 'signInForceRedirectUrl'
-    | 'signInFallbackRedirectUrl'
-  >;
-
-export type SignInWithMetamaskButtonProps = ButtonProps & RedirectUrlProp;
+export type SignInWithMetamaskButtonProps = ButtonAttributes &
+  RedirectUrlProp & {
+    mode?: 'redirect' | 'modal';
+  };
 
 export type RedirectToSignInProps = SignInRedirectOptions;
 export type RedirectToSignUpProps = SignUpRedirectOptions;

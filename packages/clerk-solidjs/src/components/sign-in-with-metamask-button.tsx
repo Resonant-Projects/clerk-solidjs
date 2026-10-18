@@ -1,46 +1,36 @@
-import { children as childrenFn, createMemo, splitProps } from 'solid-js';
+import { splitProps } from 'solid-js';
 import type { SignInWithMetamaskButtonProps, WithClerkProp } from '../types';
-import {
-  assertSingleChild,
-  normalizeWithDefaultValue,
-  safeExecute
-} from '../utils';
+import { ClerkButton } from '../utils';
 import { withClerk } from './with-clerk';
 
+/**
+ * Signs in with MetaMask. Renders the default button, or your own element
+ * passed as its only child.
+ */
 export const SignInWithMetamaskButton = withClerk(
   (props: WithClerkProp<SignInWithMetamaskButtonProps>) => {
     const [local, clerkProps, rest] = splitProps(
       props,
-      ['children'],
-      ['clerk', 'redirectUrl', 'onClick']
+      ['children', 'onClick'],
+      ['clerk', 'redirectUrl', 'mode']
     );
 
-    const children = childrenFn(() =>
-      normalizeWithDefaultValue(local.children, 'Sign in with Metamask')
-    );
-    const child = createMemo(() =>
-      assertSingleChild(children())('SignInWithMetamaskButton')
-    );
-
-    const clickHandler = async () => {
-      const { onClick, clerk, ...opts } = clerkProps;
-      if (onClick) {
-        await safeExecute(onClick)();
-      }
-      async function authenticate() {
-        await clerk().authenticateWithMetamask({
-          ...opts,
-          redirectUrl: opts.redirectUrl || undefined
-        });
-      }
-      void authenticate();
-    };
+    const authenticate = () =>
+      clerkProps.clerk().authenticateWithMetamask({
+        redirectUrl: clerkProps.redirectUrl || undefined
+      });
 
     return (
-      <button {...rest} onClick={clickHandler}>
-        {child()}
-      </button>
+      <ClerkButton
+        name="SignInWithMetamaskButton"
+        defaultText="Sign in with Metamask"
+        attributes={rest}
+        onClick={local.onClick}
+        action={authenticate}
+      >
+        {local.children}
+      </ClerkButton>
     );
   },
-  'SignInWithMetamask'
+  { component: 'SignInWithMetamask', renderWhileLoading: true }
 );

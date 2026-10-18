@@ -3,7 +3,17 @@ import type { JSX } from 'solid-js';
 import { renderToString } from 'solid-js/web';
 import { provideRequestEvent } from 'solid-js/web/storage';
 import { describe, expect, it } from 'vitest';
-import { ClerkFailed, ClerkLoaded, ClerkLoading, Show, useAuth } from '../..';
+import {
+  ClerkFailed,
+  ClerkLoaded,
+  ClerkLoading,
+  Show,
+  SignInButton,
+  SignOutButton,
+  SignUpButton,
+  useAuth,
+  UserButton
+} from '../..';
 import { ClerkProvider } from '../../start';
 import { signedInInitState } from '../../start/client/__tests__/fixtures';
 
@@ -98,5 +108,58 @@ describe('getToken on the server', () => {
     await expect(getToken()).rejects.toMatchObject({
       code: 'clerk_runtime_not_browser'
     });
+  });
+});
+
+describe('buttons on the server', () => {
+  it('render in the server HTML, before Clerk loads', () => {
+    const html = renderOnServer(
+      () => (
+        <>
+          <SignInButton />
+          <SignUpButton class="cta">Join</SignUpButton>
+          <SignOutButton />
+        </>
+      ),
+      { clerkInitialState: signedInInitState() }
+    );
+
+    expect(html).toContain('>Sign in</button>');
+    expect(html).toMatch(/<button[^>]*class="cta\s*"[^>]*>Join<\/button>/);
+    expect(html).toContain('>Sign out</button>');
+  });
+
+  it('render a custom child without wrapping it in another button', () => {
+    const html = renderOnServer(
+      () => (
+        <SignInButton>
+          <button class="custom">Log in</button>
+        </SignInButton>
+      ),
+      { clerkInitialState: signedInInitState() }
+    );
+
+    expect(html).toMatch(/<button[^>]*class="custom"[^>]*>Log in<\/button>/);
+    expect(html.match(/<button/g)).toHaveLength(1);
+  });
+});
+
+describe('UI components on the server', () => {
+  it('render their fallback and host element', () => {
+    const html = renderOnServer(
+      () => (
+        <Show when="signed-in">
+          <UserButton fallback={<span>avatar-placeholder</span>}>
+            <UserButton.MenuItems>
+              <UserButton.Action label="signOut" />
+            </UserButton.MenuItems>
+          </UserButton>
+        </Show>
+      ),
+      { clerkInitialState: signedInInitState() }
+    );
+
+    expect(html).toContain('avatar-placeholder');
+    expect(html).toMatch(/<div[^>]*data-clerk-component="UserButton"/);
   });
 });
