@@ -774,11 +774,13 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     // `notify` hands them its current value. This runs after `loaded` is set,
     // so a listener that sees `'ready'` can use this instance right away.
     if (typeof clerkjs.on === 'function') {
-      this.#eventBus.internal
-        .retrieveListeners(clerkEvents.Status)
-        ?.forEach((listener) => {
-          clerkjs.on(clerkEvents.Status, listener, { notify: true });
-        });
+      // A copy: the bus returns its live array, and a listener that calls
+      // off() while being notified would otherwise make this skip the next.
+      [
+        ...(this.#eventBus.internal.retrieveListeners(clerkEvents.Status) ?? [])
+      ].forEach((listener) => {
+        clerkjs.on(clerkEvents.Status, listener, { notify: true });
+      });
     }
     // A clerk-js without `status` predates the status event, so report
     // `'ready'` to the listeners that stayed here.

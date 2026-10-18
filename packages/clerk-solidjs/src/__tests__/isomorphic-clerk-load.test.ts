@@ -238,6 +238,39 @@ describe('IsomorphicClerk Core 3 loading', () => {
     expect(isomorphicClerk.status).toBe('degraded');
   });
 
+  it('hands every status listener over, even when one unsubscribes as it is told ready', async () => {
+    const withStatus = Object.assign(clerkJS, {
+      status: 'loading' as ClerkStatus,
+      on: vi.fn(
+        (
+          _event: 'status',
+          handler: (status: ClerkStatus) => void,
+          opts?: { notify?: boolean }
+        ) => {
+          if (opts?.notify) handler(withStatus.status);
+        }
+      ),
+      off: vi.fn()
+    });
+    clerkJS.load.mockImplementation(async () => {
+      clerkJS.loaded = true;
+      withStatus.status = 'ready';
+    });
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: withStatus as any
+    });
+    const oneShot = (status: ClerkStatus) => {
+      if (status === 'ready') isomorphicClerk.off('status', oneShot);
+    };
+    const second = vi.fn();
+    isomorphicClerk.on('status', oneShot);
+    isomorphicClerk.on('status', second);
+    await loadedClerk(isomorphicClerk);
+
+    expect(second).toHaveBeenCalledWith('ready');
+  });
+
   it('reports ready for a clerk-js without a status of its own', async () => {
     const isomorphicClerk = new IsomorphicClerk({
       publishableKey: 'pk_test_XXX',
