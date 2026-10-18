@@ -17,6 +17,7 @@ import { useSessionContext } from '../contexts/session';
 import { createCacheKeys, STABLE_KEYS } from '../query/keys';
 import type { PaginatedHookConfig, PaginatedResources } from '../types';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
+import { useAttemptToEnableOrganizations } from './use-attempt-to-enable-organizations';
 import { createSafeValues, usePagesOrInfinite } from './use-pages-or-infinite';
 import { recordTelemetryOnce } from './utils';
 
@@ -25,6 +26,8 @@ type UseOrganizationParams = {
   membershipRequests?: true | PaginatedHookConfig<GetMembershipRequestParams>;
   memberships?: true | PaginatedHookConfig<GetMembersParams>;
   invitations?: true | PaginatedHookConfig<GetInvitationsParams>;
+  /** @internal Skips the enable-organizations prompt, for Clerk's own components. */
+  __internal_skipAttemptToEnableOrganizations?: boolean;
 };
 
 /**
@@ -38,6 +41,10 @@ type UseOrganizationParams = {
  */
 export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
   useAssertWrappedByClerkProvider('useOrganization');
+  useAttemptToEnableOrganizations(
+    'useOrganization',
+    () => !params?.().__internal_skipAttemptToEnableOrganizations
+  );
 
   const organization = useOrganizationContext();
   const session = useSessionContext();

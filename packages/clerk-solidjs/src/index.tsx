@@ -1,12 +1,14 @@
 export * from './components';
 export * from './contexts';
 
+export { getToken } from '@clerk/shared/getToken';
 export * from './hooks';
 export type {
   BrowserClerk,
   ClerkProp,
   ClerkProviderProps,
   HeadlessBrowserClerk,
+  InviteMembersButtonProps,
   IsomorphicClerkOptions,
   OrganizationProfileLinkProps,
   OrganizationProfilePageProps,

@@ -9,7 +9,10 @@ export const STABLE_KEYS = {
   DOMAINS_KEY: 'domains',
   MEMBERSHIP_REQUESTS_KEY: 'membershipRequests',
   MEMBERSHIPS_KEY: 'memberships',
-  INVITATIONS_KEY: 'invitations'
+  INVITATIONS_KEY: 'invitations',
+  API_KEYS_KEY: 'apiKeys',
+  OAUTH_CONSENT_INFO_KEY: 'oauthConsentInfo',
+  ORGANIZATION_CREATION_DEFAULTS_KEY: 'organizationCreationDefaults'
 } as const;
 
 export type ResourceCacheStableKey =

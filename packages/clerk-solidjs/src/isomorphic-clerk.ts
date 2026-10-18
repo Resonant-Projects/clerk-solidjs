@@ -1224,8 +1224,9 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   __internal_attemptToEnableEnvironmentSetting = (
     options: __internal_AttemptToEnableEnvironmentSettingParams
   ): __internal_AttemptToEnableEnvironmentSettingResult | void => {
+    // Optional: replaying the queue must not throw on a clerk-js without it.
     const callback = () =>
-      this.clerkjs?.__internal_attemptToEnableEnvironmentSetting(options);
+      this.clerkjs?.__internal_attemptToEnableEnvironmentSetting?.(options);
     if (this.clerkjs && this.#loaded) {
       return callback() as __internal_AttemptToEnableEnvironmentSettingResult;
     } else {
