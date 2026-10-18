@@ -140,9 +140,9 @@ const useLoadedIsomorphicClerk = (
         void isomorphicClerk().__internal_updateProps({
           appearance
         });
-      },
-      // clerk-js receives the initial value through load().
-      { defer: true }
+      }
+      // Not deferred: with a Clerk instance that has already loaded (passed
+      // in, or reused after a remount), load() never sends the initial value.
     )
   );
 
@@ -155,8 +155,7 @@ const useLoadedIsomorphicClerk = (
             localization
           }
         });
-      },
-      { defer: true }
+      }
     )
   );
 

@@ -63,6 +63,66 @@ describe('Clerk buttons', () => {
     await vi.waitFor(() => expect(clerkJS.redirectToSignIn).toHaveBeenCalled());
   });
 
+  it("await a custom child's own async onClick before the Clerk call", async () => {
+    const clerkJS = createClerkJS();
+    const order: string[] = [];
+    let finishSaving!: () => void;
+    const save = () =>
+      new Promise<void>((resolve) => {
+        order.push('save started');
+        finishSaving = () => {
+          order.push('save finished');
+          resolve();
+        };
+      });
+    clerkJS.signOut.mockImplementation(async () => {
+      order.push('signOut');
+    });
+    renderInProvider(clerkJS, () => (
+      <SignOutButton onClick={() => order.push('button onClick')}>
+        <button onClick={save}>Save and leave</button>
+      </SignOutButton>
+    ));
+    await loaded(clerkJS);
+
+    await userEvent.click(screen.getByText('Save and leave'));
+    expect(order).toEqual(['save started']);
+
+    finishSaving();
+    await vi.waitFor(() =>
+      expect(order).toEqual([
+        'save started',
+        'save finished',
+        'button onClick',
+        'signOut'
+      ])
+    );
+  });
+
+  it('pass a bound onClick its data, and do nothing for a disabled custom child', async () => {
+    const clerkJS = createClerkJS();
+    const bound = vi.fn();
+    renderInProvider(clerkJS, () => (
+      <>
+        <SignInButton>
+          <button onClick={[bound, 'data']}>Bound</button>
+        </SignInButton>
+        <SignUpButton>
+          <button disabled>Disabled</button>
+        </SignUpButton>
+      </>
+    ));
+    await loaded(clerkJS);
+
+    await userEvent.click(screen.getByText('Bound'));
+    await vi.waitFor(() => expect(clerkJS.redirectToSignIn).toHaveBeenCalled());
+    expect(bound).toHaveBeenCalledWith('data', expect.any(MouseEvent));
+
+    await userEvent.click(screen.getByText('Disabled'));
+    await Promise.resolve();
+    expect(clerkJS.redirectToSignUp).not.toHaveBeenCalled();
+  });
+
   it('wrap a text child in the default button, with its attributes', async () => {
     const clerkJS = createClerkJS();
     const onClick = vi.fn();

@@ -6,7 +6,7 @@ import {
   children as resolveChildren,
   Show
 } from 'solid-js';
-import { isServer } from 'solid-js/web';
+import { delegateEvents, isServer } from 'solid-js/web';
 import { errorThrower } from '../errors/error-thrower';
 import { multipleChildrenInButtonComponent } from '../errors/messages';
 
@@ -35,12 +35,50 @@ const callHandler = (handler: ClickHandler, event: MouseEvent) => {
 const isText = (child: unknown): child is string | number =>
   typeof child === 'string' || typeof child === 'number';
 
+type DelegatedClickTarget = Element & {
+  $$click?: (...args: unknown[]) => unknown;
+};
+
+/**
+ * Makes `onClick` run after the element's own Solid `onClick`, awaiting it, as
+ * @clerk/react does with `child.props.onClick`. A rendered Solid element keeps
+ * no props, so this composes in the slot Solid's delegated click dispatch
+ * reads (`$$click`), which also skips disabled elements and stops when a
+ * handler calls `stopPropagation`. Returns a function that restores the slot.
+ */
+const composeClickHandler = (
+  element: Element,
+  onClick: (event: MouseEvent) => unknown
+) => {
+  const target = element as DelegatedClickTarget;
+  let childHandler = target.$$click;
+  // Solid calls a bound handler as (data, event), otherwise as (event).
+  const composed = async function (this: Element, ...args: unknown[]) {
+    const event = args[args.length - 1] as MouseEvent;
+    await childHandler?.apply(this, args);
+    return onClick(event);
+  };
+  Object.defineProperty(target, '$$click', {
+    configurable: true,
+    get: () => composed,
+    // Solid assigns again when a reactive onClick changes.
+    set: (handler) => {
+      childHandler = handler;
+    }
+  });
+  return () => {
+    delete target.$$click;
+    target.$$click = childHandler;
+  };
+};
+
 /**
  * Renders a Clerk button. Text children, or none, render the default
  * `<button>` with `attributes`. A single element child, such as your own
  * `<button>`, renders as it is and gets the click handler, so buttons never
- * nest. Its own `onClick` still runs. Server and client choose the same
- * branch, so the markup hydrates.
+ * nest: its own `onClick` runs first and is awaited, then the button's
+ * `onClick`, then the Clerk call. Server and client choose the same branch,
+ * so the markup hydrates.
  */
 export const ClerkButton = (props: {
   name: ButtonComponentName;
@@ -80,12 +118,11 @@ export const ClerkButton = (props: {
   };
 
   if (!isServer) {
+    delegateEvents(['click']);
     createEffect(() => {
       const element = child();
       if (!(element instanceof Element)) return;
-      const listener = (event: Event) => void handleClick(event as MouseEvent);
-      element.addEventListener('click', listener);
-      onCleanup(() => element.removeEventListener('click', listener));
+      onCleanup(composeClickHandler(element, handleClick));
     });
   }
 

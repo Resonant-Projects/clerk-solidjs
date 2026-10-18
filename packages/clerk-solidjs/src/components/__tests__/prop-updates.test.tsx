@@ -76,6 +76,40 @@ describe('prop updates reach clerk-js', () => {
     );
   });
 
+  it('sends the initial appearance and localization to a Clerk instance that has already loaded', async () => {
+    const { clerkJS } = createFakeClerkJS();
+    // A Clerk instance passed in loaded, or reused after a remount: load()
+    // is skipped, so it never sees the provider's options.
+    clerkJS.loaded = true;
+
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+        appearance={{ variables: { colorPrimary: 'green' } }}
+        localization={{ locale: 'de-DE' }}
+      >
+        <div />
+      </ClerkProvider>
+    ));
+
+    await vi.waitFor(() => {
+      expect(
+        updatesWith(
+          clerkJS,
+          (update) => update.appearance?.variables?.colorPrimary === 'green'
+        )
+      ).toHaveLength(1);
+      expect(
+        updatesWith(
+          clerkJS,
+          (update) => update.options?.localization?.locale === 'de-DE'
+        )
+      ).toHaveLength(1);
+    });
+    expect(clerkJS.load).not.toHaveBeenCalled();
+  });
+
   it('sends a changed <SignIn> prop to __internal_updateProps for its node', async () => {
     const { clerkJS } = createFakeClerkJS();
     const [path, setPath] = createSignal('/sign-in');
