@@ -143,10 +143,11 @@ describe('Clerk buttons', () => {
   it('honour disabled with an element child, and warn about attributes it cannot apply', async () => {
     const clerkJS = createClerkJS();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const childClick = vi.fn();
     renderInProvider(clerkJS, () => (
       <>
         <SignInButton disabled>
-          <button>Disabled sign-in</button>
+          <button onClick={childClick}>Disabled sign-in</button>
         </SignInButton>
         <SignUpButton class="ignored">
           <button>Styled elsewhere</button>
@@ -158,6 +159,7 @@ describe('Clerk buttons', () => {
     await userEvent.click(screen.getByText('Disabled sign-in'));
     await Promise.resolve();
     expect(clerkJS.redirectToSignIn).not.toHaveBeenCalled();
+    expect(childClick).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining(
         '<SignUpButton> sets class only on its default button'

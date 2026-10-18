@@ -28,6 +28,18 @@ describe('ClerkProvider on the server', () => {
     ).toThrow(/publishableKey passed to Clerk is invalid/);
   });
 
+  it('fails the render for a Clerk constructor without a key', () => {
+    class ClerkConstructor {}
+
+    expect(() =>
+      renderToString(() => (
+        <ClerkProvider Clerk={ClerkConstructor as any}>
+          <p>app</p>
+        </ClerkProvider>
+      ))
+    ).toThrow(/Clerk keys are missing/);
+  });
+
   it('renders with a key from the env', () => {
     vi.stubEnv('CLERK_PUBLISHABLE_KEY', TEST_PUBLISHABLE_KEY);
 

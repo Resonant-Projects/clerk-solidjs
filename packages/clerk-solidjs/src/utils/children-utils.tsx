@@ -48,12 +48,15 @@ type DelegatedClickTarget = Element & {
  */
 const composeClickHandler = (
   element: Element,
-  onClick: (event: MouseEvent) => unknown
+  onClick: (event: MouseEvent) => unknown,
+  isDisabled: () => boolean
 ) => {
   const target = element as DelegatedClickTarget;
   let childHandler = target.$$click;
   // Solid calls a bound handler as (data, event), otherwise as (event).
   const composed = function (this: Element, ...args: unknown[]) {
+    // Like a disabled button: neither the child's handler nor Clerk's runs.
+    if (isDisabled()) return;
     const event = args[args.length - 1] as MouseEvent;
     const result = childHandler?.apply(this, args);
     // Only wait for a handler that returns a promise. Otherwise onClick runs
@@ -140,7 +143,13 @@ export const ClerkButton = (props: {
           );
         }
       }
-      onCleanup(composeClickHandler(element, handleClick));
+      onCleanup(
+        composeClickHandler(
+          element,
+          handleClick,
+          () => !!props.attributes.disabled
+        )
+      );
     });
   }
 

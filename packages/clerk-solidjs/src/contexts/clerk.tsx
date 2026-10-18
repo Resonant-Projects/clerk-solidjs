@@ -5,7 +5,7 @@ import { JSX, mergeProps, splitProps, untrack } from 'solid-js';
 import { errorThrower } from '../errors/error-thrower';
 import { multipleClerkProvidersError } from '../errors/messages';
 import type { ClerkProviderProps, IsomorphicClerkOptions, Ui } from '../types';
-import { withMaxAllowedInstancesGuard } from '../utils';
+import { isConstructor, withMaxAllowedInstancesGuard } from '../utils';
 import { ClerkContextProvider } from './clerk-context';
 
 /** `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY`, as in @clerk/react. */
@@ -29,7 +29,9 @@ function ClerkProviderBase<TUi extends Ui = Ui>(
   // Validated during render, so a missing or malformed key also fails on the
   // server instead of only after the first client render.
   untrack(() => {
-    if (rest.Clerk) return;
+    // A Clerk instance the app created carries its own key; a constructor
+    // or the CDN build needs one.
+    if (rest.Clerk && !isConstructor(rest.Clerk)) return;
     const key = publishableKey();
     if (!key) {
       errorThrower.throwMissingPublishableKeyError();
