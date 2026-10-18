@@ -143,6 +143,46 @@ describe('useAPIKeys subjects', () => {
   });
 });
 
+describe('useAPIKeys across accounts', () => {
+  it('fetches the next account its own keys after a direct account switch', async () => {
+    const getAll = vi
+      .fn()
+      .mockResolvedValueOnce({ data: [{ id: 'key_user_1' }], total_count: 1 })
+      .mockResolvedValueOnce({ data: [{ id: 'key_user_2' }], total_count: 1 });
+    const user = signedInUser();
+    const { clerkJS, emit } = createFakeClerkJS({
+      user,
+      session: {
+        id: 'sess_1',
+        status: 'active',
+        user,
+        lastActiveToken: { jwt: { claims: {} } }
+      } as any
+    });
+    Object.assign(clerkJS, { apiKeys: { getAll } });
+    let keys!: ReturnType<typeof useAPIKeys>;
+    renderInProvider(clerkJS, () => {
+      keys = useAPIKeys();
+      return null;
+    });
+    await vi.waitFor(() => expect(keys.data()).toEqual([{ id: 'key_user_1' }]));
+
+    const nextUser = signedInUser({ id: 'user_2' });
+    emit({
+      user: nextUser,
+      session: {
+        id: 'sess_2',
+        status: 'active',
+        user: nextUser,
+        lastActiveToken: { jwt: { claims: {} } }
+      } as any
+    });
+
+    await vi.waitFor(() => expect(keys.data()).toEqual([{ id: 'key_user_2' }]));
+    expect(getAll).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('previous data across accounts', () => {
   it("does not show the previous user's consent info to the next user", async () => {
     let finishSecond!: (info: unknown) => void;

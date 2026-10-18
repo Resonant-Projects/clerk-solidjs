@@ -80,7 +80,9 @@ export function useAPIKeys<T extends UseAPIKeysParams>(
       keys: createCacheKeys({
         stablePrefix: STABLE_KEYS.API_KEYS_KEY,
         authenticated: true,
-        tracked: { subject: safeValues().subject },
+        // The user too: with the default subject, two accounts would
+        // otherwise share a key across a direct account switch.
+        tracked: { userId: user()?.id, subject: safeValues().subject },
         untracked: { args: hookParams() }
       })
     };
