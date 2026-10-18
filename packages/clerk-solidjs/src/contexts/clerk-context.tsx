@@ -95,7 +95,7 @@ const useLoadedIsomorphicClerk = (
     on(
       () => options().appearance,
       (appearance) => {
-        void isomorphicClerk().__unstable__updateProps({
+        void isomorphicClerk().__internal_updateProps({
           appearance
         });
       }
@@ -106,7 +106,7 @@ const useLoadedIsomorphicClerk = (
     on(
       () => options().localization,
       (localization) => {
-        void isomorphicClerk().__unstable__updateProps({
+        void isomorphicClerk().__internal_updateProps({
           options: {
             localization
           }

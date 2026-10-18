@@ -24,7 +24,7 @@ describe('isomorphicClerk', () => {
   it('updates props asynchronously after clerkjs has loaded', async () => {
     const propsHistory: any[] = [];
     const dummyClerkJS = {
-      __unstable__updateProps: (props: any) => propsHistory.push(props)
+      __internal_updateProps: (props: any) => propsHistory.push(props)
     };
 
     const isomorphicClerk = new IsomorphicClerk({
@@ -32,32 +32,32 @@ describe('isomorphicClerk', () => {
     });
     (isomorphicClerk as any).clerkjs = dummyClerkJS as any;
 
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'dark' }
     });
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'light' }
     });
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'purple' }
     });
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'yellow' }
     });
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'red' }
     });
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'blue' }
     });
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'green' }
     });
     expect(propsHistory).toEqual([]);
 
     vitest.spyOn(isomorphicClerk, 'loaded', 'get').mockReturnValue(true);
     isomorphicClerk.emitLoaded();
-    void isomorphicClerk.__unstable__updateProps({
+    void isomorphicClerk.__internal_updateProps({
       appearance: { baseTheme: 'white' }
     });
     await vitest.runAllTimersAsync();

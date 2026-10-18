@@ -5,6 +5,8 @@ import type {
   ClerkUIConstructor,
   ClientResource,
   DomainOrProxyUrl,
+  EnvironmentJSON,
+  EnvironmentResource,
   InitialState,
   InternalClerkScriptProps,
   LoadedClerk,
@@ -79,6 +81,18 @@ export interface OpenProps {
   open: (props: any) => void;
   close: () => void;
   props?: any;
+}
+
+/**
+ * Members of the clerk-js `Clerk` class that IsomorphicClerk forwards to but
+ * that the public `Clerk` interface in `@clerk/shared/types` does not declare.
+ * `__tests__/clerk-js-contract.test.ts` checks them against `@clerk/clerk-js`,
+ * so a rename there fails type-checking instead of silently doing nothing.
+ */
+export interface ClerkJSInternals {
+  __internal_updateProps: (props: any) => Promise<void> | undefined;
+  readonly __internal_environment: EnvironmentResource | null | undefined;
+  __internal_setEnvironment: (env: EnvironmentJSON) => Promise<void>;
 }
 
 export interface HeadlessBrowserClerk extends Clerk {
