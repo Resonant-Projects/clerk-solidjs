@@ -31,7 +31,9 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['src/**/*.test.{ts,tsx}'],
           exclude: nodeTests,
-          setupFiles: ['./node_modules/@testing-library/jest-dom/vitest']
+          setupFiles: ['./node_modules/@testing-library/jest-dom/vitest'],
+          // Solid libraries ship JSX for the consumer to compile.
+          server: { deps: { inline: [/@solidjs\/router/] } }
         }
       },
       {
@@ -43,7 +45,11 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: nodeTests,
-          server: { deps: { inline: [/solid-js/, /@solid-primitives/] } }
+          server: {
+            deps: {
+              inline: [/solid-js/, /@solid-primitives/, /@solidjs\/router/]
+            }
+          }
         }
       }
     ]
