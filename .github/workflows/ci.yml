@@ -34,6 +34,28 @@ jobs:
       - name: Test
         run: pnpm run test
 
+  oldest-node:
+    # The oldest Node.js `engines` allows. Its Response differs from newer
+    # releases'. jsdom needs a newer Node, so only the server tests run here.
+    name: Server on Node 22.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+        with:
+          node-version: "22.12"
+      - name: Build
+        run: pnpm --filter @resonant-projects/clerk-solidjs run build
+      - name: Check dist
+        run: pnpm --filter @resonant-projects/clerk-solidjs run check:dist
+      - name: Test
+        run: pnpm --filter @resonant-projects/clerk-solidjs exec vitest run --project node
+
   quality:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest

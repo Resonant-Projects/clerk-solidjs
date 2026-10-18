@@ -26,3 +26,13 @@ export {
    */
   ClerkProvider
 } from './clerk-provider';
+
+export type { ClerkState, SolidStartClerkProviderProps } from './types';
+
+export {
+  OrganizationList,
+  OrganizationProfile,
+  SignIn,
+  SignUp,
+  UserProfile
+} from './ui-components';

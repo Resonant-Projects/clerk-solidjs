@@ -127,6 +127,16 @@ describe('SolidStart ClerkProvider in the browser', () => {
     ).toEqual({ disabled: true, debug: true });
   });
 
+  it('takes the checkout continue URL from the server state', async () => {
+    window.__clerk_init_state = signedInInitState({
+      __newSubscriptionRedirectUrl: '/billing/done'
+    });
+
+    expect((await loadOptions()).newSubscriptionRedirectUrl).toBe(
+      '/billing/done'
+    );
+  });
+
   it('prefers the server state over the env', async () => {
     window.__clerk_init_state = signedInInitState({
       __proxyUrl: 'https://server.example.com/__clerk'

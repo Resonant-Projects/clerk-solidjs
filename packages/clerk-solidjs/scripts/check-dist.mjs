@@ -114,7 +114,13 @@ for (const conditions of conditionSets) {
 // app's bundler, so they are not imported here, and neither is `./start`: it
 // imports @solidjs/router, whose plain-node build is its DOM build, so only a
 // Solid-aware bundler such as SolidStart's can load it.
-for (const subpath of ['.', './errors', './server', './start/server']) {
+for (const subpath of [
+  '.',
+  './errors',
+  './server',
+  './start/server',
+  './webhooks'
+]) {
   const target = resolveExport(pkg.exports[subpath], ['node', 'import']);
   try {
     await import(pathToFileURL(path.join(packageDir, target)).href);

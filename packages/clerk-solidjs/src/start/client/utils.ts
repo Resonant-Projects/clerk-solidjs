@@ -33,7 +33,9 @@ export const pickFromClerkInitState = (
     __signInForceRedirectUrl,
     __signUpForceRedirectUrl,
     __signInFallbackRedirectUrl,
-    __signUpFallbackRedirectUrl
+    __signUpFallbackRedirectUrl,
+    __unsafeDisableDevelopmentModeConsoleWarning,
+    __newSubscriptionRedirectUrl
   } = clerkInitState || {};
 
   return {
@@ -58,7 +60,10 @@ export const pickFromClerkInitState = (
     signInForceRedirectUrl: __signInForceRedirectUrl,
     signUpForceRedirectUrl: __signUpForceRedirectUrl,
     signInFallbackRedirectUrl: __signInFallbackRedirectUrl,
-    signUpFallbackRedirectUrl: __signUpFallbackRedirectUrl
+    signUpFallbackRedirectUrl: __signUpFallbackRedirectUrl,
+    unsafe_disableDevelopmentModeConsoleWarning:
+      __unsafeDisableDevelopmentModeConsoleWarning,
+    newSubscriptionRedirectUrl: __newSubscriptionRedirectUrl
   };
 };
 
@@ -89,6 +94,13 @@ export const mergeWithPublicEnvs = (restInitState: any) => {
       publicEnvVariables.clerkUIVersion,
     signInForceRedirectUrl: restInitState.signInForceRedirectUrl,
     prefetchUI: restInitState.prefetchUI ?? publicEnvVariables.prefetchUI,
+    newSubscriptionRedirectUrl:
+      restInitState.newSubscriptionRedirectUrl ||
+      publicEnvVariables.newSubscriptionRedirectUrl ||
+      undefined,
+    unsafe_disableDevelopmentModeConsoleWarning:
+      restInitState.unsafe_disableDevelopmentModeConsoleWarning ??
+      publicEnvVariables.unsafeDisableDevelopmentModeConsoleWarning,
     telemetry: {
       ...restInitState.telemetry,
       disabled:

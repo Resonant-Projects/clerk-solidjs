@@ -1,4 +1,4 @@
-import { createClerkRequest } from '@clerk/backend/internal';
+import type { ClerkRequest } from '@clerk/backend/internal';
 import { apiUrlFromPublishableKey } from '@clerk/shared/apiUrlFromPublishableKey';
 import { isDevelopmentFromSecretKey } from '@clerk/shared/keys';
 import { isHttpOrHttps, isProxyUrlRelative } from '@clerk/shared/proxy';
@@ -6,42 +6,39 @@ import { handleValueOrFn } from '@clerk/shared/utils';
 
 import { errorThrower } from '../../errors/error-thrower';
 import { getEnvVariable, getPublicEnvVariables } from '../utils/env';
-import {
-  CLERK_JWT_KEY,
-  DOMAIN,
-  IS_SATELLITE,
-  PROXY_URL,
-  PUBLISHABLE_KEY,
-  SECRET_KEY,
-  SIGN_IN_URL,
-  SIGN_UP_URL
-} from './constants';
-import { LoaderOptions } from './types';
-import { patchRequest } from './utils';
+import { commonEnvs } from './constants';
+import type { ClerkMiddlewareOptions } from './types';
 
+/**
+ * Resolves the middleware options for one request: options passed in win,
+ * then the env, read now rather than at import.
+ */
 export const loadOptions = (
-  request: Request,
-  overrides: LoaderOptions = {}
+  request: ClerkRequest,
+  overrides: ClerkMiddlewareOptions = {}
 ) => {
-  const clerkRequest = createClerkRequest(patchRequest(request));
-
-  const secretKey = overrides.secretKey || SECRET_KEY;
-  const publishableKey = overrides.publishableKey || PUBLISHABLE_KEY;
-  const jwtKey = overrides.jwtKey || CLERK_JWT_KEY;
+  const env = commonEnvs();
+  const secretKey = overrides.secretKey || env.SECRET_KEY;
+  const machineSecretKey = overrides.machineSecretKey || env.MACHINE_SECRET_KEY;
+  const publishableKey = overrides.publishableKey || env.PUBLISHABLE_KEY;
+  const jwtKey = overrides.jwtKey || env.CLERK_JWT_KEY;
   const apiUrl =
-    getEnvVariable('CLERK_API_URL') || apiUrlFromPublishableKey(publishableKey);
+    overrides.apiUrl ||
+    getEnvVariable('CLERK_API_URL') ||
+    apiUrlFromPublishableKey(publishableKey);
+  const apiVersion = overrides.apiVersion || env.API_VERSION;
   const domain =
-    handleValueOrFn(overrides.domain, new URL(request.url)) || DOMAIN;
+    handleValueOrFn(overrides.domain, new URL(request.url)) || env.DOMAIN;
   const isSatellite =
     handleValueOrFn(overrides.isSatellite, new URL(request.url)) ||
-    IS_SATELLITE;
+    env.IS_SATELLITE;
   const relativeOrAbsoluteProxyUrl = handleValueOrFn(
-    overrides?.proxyUrl,
-    clerkRequest.clerkUrl,
-    PROXY_URL
+    overrides.proxyUrl,
+    request.clerkUrl,
+    env.PROXY_URL
   );
-  const signInUrl = overrides.signInUrl || SIGN_IN_URL;
-  const signUpUrl = overrides.signUpUrl || SIGN_UP_URL;
+  const signInUrl = overrides.signInUrl || env.SIGN_IN_URL;
+  const signUpUrl = overrides.signUpUrl || env.SIGN_UP_URL;
   const afterSignInUrl =
     overrides.afterSignInUrl || getPublicEnvVariables().afterSignInUrl;
   const afterSignUpUrl =
@@ -52,16 +49,13 @@ export const loadOptions = (
     !!relativeOrAbsoluteProxyUrl &&
     isProxyUrlRelative(relativeOrAbsoluteProxyUrl)
   ) {
-    proxyUrl = new URL(
-      relativeOrAbsoluteProxyUrl,
-      clerkRequest.clerkUrl
-    ).toString();
+    proxyUrl = new URL(relativeOrAbsoluteProxyUrl, request.clerkUrl).toString();
   } else {
     proxyUrl = relativeOrAbsoluteProxyUrl;
   }
 
   if (!secretKey) {
-    throw errorThrower.throw('Clerk: no secret key provided');
+    errorThrower.throwMissingSecretKeyError();
   }
 
   if (isSatellite && !proxyUrl && !domain) {
@@ -81,12 +75,14 @@ export const loadOptions = (
   }
 
   return {
-    // used to append options that are not initialized from env
+    // Every other authenticateRequest option passes through.
     ...overrides,
     secretKey,
+    machineSecretKey,
     publishableKey,
     jwtKey,
     apiUrl,
+    apiVersion,
     domain,
     isSatellite,
     proxyUrl,
@@ -96,3 +92,5 @@ export const loadOptions = (
     afterSignUpUrl
   };
 };
+
+export type LoadedOptions = ReturnType<typeof loadOptions>;

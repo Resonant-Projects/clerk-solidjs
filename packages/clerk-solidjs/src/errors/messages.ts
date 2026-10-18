@@ -65,3 +65,9 @@ export const userButtonMenuItemsActionWrongsProps =
 
 export const userButtonMenuItemActionMissingTarget =
   'Custom menu item must have either an onClick function or an open string naming a profile page (for example "notifications").';
+
+export const authCalledOutsideRequest =
+  'auth() was called outside a request. Call it on the server: inside a "use server" function or query, an API route, or middleware that runs after clerkMiddleware().';
+
+export const clerkMiddlewareNotConfigured =
+  'auth() needs clerkMiddleware(). Add it to your middleware, for example `export default createMiddleware([clerkMiddleware()])` in src/middleware.ts, and set `middleware: "./src/middleware.ts"` in your SolidStart config.';

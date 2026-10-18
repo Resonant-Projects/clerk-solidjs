@@ -1,37 +1,25 @@
-import { A, Navigate } from "@solidjs/router";
-import {
-  Protect,
-  SignInButton,
-  SignOutButton,
-  useAuth,
-  useUser,
-} from "@resonant-projects/clerk-solidjs";
-import { auth } from "@resonant-projects/clerk-solidjs/start/server";
-import { createResource, Show } from "solid-js";
-import { getRequestEvent } from "solid-js/web";
+import { A, createAsync, query } from "@solidjs/router";
+import { auth, clerkClient } from "@resonant-projects/clerk-solidjs/start/server";
+import { Suspense } from "solid-js";
 
-async function getSignedIn() {
+// Runs on the server. A signed-out visitor is sent to sign-in and comes back
+// here afterwards.
+const getProfile = query(async () => {
   "use server";
-  const { userId } = auth();
-  return !!userId;
-}
+  const { userId, redirectToSignIn } = auth();
+  if (!userId) throw redirectToSignIn();
+  const user = await clerkClient().users.getUser(userId);
+  return { name: user.fullName || user.username || user.id };
+}, "profile");
 
 export default function ProtectedPage() {
-  const [isSignedIn] = createResource(getSignedIn);
-  const { user } = useUser();
+  const profile = createAsync(() => getProfile());
 
   return (
     <div class="flex flex-col w-screen h-screen items-center justify-center gap-2">
-      <Show
-        when={isSignedIn()}
-        fallback={
-          <div class="flex flex-col justify-center items-center">
-            You are not signed in
-          </div>
-        }
-      >
-        Welcome, {user()?.fullName}
-      </Show>
+      <Suspense fallback={<p>Loading...</p>}>
+        <p>Welcome, {profile()?.name}</p>
+      </Suspense>
       <A href="/" class="bg-slate-200 rounded-md px-3 py-1">
         Back
       </A>
