@@ -114,9 +114,13 @@ const redactHeaderValue = (key: string, value: string) => {
     return `${value.split(' ')[0]} …`;
   }
   if (/^https?:\/\//i.test(value)) return redactUrlString(value);
+  // A network path (`//host/path`) keeps its host.
+  if (value.startsWith('//')) {
+    return redactUrlString(`https:${value}`).replace(/^https:/, '');
+  }
   // Parsed, not matched as text: a name can be percent-encoded
   // (`%5F%5Fclerk_ticket`), and URLSearchParams decodes it.
-  if (value.startsWith('/') && !value.startsWith('//')) {
+  if (value.startsWith('/')) {
     const url = new URL(redactUrlString(new URL(value, 'http://path').href));
     return `${url.pathname}${url.search}${url.hash}`;
   }

@@ -229,6 +229,37 @@ describe('contentSecurityPolicy', () => {
     expect(event.locals.clerkNonce).toBeUndefined();
   });
 
+  it("allows the proxy's origin, including one on another origin", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const crossOrigin = fetchEvent();
+    await clerkMiddleware({
+      ...options,
+      proxyUrl: 'https://proxy.example.com/clerk',
+      contentSecurityPolicy: {}
+    })(crossOrigin);
+    expect(
+      directive(
+        crossOrigin.response.headers.get('content-security-policy'),
+        'connect-src'
+      )
+    ).toEqual(
+      expect.arrayContaining(['clerk.example.com', 'https://proxy.example.com'])
+    );
+
+    const sameOrigin = fetchEvent();
+    await clerkMiddleware({
+      ...options,
+      frontendApiProxy: { enabled: true },
+      contentSecurityPolicy: {}
+    })(sameOrigin);
+    expect(
+      directive(
+        sameOrigin.response.headers.get('content-security-policy'),
+        'connect-src'
+      )
+    ).toContain('http://localhost:3000');
+  });
+
   it('puts a new nonce in locals and the policy in strict mode', async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
     const first = fetchEvent();
@@ -358,6 +389,8 @@ describe('debug', () => {
             referer:
               'http://localhost:3000/sign-in?__clerk_ticket=tkt_impersonationticket&x=2',
             'x-forwarded-uri': '/accept?__clerk_ticket=tkt_forwardedticket',
+            'x-network-path':
+              '//app.example.com/accept?__clerk_ticket=tkt_networkpathticket',
             'x-original-url':
               '/accept?%5F%5Fclerk_ticket=tkt_encodedticket#%5F%5Fclerk_x=tkt_hashticket'
           }
@@ -376,7 +409,8 @@ describe('debug', () => {
       'tkt_impersonationticket',
       'tkt_forwardedticket',
       'tkt_encodedticket',
-      'tkt_hashticket'
+      'tkt_hashticket',
+      'tkt_networkpathticket'
     ]) {
       expect(output).not.toContain(secret);
     }
@@ -386,6 +420,9 @@ describe('debug', () => {
     expect(output).toContain('tab=1');
     expect(output).toContain('/sign-in?__clerk_ticket=%E2%80%A6&x=2');
     expect(output).toContain('/accept?__clerk_ticket=%E2%80%A6');
+    expect(output).toContain(
+      '//app.example.com/accept?__clerk_ticket=%E2%80%A6'
+    );
   });
 
   it("cuts Clerk's tokens out of a handshake redirect's Location", async () => {
