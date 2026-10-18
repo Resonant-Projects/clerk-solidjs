@@ -17,6 +17,7 @@ import {
   untrack
 } from 'solid-js';
 import { IsomorphicClerk } from '../isomorphic-clerk';
+import { clearAuthenticatedQueries } from '../query/clerk-query-client';
 import type { IsomorphicClerkOptions } from '../types';
 import { AuthContextProvider } from './auth';
 import { ClientContextProvider } from './client';
@@ -50,6 +51,20 @@ export function ClerkContextProvider(props: ClerkContextProvider): JSX.Element {
 
   const derivedState = createMemo(() =>
     deriveState(clerkLoaded(), state(), props.initialState)
+  );
+
+  // Cached lists belong to the signed-in user. Clear them on sign-out even
+  // when no list hook is mounted to clear its own, so the next user on this
+  // page never sees them.
+  createEffect(
+    on(
+      () => derivedState().userId,
+      (userId, previousUserId) => {
+        if (typeof previousUserId === 'string' && userId === null) {
+          clearAuthenticatedQueries();
+        }
+      }
+    )
   );
 
   const clerkCtx = () => (clerkLoaded() ? clerk() : clerk());

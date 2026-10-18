@@ -6,7 +6,7 @@ import type {
 } from '@clerk/shared/types';
 import { cleanup, render } from '@solidjs/testing-library';
 import { QueryClient } from '@tanstack/query-core';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX, Show } from 'solid-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClerkProvider, useOrganization, useOrganizationList } from '../..';
 import {
@@ -335,6 +335,37 @@ describe('useOrganization', () => {
 
     await vi.waitFor(() => expect(result.memberships()).toBeNull());
     expect(cache.findAll({ queryKey: ['memberships'] })).toHaveLength(0);
+  });
+});
+
+describe('sign-out', () => {
+  it('clears cached lists even after their hooks have unmounted', async () => {
+    const { clerkJS, emit } = createFakeClerkJS(signedInFixtures());
+    const [showList, setShowList] = createSignal(true);
+    let result!: ReturnType<typeof useOrganization>;
+    const Probe = () => {
+      result = useOrganization(() => ({ memberships: true }));
+      return null;
+    };
+
+    renderInProvider(clerkJS, () => (
+      <Show when={showList()}>
+        <Probe />
+      </Show>
+    ));
+    await vi.waitFor(() =>
+      expect(result.memberships()?.data()).toHaveLength(10)
+    );
+    const cache = getClerkQueryClient()!.getQueryCache();
+    const membershipQueries = () =>
+      cache.findAll({ queryKey: ['memberships'] }).length;
+    expect(membershipQueries()).toBeGreaterThan(0);
+
+    // Navigate away from the list, then sign out.
+    setShowList(false);
+    emit({ user: null, session: null, organization: null });
+
+    await vi.waitFor(() => expect(membershipQueries()).toBe(0));
   });
 });
 

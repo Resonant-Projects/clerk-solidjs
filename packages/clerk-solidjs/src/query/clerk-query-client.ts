@@ -33,6 +33,17 @@ export function getClerkQueryClient(): QueryClient | undefined {
   return clerkQueryClient;
 }
 
+/**
+ * Removes every cached query keyed as authenticated. Called when the user signs
+ * out, so the next user never sees lists fetched for the previous one, even
+ * when no list hook is mounted to clear its own cache.
+ */
+export function clearAuthenticatedQueries(): void {
+  clerkQueryClient?.removeQueries({
+    predicate: (query) => query.queryKey[1] === true
+  });
+}
+
 /** Test-only: install a client with deterministic defaults, or reset it. */
 export function __setClerkQueryClientForTest(
   client: QueryClient | undefined
