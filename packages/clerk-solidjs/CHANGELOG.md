@@ -1,5 +1,41 @@
 # clerk-solidjs
 
+## 4.2.0
+
+### Minor Changes
+
+- af08d4b: Billing, from a new `@resonant-projects/clerk-solidjs/experimental` entry. It is experimental in `@clerk/react` too, so its API can change in a minor release.
+
+  - **Buttons:** `CheckoutButton`, `PlanDetailsButton` and `SubscriptionDetailsButton` open Clerk's billing drawers. Render them for a signed-in user, and with `for="organization"` only with an active organization.
+  - **Hooks:**
+    - `usePlans()`, `useStatements()`, `usePaymentAttempts()` and `usePaymentMethods()` page through billing data.
+    - `useSubscription()` returns the user's or organization's subscription.
+    - `useCheckout()`, with `CheckoutProvider`, drives a custom checkout from clerk-js's checkout signal.
+
+    Params that can change are accessors.
+
+  - **Payment form:** `PaymentElementProvider`, `PaymentElement` and `usePaymentElement()` render Stripe's payment form and submit it. Clerk loads Stripe.js itself.
+  - The billing members of the Clerk instance (`billing`, `__experimental_checkout` and the drawer methods) are no longer stubs.
+
+## 4.1.0
+
+### Minor Changes
+
+- cab18c1: The rest of `@clerk/react`'s components and hooks, apart from billing.
+
+  - **Components:** `PricingTable` (its fallback waits until the plans are fetched), `APIKeys`, `UserAvatar`, `OAuthConsent`, `OAuthDeviceVerification` and `InviteMembersButton`.
+  - **Hooks:**
+    - `useAPIKeys()` pages through API keys.
+    - `useOAuthConsent()` reads an OAuth application's consent info.
+    - `useOAuthDeviceVerification()` looks up, approves or denies a device code.
+    - `useOrganizationCreationDefaults()` returns the suggested organization defaults.
+
+    Params that can change are accessors.
+
+  - **The enable-organizations prompt:** on a development instance without organizations, `useOrganization()`, and `useOrganizationList()` with list params, ask Clerk once to offer turning them on.
+  - **`UNSAFE_PortalProvider`:** renders Clerk's components and modals inside the element its `getContainer` returns, such as a dialog.
+  - **`getToken()`** is exported from the root entry.
+
 ## 4.0.0
 
 ### Major Changes

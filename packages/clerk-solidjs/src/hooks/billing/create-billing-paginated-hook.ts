@@ -138,8 +138,10 @@ export function createBillingPaginatedHook<
         tracked: authenticated
           ? {
               userId: user()?.id,
+              // `null` with no active organization, so the organization's
+              // list is never the user's cache entry.
               ...(payer() === 'organization'
-                ? { orgId: organization()?.id }
+                ? { orgId: organization()?.id ?? null }
                 : {})
             }
           : { for: payer() },

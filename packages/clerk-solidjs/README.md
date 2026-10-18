@@ -382,7 +382,7 @@ const Plans = () => {
       <For each={plans.data()}>
         {(plan) => (
           <CheckoutButton planId={plan.id} planPeriod="month">
-            Choose {plan.name}
+            {`Choose ${plan.name}`}
           </CheckoutButton>
         )}
       </For>

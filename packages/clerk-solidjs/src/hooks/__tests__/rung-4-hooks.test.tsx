@@ -347,6 +347,37 @@ describe('useOAuthDeviceVerification', () => {
     expect(device.isLoading()).toBe(false);
   });
 
+  it('stays submitting after reset while a decision is still on its way', async () => {
+    const { application } = deviceApplication();
+    let finishSubmit!: (result: unknown) => void;
+    application.submitDeviceVerification.mockImplementationOnce(
+      () => new Promise((resolve) => (finishSubmit = resolve)) as any
+    );
+    const clerkJS = setup({ oauthApplication: application });
+    let device!: ReturnType<typeof useOAuthDeviceVerification>;
+    renderInProvider(clerkJS, () => {
+      device = useOAuthDeviceVerification();
+      return null;
+    });
+    await vi.waitFor(() => expect(clerkJS.loaded).toBe(true));
+
+    const pending = device.approve({ userCode: 'AAAA' });
+    device.reset();
+    expect(device.isSubmitting()).toBe(true);
+    await expect(device.deny({ userCode: 'BBBB' })).rejects.toMatchObject({
+      code: 'oauth_device_verification_submission_in_progress'
+    });
+
+    finishSubmit({ status: 'approved' });
+    await pending;
+    expect(device.isSubmitting()).toBe(false);
+    // Discarded by reset, so it sets no result.
+    expect(device.result()).toBeUndefined();
+    await expect(device.deny({ userCode: 'BBBB' })).resolves.toEqual({
+      status: 'denied'
+    });
+  });
+
   it('rejects before Clerk has loaded', async () => {
     const { application } = deviceApplication();
     const { clerkJS } = createFakeClerkJS();

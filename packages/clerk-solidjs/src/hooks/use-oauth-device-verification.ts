@@ -30,7 +30,11 @@ export type UseOAuthDeviceVerificationReturn = {
   deny: (
     params: LookupOAuthDeviceVerificationParams
   ) => Promise<OAuthDeviceVerificationResult>;
-  /** Clears the state; requests already running no longer update it. */
+  /**
+   * Clears the state; requests already running no longer update it. A
+   * decision already sent keeps `isSubmitting` true, and blocks another,
+   * until it settles.
+   */
   reset: () => void;
 };
 
@@ -172,8 +176,11 @@ export function useOAuthDeviceVerification(): UseOAuthDeviceVerificationReturn {
         throw err;
       })
       .finally(() => {
-        if (pendingSubmit?.promise === request) pendingSubmit = null;
-        if (generation === requestGeneration) setIsSubmitting(false);
+        // Submitting lasts until the decision settles, even after reset.
+        if (pendingSubmit?.promise === request) {
+          pendingSubmit = null;
+          setIsSubmitting(false);
+        }
       });
 
     pendingSubmit = { key, promise: request };
@@ -182,13 +189,16 @@ export function useOAuthDeviceVerification(): UseOAuthDeviceVerificationReturn {
 
   const reset = () => {
     generation += 1;
+    // A lookup is a read and can be dropped. A decision already on its way
+    // to Clerk cannot: it still blocks another, as in @clerk/shared, so
+    // isSubmitting stays true until it settles.
     pendingLookup = null;
     batch(() => {
       setData(undefined);
       setResult(undefined);
       setError(null);
       setIsLoading(false);
-      setIsSubmitting(false);
+      setIsSubmitting(pendingSubmit !== null);
     });
   };
 
