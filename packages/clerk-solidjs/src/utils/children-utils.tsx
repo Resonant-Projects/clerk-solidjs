@@ -15,7 +15,10 @@ export type ButtonComponentName =
   | 'SignUpButton'
   | 'SignOutButton'
   | 'SignInWithMetamaskButton'
-  | 'InviteMembersButton';
+  | 'InviteMembersButton'
+  | 'CheckoutButton'
+  | 'PlanDetailsButton'
+  | 'SubscriptionDetailsButton';
 
 type ClickHandler =
   JSX.EventHandlerUnion<HTMLButtonElement, MouseEvent> | undefined;

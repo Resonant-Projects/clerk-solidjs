@@ -12,7 +12,12 @@ export const STABLE_KEYS = {
   INVITATIONS_KEY: 'invitations',
   API_KEYS_KEY: 'apiKeys',
   OAUTH_CONSENT_INFO_KEY: 'oauthConsentInfo',
-  ORGANIZATION_CREATION_DEFAULTS_KEY: 'organizationCreationDefaults'
+  ORGANIZATION_CREATION_DEFAULTS_KEY: 'organizationCreationDefaults',
+  PLANS_KEY: 'billing-plans',
+  SUBSCRIPTION_KEY: 'billing-subscription',
+  PAYMENT_METHODS_KEY: 'billing-payment-methods',
+  PAYMENT_ATTEMPTS_KEY: 'billing-payment-attempts',
+  STATEMENTS_KEY: 'billing-statements'
 } as const;
 
 export type ResourceCacheStableKey =

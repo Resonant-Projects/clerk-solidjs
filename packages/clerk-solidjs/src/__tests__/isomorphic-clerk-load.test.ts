@@ -429,6 +429,45 @@ describe('IsomorphicClerk Core 3 loading', () => {
     ).toHaveBeenCalledWith({ caller: 'OrganizationSwitcher' });
   });
 
+  it('opens the billing drawers called for before clerk-js loads, even without props', async () => {
+    const members = {
+      __internal_openCheckout: vi.fn(),
+      __internal_openPlanDetails: vi.fn(),
+      __internal_openSubscriptionDetails: vi.fn()
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, members) as any
+    });
+    isomorphicClerk.__internal_openCheckout({ planId: 'plan_1' } as any);
+    isomorphicClerk.__internal_openPlanDetails({ planId: 'plan_2' } as any);
+    isomorphicClerk.__internal_openSubscriptionDetails();
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(members.__internal_openCheckout).toHaveBeenCalledWith({
+      planId: 'plan_1'
+    });
+    expect(members.__internal_openPlanDetails).toHaveBeenCalledWith({
+      planId: 'plan_2'
+    });
+    expect(members.__internal_openSubscriptionDetails).toHaveBeenCalledOnce();
+  });
+
+  it('does not open a billing drawer closed before clerk-js loads', async () => {
+    const members = { __internal_openSubscriptionDetails: vi.fn() };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, members) as any
+    });
+    isomorphicClerk.__internal_openSubscriptionDetails();
+    isomorphicClerk.__internal_closeSubscriptionDetails();
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(members.__internal_openSubscriptionDetails).not.toHaveBeenCalled();
+  });
+
   it('skips directory sync and device verification on a clerk-js without them', async () => {
     const isomorphicClerk = new IsomorphicClerk({
       publishableKey: 'pk_test_XXX',

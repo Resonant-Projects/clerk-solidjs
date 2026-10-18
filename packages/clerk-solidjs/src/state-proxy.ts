@@ -1,6 +1,9 @@
 import { inBrowser } from '@clerk/shared/browser';
 import { ClerkRuntimeError } from '@clerk/shared/error';
 import type {
+  __experimental_CheckoutOptions,
+  CheckoutSignalValue,
+  Clerk,
   ClerkStatus,
   SignInErrors,
   SignUpErrors,
@@ -100,8 +103,7 @@ const defaultSignUpVerificationResource = (): SignUpVerificationResource => ({
 });
 
 /**
- * Ported from @clerk/react 6.17.8 (`src/stateProxy.ts`), without the
- * checkout signal, which arrives with billing.
+ * Ported from @clerk/react 6.17.8 (`src/stateProxy.ts`).
  *
  * `IsomorphicClerk.__internal_state` returns this until clerk-js has loaded,
  * and always on the server. Its properties read as defaults until then, and
@@ -123,6 +125,10 @@ export class StateProxy implements State {
   }
   waitlistSignal() {
     return this.waitlistSignalProxy;
+  }
+
+  checkoutSignal(params: __experimental_CheckoutOptions) {
+    return this.buildCheckoutProxy(params);
   }
 
   get __internal_waitlist() {
@@ -421,6 +427,81 @@ export class StateProxy implements State {
     };
   }
 
+  private buildCheckoutProxy(
+    params: __experimental_CheckoutOptions
+  ): CheckoutSignalValue {
+    const gateProperty = this.gateProperty.bind(this);
+    const targetCheckout = () => this.checkout(params);
+    const target = () => targetCheckout().checkout;
+
+    return {
+      errors: {
+        raw: null,
+        global: null
+      },
+      fetchStatus: 'idle' as const,
+      checkout: {
+        get status() {
+          return gateProperty(
+            target,
+            'status',
+            'needs_initialization'
+          ) as 'needs_initialization';
+        },
+        get externalClientSecret() {
+          return gateProperty(target, 'externalClientSecret', null) as null;
+        },
+        get externalGatewayId() {
+          return gateProperty(target, 'externalGatewayId', null) as null;
+        },
+        get paymentMethod() {
+          return gateProperty(target, 'paymentMethod', null) as null;
+        },
+        get plan() {
+          return gateProperty(target, 'plan', null) as null;
+        },
+        get planPeriod() {
+          return gateProperty(target, 'planPeriod', null) as null;
+        },
+        get totals() {
+          return gateProperty(target, 'totals', null) as null;
+        },
+        get isImmediatePlanChange() {
+          return gateProperty(target, 'isImmediatePlanChange', false) as null;
+        },
+        get freeTrialEndsAt() {
+          return gateProperty(target, 'freeTrialEndsAt', null) as null;
+        },
+        get payer() {
+          return gateProperty(target, 'payer', null) as null;
+        },
+        get planPeriodStart() {
+          return gateProperty(target, 'planPeriodStart', null) as null;
+        },
+        get needsPaymentMethod() {
+          return gateProperty(target, 'needsPaymentMethod', null) as null;
+        },
+
+        start: this.gateMethod<ReturnType<typeof target>, 'start'>(
+          target,
+          'start'
+        ),
+        update: this.gateMethod<ReturnType<typeof target>, 'update'>(
+          target,
+          'update'
+        ),
+        confirm: this.gateMethod<ReturnType<typeof target>, 'confirm'>(
+          target,
+          'confirm'
+        ),
+        finalize: this.gateMethod<ReturnType<typeof target>, 'finalize'>(
+          target,
+          'finalize'
+        )
+      }
+    };
+  }
+
   __internal_effect(): () => void {
     throw new Error('__internal_effect called before Clerk is loaded');
   }
@@ -440,6 +521,15 @@ export class StateProxy implements State {
     const c = this.isomorphicClerk.client;
     if (!c) {
       throw new Error('Clerk client not ready');
+    }
+    return c;
+  }
+
+  private get checkout(): Clerk['__experimental_checkout'] {
+    const c = this.isomorphicClerk
+      .__experimental_checkout as Clerk['__experimental_checkout'];
+    if (!c) {
+      throw new Error('Clerk checkout not ready');
     }
     return c;
   }
