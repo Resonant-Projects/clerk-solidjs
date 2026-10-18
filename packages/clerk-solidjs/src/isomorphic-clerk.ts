@@ -52,8 +52,11 @@ import type {
   OrganizationResource,
   OrganizationSwitcherProps,
   PricingTableProps,
+  ProtectAssertion,
+  ProtectCheckFlow,
   RedirectOptions,
   Resources,
+  ResumeAfterProtectCheckParams,
   SDKMetadata,
   SetActiveParams,
   SignInProps,
@@ -63,6 +66,10 @@ import type {
   SignUpRedirectOptions,
   SignUpResource,
   State,
+  TaskChooseOrganizationProps,
+  TaskResetPasswordProps,
+  TaskSetupMFAProps,
+  TasksRedirectOptions,
   UnsubscribeCallback,
   UserAvatarProps,
   UserButtonProps,
@@ -132,21 +139,6 @@ type WithVoidReturnFunctions<T> = {
  * member Clerk adds upstream is a type error until it is ported or listed.
  */
 type NotYetSupported =
-  // F26: session tasks.
-  | 'buildTasksUrl'
-  | 'redirectToTasks'
-  | 'mountTaskChooseOrganization'
-  | 'unmountTaskChooseOrganization'
-  | 'mountTaskResetPassword'
-  | 'unmountTaskResetPassword'
-  | 'mountTaskSetupMFA'
-  | 'unmountTaskSetupMFA'
-  // F27: SSO callback and bot protection.
-  | 'setProtectAssertion'
-  | '__internal_handleResourceCallback'
-  | '__internal_resolvePendingProtectCheck'
-  | '__internal_resumeAfterProtectCheck'
-  | '__internal_protectChallengeLoadTimeoutMs'
   // F37 to F40: billing.
   | '__experimental_checkout'
   | '__internal_openCheckout'
@@ -263,6 +255,18 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   private premountOAuthDeviceVerificationNodes = new Map<
     HTMLDivElement,
     OAuthDeviceVerificationProps | undefined
+  >();
+  private premountTaskChooseOrganizationNodes = new Map<
+    HTMLDivElement,
+    TaskChooseOrganizationProps | undefined
+  >();
+  private premountTaskResetPasswordNodes = new Map<
+    HTMLDivElement,
+    TaskResetPasswordProps | undefined
+  >();
+  private premountTaskSetupMFANodes = new Map<
+    HTMLDivElement,
+    TaskSetupMFAProps | undefined
   >();
   // A separate Map of `addListener` method calls to handle multiple listeners.
   private premountAddListenerCalls = new Map<
@@ -391,6 +395,10 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
   /** clerk-js's module manager, `undefined` until it loads. */
   public get __internal_moduleManager(): ModuleManager | undefined {
     return this.clerkjs?.__internal_moduleManager;
+  }
+
+  public get __internal_protectChallengeLoadTimeoutMs(): number | undefined {
+    return this.clerkjs?.__internal_protectChallengeLoadTimeoutMs;
   }
 
   constructor(options: IsomorphicClerkOptions) {
@@ -554,6 +562,24 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       return callback();
     } else {
       this.premountMethodCalls.set('buildWaitlistUrl', callback);
+    }
+  };
+
+  buildTasksUrl = (): string | void => {
+    const callback = () => this.clerkjs?.buildTasksUrl() || '';
+    if (this.clerkjs && this.#loaded) {
+      return callback();
+    } else {
+      this.premountMethodCalls.set('buildTasksUrl', callback);
+    }
+  };
+
+  setProtectAssertion = (assertion?: ProtectAssertion): void => {
+    const callback = () => this.clerkjs?.setProtectAssertion(assertion);
+    if (this.clerkjs && this.#loaded) {
+      callback();
+    } else {
+      this.premountMethodCalls.set('setProtectAssertion', callback);
     }
   };
 
@@ -871,6 +897,18 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       });
     }
 
+    this.premountTaskChooseOrganizationNodes.forEach((props, node) => {
+      clerkjs.mountTaskChooseOrganization(node, props);
+    });
+
+    this.premountTaskResetPasswordNodes.forEach((props, node) => {
+      clerkjs.mountTaskResetPassword(node, props);
+    });
+
+    this.premountTaskSetupMFANodes.forEach((props, node) => {
+      clerkjs.mountTaskSetupMFA(node, props);
+    });
+
     this.#loaded = true;
 
     // Status listeners move to clerk-js, which now owns the status, and
@@ -950,11 +988,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     return this.#clerkjsInternals?.__internal_environment;
   }
 
-  /** @deprecated Use `__internal_environment`. Removed in 4.0. */
-  get __unstable__environment(): EnvironmentResource | null | undefined {
-    return this.__internal_environment;
-  }
-
   get isSignedIn(): boolean {
     if (this.clerkjs) {
       return this.clerkjs.isSignedIn;
@@ -1004,10 +1037,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     return this.#clerkjsInternals?.__internal_setEnvironment?.(env);
   };
 
-  /** @deprecated Use `__internal_setEnvironment`. Removed in 4.0. */
-  __unstable__setEnvironment = (env: EnvironmentJSON) =>
-    this.__internal_setEnvironment(env);
-
   /**
    * Sends new props to a mounted component (`{ node, props }`) or new
    * `appearance`/`options` to clerk-js. Waits until clerk-js has loaded.
@@ -1026,10 +1055,6 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       );
     }
   };
-
-  /** @deprecated Use `__internal_updateProps`. Removed in 4.0. */
-  __unstable__updateProps = (props: any): Promise<void> =>
-    this.__internal_updateProps(props);
 
   #warnedMissingUpdateProps = false;
 
@@ -1551,6 +1576,60 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
     this.premountOAuthDeviceVerificationNodes.delete(node);
   };
 
+  mountTaskChooseOrganization = (
+    node: HTMLDivElement,
+    props?: TaskChooseOrganizationProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.mountTaskChooseOrganization(node, props);
+    } else {
+      this.premountTaskChooseOrganizationNodes.set(node, props);
+    }
+  };
+
+  unmountTaskChooseOrganization = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.unmountTaskChooseOrganization(node);
+    } else {
+      this.premountTaskChooseOrganizationNodes.delete(node);
+    }
+  };
+
+  mountTaskResetPassword = (
+    node: HTMLDivElement,
+    props?: TaskResetPasswordProps
+  ) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.mountTaskResetPassword(node, props);
+    } else {
+      this.premountTaskResetPasswordNodes.set(node, props);
+    }
+  };
+
+  unmountTaskResetPassword = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.unmountTaskResetPassword(node);
+    } else {
+      this.premountTaskResetPasswordNodes.delete(node);
+    }
+  };
+
+  mountTaskSetupMFA = (node: HTMLDivElement, props?: TaskSetupMFAProps) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.mountTaskSetupMFA(node, props);
+    } else {
+      this.premountTaskSetupMFANodes.set(node, props);
+    }
+  };
+
+  unmountTaskSetupMFA = (node: HTMLDivElement) => {
+    if (this.clerkjs && this.#loaded) {
+      this.clerkjs.unmountTaskSetupMFA(node);
+    } else {
+      this.premountTaskSetupMFANodes.delete(node);
+    }
+  };
+
   addListener = (
     listener: ListenerCallback,
     options?: ListenerOptions
@@ -1678,6 +1757,65 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       this.premountMethodCalls.set('redirectToWaitlist', callback);
       return;
     }
+  };
+
+  redirectToTasks = async (opts?: TasksRedirectOptions) => {
+    const callback = () => this.clerkjs?.redirectToTasks(opts);
+    if (this.clerkjs && this.#loaded) {
+      return callback();
+    } else {
+      this.premountMethodCalls.set('redirectToTasks', callback);
+      return;
+    }
+  };
+
+  /** Resolves a bot-protection check pending after an SSO redirect. */
+  __internal_resolvePendingProtectCheck = async (
+    flow?: ProtectCheckFlow
+  ): Promise<void> => {
+    await this.clerkjs?.__internal_resolvePendingProtectCheck?.(flow);
+  };
+
+  __internal_resumeAfterProtectCheck = async (
+    params?: ResumeAfterProtectCheckParams,
+    customNavigate?: (to: string) => Promise<unknown>
+  ): Promise<void> => {
+    const callback = () => {
+      const clerkjs = this.clerkjs;
+      // An older clerk-js has no bot-protection checks.
+      if (typeof clerkjs?.__internal_resumeAfterProtectCheck !== 'function') {
+        return;
+      }
+      void clerkjs
+        .__internal_resumeAfterProtectCheck(params, customNavigate)
+        ?.catch(() => {});
+    };
+    if (this.clerkjs && this.#loaded) {
+      callback();
+    } else {
+      this.premountMethodCalls.set(
+        '__internal_resumeAfterProtectCheck',
+        callback
+      );
+    }
+  };
+
+  __internal_handleResourceCallback = async (
+    signInOrUp: SignInResource | SignUpResource,
+    params: HandleOAuthCallbackParams,
+    customNavigate?: (to: string) => Promise<unknown>
+  ): Promise<unknown> => {
+    const callback = () =>
+      this.clerkjs?.__internal_handleResourceCallback(
+        signInOrUp,
+        params,
+        customNavigate
+      );
+    if (this.clerkjs && this.#loaded) {
+      return callback();
+    }
+    this.premountMethodCalls.set('__internal_handleResourceCallback', callback);
+    return;
   };
 
   handleRedirectCallback = async (

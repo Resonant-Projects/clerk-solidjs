@@ -61,9 +61,13 @@ useOrganizationList(() => ({ userMemberships: { infinite: true } }));
 
 ### Prerequisites
 
-- SolidJS `>=1`
-- SolidStart `>=1`
-- Node.js `>=22`
+- SolidJS `^1.9`
+- SolidStart `^2` and `@solidjs/router` `>=0.16 <2`, for the `/start`
+  entries (optional otherwise)
+- Node.js `>=22.12`
+- An ES module build: 4.0 ships ESM only
+
+Upgrading from 3.x? See [MIGRATION.md](./MIGRATION.md).
 
 ### Installation
 
@@ -176,8 +180,8 @@ import { ClerkShow } from '@resonant-projects/clerk-solidjs';
 </ClerkShow>;
 ```
 
-`SignedIn`, `SignedOut` and `Protect` still work. They are deprecated wrappers
-over `<Show>`, warn once in development, and are removed in 4.0.
+4.0 removed `SignedIn`, `SignedOut` and `Protect`; see
+[MIGRATION.md](./MIGRATION.md).
 
 ### Loading state
 
@@ -213,16 +217,18 @@ component: `theme`, `options`, `variables`, `elements` and `captcha`. The Core 2
 `baseTheme` and `layout` keys are type errors. With a bundled `ui` from
 `@clerk/ui`, `appearance` follows that version's types.
 
-The Core 2 `afterSignInUrl` and `afterSignUpUrl` props stand in for
-`signInFallbackRedirectUrl` and `signUpFallbackRedirectUrl` with a deprecation
-warning; they are removed in 4.0.
+For redirects after sign-in and sign-up, use `signInFallbackRedirectUrl`,
+`signUpFallbackRedirectUrl` and their `Force` variants. 4.0 removed the Core 2
+`afterSignInUrl` and `afterSignUpUrl`.
 
 ### Signed-in state and authorization
 
 `useAuth()` follows Clerk Core 3. A session that still has tasks to finish, such
 as choosing an organization or setting up MFA, counts as signed out. Pass
-`treatPendingAsSignedOut: false` to `useAuth` or `<Show>` (or the deprecated
-`<SignedIn>`, `<SignedOut>` and `<Protect>`) to treat it as signed in instead.
+`treatPendingAsSignedOut: false` to `useAuth` or `<Show>` to treat it as signed
+in instead. `<TaskChooseOrganization>`, `<TaskResetPassword>` and
+`<TaskSetupMFA>` let the user finish those tasks, and `<RedirectToTasks>` or
+`useClerk()().redirectToTasks()` sends them to Clerk's task pages.
 `useSession().isSignedIn()` is `false` for such a session, while `session()`
 still returns it, as in `@clerk/react`.
 
@@ -285,6 +291,35 @@ export default function SignInForm() {
 The Core 2 hooks, with `isLoaded`, the client's `signIn` or `signUp` and
 `setActive`, are in `@resonant-projects/clerk-solidjs/legacy`, like
 `@clerk/react/legacy`.
+
+### SSO callbacks
+
+Render `<HandleSSOCallback>` on the route an OAuth or enterprise SSO provider
+redirects back to, such as `src/routes/sso-callback.tsx`. It finishes the
+sign-in or sign-up with the Core 3 resources: it resolves a pending
+bot-protection check, then finalizes, transfers between sign-in and sign-up,
+or calls `navigateToSignIn` or `navigateToSignUp` when another step is needed.
+
+```tsx
+import { useNavigate } from '@solidjs/router';
+import { HandleSSOCallback } from '@resonant-projects/clerk-solidjs';
+
+export default function SSOCallback() {
+  const navigate = useNavigate();
+  return (
+    <HandleSSOCallback
+      navigateToApp={({ decorateUrl }) => {
+        // For Safari's cookie cap, decorateUrl can return a Clerk URL.
+        const url = decorateUrl('/');
+        if (url.startsWith('http')) window.location.href = url;
+        else navigate(url);
+      }}
+      navigateToSignIn={() => navigate('/sign-in')}
+      navigateToSignUp={() => navigate('/sign-up')}
+    />
+  );
+}
+```
 
 ### Reverification
 

@@ -1,4 +1,3 @@
-import { deprecated } from '@clerk/shared/deprecated';
 import { getEnvVariable } from '@clerk/shared/getEnvVariable';
 import { isPublishableKey } from '@clerk/shared/keys';
 import { JSX, mergeProps, splitProps, untrack } from 'solid-js';
@@ -40,33 +39,9 @@ function ClerkProviderBase<TUi extends Ui = Ui>(
     }
   });
 
-  // Core 3 removed afterSignInUrl and afterSignUpUrl, and clerk-js ignores
-  // them. Until 4.0 they stand in for the fallback redirect URLs.
-  untrack(() => {
-    // The SolidStart provider passes '' for an unset env variable.
-    if (rest.afterSignInUrl) {
-      deprecated(
-        'afterSignInUrl',
-        'Use `signInFallbackRedirectUrl` or `signInForceRedirectUrl` instead.'
-      );
-    }
-    if (rest.afterSignUpUrl) {
-      deprecated(
-        'afterSignUpUrl',
-        'Use `signUpFallbackRedirectUrl` or `signUpForceRedirectUrl` instead.'
-      );
-    }
-  });
-
   const options = mergeProps(rest, {
     get publishableKey() {
       return publishableKey();
-    },
-    get signInFallbackRedirectUrl() {
-      return rest.signInFallbackRedirectUrl || rest.afterSignInUrl || undefined;
-    },
-    get signUpFallbackRedirectUrl() {
-      return rest.signUpFallbackRedirectUrl || rest.afterSignUpUrl || undefined;
     }
   }) as unknown as IsomorphicClerkOptions;
 

@@ -43,8 +43,6 @@ export function getResponseClerkState(
     __isSatellite: requestState.isSatellite,
     __signInUrl: requestState.signInUrl,
     __signUpUrl: requestState.signUpUrl,
-    __afterSignInUrl: requestState.afterSignInUrl,
-    __afterSignUpUrl: requestState.afterSignUpUrl,
     __clerk_debug: debugRequestState(requestState as RequestState),
     __clerkJSUrl: getEnvVariable('CLERK_JS') || getEnvVariable('CLERK_JS_URL'),
     __clerkJSVersion: getEnvVariable('CLERK_JS_VERSION'),

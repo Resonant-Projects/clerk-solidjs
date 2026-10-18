@@ -4,7 +4,7 @@ import { provideRequestEvent } from 'solid-js/web/storage';
 import { describe, expect, it, vi } from 'vitest';
 import { ClerkProvider } from '..';
 import { TEST_PUBLISHABLE_KEY } from '../../../__tests__/helpers/fake-clerk-js';
-import { SignedIn, SignedOut } from '../../../components';
+import { Show } from '../../../components';
 import { signedInInitState } from './fixtures';
 
 const renderPage = (locals: Record<string, unknown>, nonce?: string) =>
@@ -24,12 +24,12 @@ const renderPage = (locals: Record<string, unknown>, nonce?: string) =>
               url="/"
               root={() => (
                 <ClerkProvider>
-                  <SignedIn>
+                  <Show when="signed-in">
                     <p>signed-in</p>
-                  </SignedIn>
-                  <SignedOut>
+                  </Show>
+                  <Show when="signed-out">
                     <p>signed-out</p>
-                  </SignedOut>
+                  </Show>
                 </ClerkProvider>
               )}
             />

@@ -17,6 +17,7 @@ import type {
   SignInRedirectOptions,
   SignOutOptions,
   SignUpRedirectOptions,
+  TasksRedirectOptions,
   Without
 } from '@clerk/shared/types';
 import { Accessor, JSX, JSXElement } from 'solid-js';
@@ -43,13 +44,7 @@ export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
 
-type LegacyRedirectProps = {
-  afterSignInUrl?: string;
-  afterSignUpUrl?: string;
-};
-
-export type IsomorphicClerkOptions = SharedIsomorphicClerkOptions &
-  LegacyRedirectProps;
+export type IsomorphicClerkOptions = SharedIsomorphicClerkOptions;
 
 // Distributes over the unions inside ClerkOptions (navigation, domain/proxy)
 // instead of flattening them like a plain Omit would.
@@ -189,6 +184,7 @@ export type SignInWithMetamaskButtonProps = ButtonAttributes &
 
 export type RedirectToSignInProps = SignInRedirectOptions;
 export type RedirectToSignUpProps = SignUpRedirectOptions;
+export type RedirectToTasksProps = TasksRedirectOptions;
 
 type PageProps<T extends string> =
   | {

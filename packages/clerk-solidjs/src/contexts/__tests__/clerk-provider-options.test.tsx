@@ -1,9 +1,11 @@
 import { cleanup, render } from '@solidjs/testing-library';
+import { expectTypeOf } from 'expect-type';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const deprecations = vi.hoisted(() => ({ deprecated: vi.fn() }));
 vi.mock('@clerk/shared/deprecated', () => deprecations);
 
+import type { ClerkProviderProps } from '../..';
 import { ClerkProvider } from '../..';
 import {
   createFakeClerkJS,
@@ -51,42 +53,20 @@ describe('ClerkProvider options', () => {
     ).toBe(TEST_PUBLISHABLE_KEY);
   });
 
-  it('maps the Core 2 afterSignInUrl and afterSignUpUrl to the fallback redirect URLs, with a warning', async () => {
+  it('ignores the Core 2 afterSignInUrl and afterSignUpUrl, which 4.0 removed', async () => {
     const options = await loadOptions({
       publishableKey: TEST_PUBLISHABLE_KEY,
-      afterSignInUrl: '/after-sign-in',
-      afterSignUpUrl: '/after-sign-up'
+      ...({
+        afterSignInUrl: '/after-sign-in',
+        afterSignUpUrl: '/after-sign-up'
+      } as object)
     });
 
-    expect(options.signInFallbackRedirectUrl).toBe('/after-sign-in');
-    expect(options.signUpFallbackRedirectUrl).toBe('/after-sign-up');
-    expect(deprecations.deprecated.mock.calls.map((call) => call[0])).toEqual([
-      'afterSignInUrl',
-      'afterSignUpUrl'
-    ]);
-  });
-
-  it('keeps explicit fallback redirect URLs over the legacy props', async () => {
-    const options = await loadOptions({
-      publishableKey: TEST_PUBLISHABLE_KEY,
-      afterSignInUrl: '/legacy',
-      signInFallbackRedirectUrl: '/explicit'
-    });
-
-    expect(options.signInFallbackRedirectUrl).toBe('/explicit');
-  });
-
-  it("treats '' legacy props, as the SolidStart provider passes for unset env, as not supplied", async () => {
-    const options = await loadOptions({
-      publishableKey: TEST_PUBLISHABLE_KEY,
-      afterSignInUrl: '',
-      afterSignUpUrl: '',
-      signInFallbackRedirectUrl: ''
-    });
-
-    expect(deprecations.deprecated).not.toHaveBeenCalled();
-    expect(options.signInFallbackRedirectUrl).toBeFalsy();
+    expect(options.signInFallbackRedirectUrl).toBeUndefined();
     expect(options.signUpFallbackRedirectUrl).toBeUndefined();
+    expect(deprecations.deprecated).not.toHaveBeenCalled();
+    expectTypeOf<ClerkProviderProps>().not.toHaveProperty('afterSignInUrl');
+    expectTypeOf<ClerkProviderProps>().not.toHaveProperty('afterSignUpUrl');
   });
 
   it('loads a Clerk instance passed without a publishable key', async () => {
@@ -98,11 +78,5 @@ describe('ClerkProvider options', () => {
     ));
 
     await vi.waitFor(() => expect(clerkJS.load).toHaveBeenCalled());
-  });
-
-  it('does not warn without the legacy props', async () => {
-    await loadOptions({ publishableKey: TEST_PUBLISHABLE_KEY });
-
-    expect(deprecations.deprecated).not.toHaveBeenCalled();
   });
 });

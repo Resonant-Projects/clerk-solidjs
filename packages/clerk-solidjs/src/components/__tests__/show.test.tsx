@@ -6,19 +6,10 @@ import type {
 } from '@clerk/shared/types';
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { createSignal, type JSX, untrack } from 'solid-js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-const deprecations = vi.hoisted(() => ({ deprecated: vi.fn() }));
-vi.mock('@clerk/shared/deprecated', () => deprecations);
-
-import {
-  ClerkProvider,
-  ClerkShow,
-  Protect,
-  Show,
-  SignedIn,
-  SignedOut
-} from '../..';
+import * as entry from '../..';
+import { ClerkProvider, ClerkShow, Show } from '../..';
 import {
   createFakeClerkJS,
   TEST_PUBLISHABLE_KEY
@@ -62,12 +53,8 @@ const renderInProvider = (
     </ClerkProvider>
   ));
 
-const loaded = (clerkJS: { load: { mock: { calls: unknown[] } } }) =>
-  vi.waitFor(() => expect(clerkJS.load.mock.calls.length).toBe(1));
-
 afterEach(() => {
   cleanup();
-  deprecations.deprecated.mockClear();
 });
 
 describe('<Show>', () => {
@@ -229,63 +216,10 @@ describe('<Show>', () => {
   });
 });
 
-describe('deprecated SignedIn, SignedOut and Protect', () => {
-  it('keep working and warn that they are deprecated', async () => {
-    const { clerkJS } = signedIn();
-    renderInProvider(clerkJS, () => (
-      <>
-        <SignedIn>
-          <p>signed-in</p>
-        </SignedIn>
-        <SignedOut>
-          <p>signed-out</p>
-        </SignedOut>
-        <Protect role="org:admin" fallback={<p>no-admin</p>}>
-          <p>admin</p>
-        </Protect>
-      </>
-    ));
-
-    expect(await screen.findByText('signed-in')).toBeTruthy();
-    expect(screen.queryByText('signed-out')).toBeNull();
-    expect(screen.getByText('admin')).toBeTruthy();
-
-    const warned = deprecations.deprecated.mock.calls.map((call) => call[0]);
-    expect(warned).toEqual(
-      expect.arrayContaining(['SignedIn', 'SignedOut', 'Protect'])
-    );
-  });
-
-  it('show a bare Protect to any signed-in user', async () => {
-    const { clerkJS } = signedIn();
-    renderInProvider(clerkJS, () => (
-      <Protect fallback={<p>fallback</p>}>
-        <p>protected</p>
-      </Protect>
-    ));
-
-    expect(await screen.findByText('protected')).toBeTruthy();
-    expect(screen.queryByText('fallback')).toBeNull();
-  });
-
-  it('never create Protect children for an unauthorized user', async () => {
-    const setup = vi.fn();
-    const Child = () => {
-      setup();
-      return <p>secret</p>;
-    };
-    const { clerkJS } = signedIn();
-    renderInProvider(clerkJS, () => (
-      <Protect
-        condition={(has) => has({ permission: 'org:sys_domains:manage' })}
-        fallback={<p>fallback</p>}
-      >
-        <Child />
-      </Protect>
-    ));
-
-    await loaded(clerkJS);
-    expect(await screen.findByText('fallback')).toBeTruthy();
-    expect(setup).not.toHaveBeenCalled();
+describe('the 4.0 entry', () => {
+  it('no longer has SignedIn, SignedOut and Protect, which Show replaces', () => {
+    expect(entry).not.toHaveProperty('SignedIn');
+    expect(entry).not.toHaveProperty('SignedOut');
+    expect(entry).not.toHaveProperty('Protect');
   });
 });

@@ -10,9 +10,7 @@ import { createEffect, type JSX } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ClerkProvider,
-  Protect,
-  SignedIn,
-  SignedOut,
+  Show,
   useAuth,
   useSession,
   useSessionList,
@@ -199,18 +197,18 @@ describe('control components with a pending session', () => {
 
     renderInProvider(clerkJS, () => (
       <>
-        <SignedIn>
+        <Show when="signed-in">
           <p>signed-in</p>
-        </SignedIn>
-        <SignedOut>
+        </Show>
+        <Show when="signed-out">
           <p>signed-out</p>
-        </SignedOut>
-        <SignedIn treatPendingAsSignedOut={false}>
+        </Show>
+        <Show when="signed-in" treatPendingAsSignedOut={false}>
           <p>signed-in-lenient</p>
-        </SignedIn>
-        <Protect fallback={<p>protect-fallback</p>} role="org:admin">
+        </Show>
+        <Show when={{ role: 'org:admin' }} fallback={<p>protect-fallback</p>}>
           <p>protected</p>
-        </Protect>
+        </Show>
       </>
     ));
 
@@ -226,15 +224,15 @@ describe('control components with a pending session', () => {
 
     renderInProvider(clerkJS, () => (
       <>
-        <SignedIn>
+        <Show when="signed-in">
           <p>signed-in</p>
-        </SignedIn>
-        <SignedOut>
+        </Show>
+        <Show when="signed-out">
           <p>signed-out</p>
-        </SignedOut>
-        <Protect fallback={<p>protect-fallback</p>} role="org:admin">
+        </Show>
+        <Show when={{ role: 'org:admin' }} fallback={<p>protect-fallback</p>}>
           <p>protected</p>
-        </Protect>
+        </Show>
       </>
     ));
 

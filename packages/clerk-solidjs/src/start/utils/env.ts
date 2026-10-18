@@ -62,8 +62,6 @@ export const getPublicEnvVariables = (
       unsafeDisableDevelopmentModeConsoleWarning
         ? isTruthy(unsafeDisableDevelopmentModeConsoleWarning)
         : undefined,
-    newSubscriptionRedirectUrl: get('CLERK_CHECKOUT_CONTINUE_URL'),
-    afterSignInUrl: get('CLERK_AFTER_SIGN_IN_URL'),
-    afterSignUpUrl: get('CLERK_AFTER_SIGN_UP_URL')
+    newSubscriptionRedirectUrl: get('CLERK_CHECKOUT_CONTINUE_URL')
   };
 };

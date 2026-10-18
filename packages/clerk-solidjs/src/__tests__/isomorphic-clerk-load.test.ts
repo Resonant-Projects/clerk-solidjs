@@ -559,4 +559,105 @@ describe('IsomorphicClerk Core 3 loading', () => {
     });
     expect(navigation.windowNavigate).not.toHaveBeenCalled();
   });
+
+  it('mounts session tasks called for before clerk-js loads, except one unmounted first', async () => {
+    const members = {
+      mountTaskChooseOrganization: vi.fn(),
+      mountTaskResetPassword: vi.fn(),
+      mountTaskSetupMFA: vi.fn()
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, members) as any
+    });
+    const [choose, reset, mfa] = [0, 1, 2].map(() =>
+      document.createElement('div')
+    );
+    isomorphicClerk.mountTaskChooseOrganization(choose, {
+      redirectUrlComplete: '/a'
+    });
+    isomorphicClerk.mountTaskResetPassword(reset, {
+      redirectUrlComplete: '/b'
+    });
+    isomorphicClerk.mountTaskSetupMFA(mfa, { redirectUrlComplete: '/c' });
+    isomorphicClerk.unmountTaskSetupMFA(mfa);
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(members.mountTaskChooseOrganization).toHaveBeenCalledWith(choose, {
+      redirectUrlComplete: '/a'
+    });
+    expect(members.mountTaskResetPassword).toHaveBeenCalledWith(reset, {
+      redirectUrlComplete: '/b'
+    });
+    expect(members.mountTaskSetupMFA).not.toHaveBeenCalled();
+  });
+
+  it('queues the task redirect, the protect assertion and the resource callback until clerk-js loads', async () => {
+    const assertion = { token: 'x' } as any;
+    const members = {
+      buildTasksUrl: vi.fn(() => '/tasks'),
+      redirectToTasks: vi.fn(async () => undefined),
+      setProtectAssertion: vi.fn(),
+      __internal_handleResourceCallback: vi.fn(async () => 'handled')
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(clerkJS, members) as any
+    });
+    expect(isomorphicClerk.buildTasksUrl()).toBeUndefined();
+    void isomorphicClerk.redirectToTasks({ redirectUrl: '/next' });
+    isomorphicClerk.setProtectAssertion(assertion);
+    const signIn = {} as any;
+    void isomorphicClerk.__internal_handleResourceCallback(signIn, {});
+    expect(members.redirectToTasks).not.toHaveBeenCalled();
+
+    await loadedClerk(isomorphicClerk);
+
+    expect(members.redirectToTasks).toHaveBeenCalledWith({
+      redirectUrl: '/next'
+    });
+    expect(members.setProtectAssertion).toHaveBeenCalledWith(assertion);
+    expect(members.__internal_handleResourceCallback).toHaveBeenCalledWith(
+      signIn,
+      {},
+      undefined
+    );
+    expect(isomorphicClerk.buildTasksUrl()).toBe('/tasks');
+  });
+
+  it('resumes after a protect check on clerk-js, and does nothing on one without it', async () => {
+    const resume = vi.fn(async () => undefined);
+    const older = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: clerkJS as any
+    });
+    await loadedClerk(older);
+    await expect(
+      older.__internal_resumeAfterProtectCheck({} as any)
+    ).resolves.toBeUndefined();
+    await expect(
+      older.__internal_resolvePendingProtectCheck('signIn')
+    ).resolves.toBeUndefined();
+
+    IsomorphicClerk.clearInstance();
+    const fresh = createClerkJS();
+    globalThis.Clerk = undefined;
+    const current = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Object.assign(fresh, {
+        __internal_resumeAfterProtectCheck: resume,
+        __internal_protectChallengeLoadTimeoutMs: 5000
+      }) as any
+    });
+    const navigate = vi.fn(async () => undefined);
+    void current.__internal_resumeAfterProtectCheck(
+      { flow: 'signIn' } as any,
+      navigate
+    );
+    await loadedClerk(current);
+
+    expect(resume).toHaveBeenCalledWith({ flow: 'signIn' }, navigate);
+    expect(current.__internal_protectChallengeLoadTimeoutMs).toBe(5000);
+  });
 });

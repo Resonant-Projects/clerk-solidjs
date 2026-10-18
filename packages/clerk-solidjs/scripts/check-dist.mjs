@@ -7,6 +7,8 @@
 //    reach exactly one copy of the Clerk contexts, the same one, so
 //    `/start`'s ClerkProvider and the other entries' hooks share it.
 // 3. The ESM files import without throwing in node.
+// 4. Nothing is CommonJS: each CommonJS entry carried its own copy of the
+//    Clerk contexts, so 4.0 ships ESM only.
 //
 // Run it after `pnpm build`.
 
@@ -36,6 +38,14 @@ const leafPaths = (node) =>
 for (const target of new Set(Object.values(pkg.exports).flatMap(leafPaths))) {
   if (!fs.existsSync(path.join(packageDir, target))) {
     fail(`exports points to ${target}, which the build did not produce`);
+  }
+  if (/\.c[jt]s$/.test(target)) {
+    fail(`exports points to ${target}, a CommonJS file`);
+  }
+}
+for (const field of ['main', 'module']) {
+  if (/\.c[jt]s$/.test(pkg[field] ?? '')) {
+    fail(`package.json ${field} is CommonJS: ${pkg[field]}`);
   }
 }
 
