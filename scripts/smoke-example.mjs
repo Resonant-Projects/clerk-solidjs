@@ -37,6 +37,10 @@ if (!fs.existsSync(envFile)) {
   console.error(`Missing ${envFile}. Copy examples/basic/.env.example and fill in development keys.`);
   process.exit(2);
 }
+// Vite inlines VITE_* variables at build time. With --version the copied app
+// has no .env files, and --env-file can point anywhere, so load the file into
+// this process for the build as well as the server.
+process.loadEnvFile(envFile);
 
 // CI=true stops tsup-preset-solid from rewriting the package's package.json.
 const run = (command, commandArgs, cwd) =>
