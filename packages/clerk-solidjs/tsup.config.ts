@@ -54,6 +54,12 @@ export default defineConfig((config) => {
           dev_entry: true
         },
         {
+          name: 'internal',
+          entry: 'src/internal.tsx',
+          server_entry: true,
+          dev_entry: true
+        },
+        {
           name: 'webhooks',
           entry: 'src/webhooks.ts'
         }

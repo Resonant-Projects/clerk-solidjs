@@ -20,8 +20,12 @@ import type {
   WaitlistProps,
   Without
 } from '@clerk/shared/types';
+import { logErrorInDevMode } from '@clerk/shared/utils';
 import {
+  Accessor,
   Component,
+  createComputed,
+  createContext,
   createEffect,
   createMemo,
   createSignal,
@@ -32,7 +36,8 @@ import {
   ParentProps,
   Show,
   splitProps,
-  untrack
+  untrack,
+  useContext
 } from 'solid-js';
 import { usePortalRoot } from '../contexts/portal';
 import { IsomorphicClerk } from '../isomorphic-clerk';
@@ -41,12 +46,14 @@ import { createCustomElementPortals } from '../utils/custom-element-portals';
 import {
   buildCustomPages,
   buildUserButtonMenuItems,
+  logBuildWarnings,
   MenuAction,
   MenuItems,
   MenuLink,
   organizationProfileCustomPagesOptions,
   OrganizationProfileLink,
   OrganizationProfilePage,
+  otherChildren,
   resolveCustomChildren,
   userButtonCustomPagesOptions,
   userProfileCustomPagesOptions,
@@ -71,6 +78,13 @@ type UserButtonExportType = typeof _UserButton & {
   MenuItems: typeof MenuItems;
   Action: typeof MenuAction;
   Link: typeof MenuLink;
+  /**
+   * Renders the `<UserButton __experimental_asProvider>` it is inside, with
+   * its configuration and custom pages, wherever the app puts it.
+   *
+   * @experimental This API is experimental and may change at any moment.
+   */
+  __experimental_Outlet: typeof UserButtonOutlet;
 };
 
 type UserButtonPropsWithoutCustomPages = Without<
@@ -81,6 +95,13 @@ type UserButtonPropsWithoutCustomPages = Without<
     UserProfileProps,
     'additionalOAuthScopes' | 'appearance'
   >;
+  /**
+   * Renders the children instead of the button, which then renders where
+   * `<UserButton.__experimental_Outlet />` is.
+   *
+   * @experimental This API is experimental and may change at any moment.
+   */
+  __experimental_asProvider?: boolean;
 };
 
 type OrganizationProfileExportType = typeof _OrganizationProfile & {
@@ -91,6 +112,13 @@ type OrganizationProfileExportType = typeof _OrganizationProfile & {
 type OrganizationSwitcherExportType = typeof _OrganizationSwitcher & {
   OrganizationProfilePage: typeof OrganizationProfilePage;
   OrganizationProfileLink: typeof OrganizationProfileLink;
+  /**
+   * Renders the `<OrganizationSwitcher __experimental_asProvider>` it is
+   * inside, with its configuration and custom pages.
+   *
+   * @experimental This API is experimental and may change at any moment.
+   */
+  __experimental_Outlet: typeof OrganizationSwitcherOutlet;
 };
 
 type OrganizationSwitcherPropsWithoutCustomPages = Without<
@@ -98,6 +126,24 @@ type OrganizationSwitcherPropsWithoutCustomPages = Without<
   'organizationProfileProps'
 > & {
   organizationProfileProps?: Pick<OrganizationProfileProps, 'appearance'>;
+  /**
+   * Renders the children instead of the switcher, which then renders where
+   * `<OrganizationSwitcher.__experimental_Outlet />` is.
+   *
+   * @experimental This API is experimental and may change at any moment.
+   */
+  __experimental_asProvider?: boolean;
+};
+
+/**
+ * What an `__experimental_asProvider` component hands its Outlet: how to
+ * mount it, and its props, kept current.
+ */
+type OutletContextValue = Pick<
+  MountProps,
+  'mount' | 'unmount' | 'updateProps'
+> & {
+  props: Accessor<Record<string, unknown>>;
 };
 
 type FallbackProp = {
@@ -295,6 +341,7 @@ const _UserProfile = withClerk(
         portals.handlersFor
       )
     );
+    logBuildWarnings(() => pages().warnings);
 
     return (
       <>
@@ -320,64 +367,143 @@ export const UserProfile: UserProfileExportType = Object.assign(_UserProfile, {
   Link: UserProfileLink
 });
 
+const UserButtonContext = createContext<OutletContextValue>();
+
+type UserButtonHostProps = WithClerkProp<
+  ParentProps<UserButtonPropsWithoutCustomPages> & FallbackProp
+> & { share: (props: Record<string, unknown>) => void };
+
+/**
+ * The button itself, inside its Outlet context, so an Outlet among the
+ * children (resolved here) finds the context.
+ */
+const UserButtonHost = (props: UserButtonHostProps) => {
+  const [local, clerkProps] = splitProps(props, [
+    'clerk',
+    'children',
+    'fallback',
+    'share',
+    '__experimental_asProvider'
+  ]);
+  const portals = createCustomElementPortals();
+  const entries = resolveCustomChildren(() => local.children);
+  const pages = createMemo(() =>
+    buildCustomPages(
+      entries(),
+      {
+        ...userButtonCustomPagesOptions,
+        allowForAnyChildren: !!local.__experimental_asProvider
+      },
+      portals.handlersFor
+    )
+  );
+  const menu = createMemo(() =>
+    buildUserButtonMenuItems(entries(), portals.handlersFor)
+  );
+  logBuildWarnings(() => [...pages().warnings, ...menu().warnings]);
+
+  const mountProps = () => ({
+    ...clerkProps,
+    userProfileProps: {
+      ...clerkProps.userProfileProps,
+      customPages: pages().customPages
+    },
+    customMenuItems: menu().customMenuItems
+  });
+  // A signal, not the memos, is what an Outlet reads: it may be created
+  // while the children above are still resolving.
+  createComputed(() => local.share(mountProps()));
+
+  return (
+    <>
+      <Show
+        when={local.__experimental_asProvider}
+        fallback={
+          <Portal
+            component="UserButton"
+            fallback={local.fallback}
+            mount={local.clerk().mountUserButton}
+            unmount={local.clerk().unmountUserButton}
+            updateProps={
+              (local.clerk() as unknown as IsomorphicClerk)
+                .__internal_updateProps
+            }
+            props={mountProps()}
+          />
+        }
+      >
+        {otherChildren(entries())}
+      </Show>
+      <portals.CustomElements
+        elements={[...pages().elements, ...menu().elements]}
+      />
+    </>
+  );
+};
+
 const _UserButton = withClerk(
   (
     props: WithClerkProp<
       ParentProps<UserButtonPropsWithoutCustomPages> & FallbackProp
     >
   ) => {
-    const [local, clerkProps] = splitProps(props, [
-      'clerk',
-      'children',
-      'fallback'
-    ]);
-    const portals = createCustomElementPortals();
-    const entries = resolveCustomChildren(() => local.children);
-    const pages = createMemo(() =>
-      buildCustomPages(
-        entries(),
-        userButtonCustomPagesOptions,
-        portals.handlersFor
-      )
+    const [shared, share] = createSignal<Record<string, unknown>>(
+      {},
+      { equals: false }
     );
-    const menu = createMemo(() =>
-      buildUserButtonMenuItems(entries(), portals.handlersFor)
-    );
-
+    const isomorphicClerk = () => props.clerk() as unknown as IsomorphicClerk;
     return (
-      <>
-        <Portal
-          component="UserButton"
-          fallback={local.fallback}
-          mount={local.clerk().mountUserButton}
-          unmount={local.clerk().unmountUserButton}
-          updateProps={
-            (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
-          }
-          props={{
-            ...clerkProps,
-            userProfileProps: {
-              ...clerkProps.userProfileProps,
-              customPages: pages().customPages
-            },
-            customMenuItems: menu().customMenuItems
-          }}
-        />
-        <portals.CustomElements
-          elements={[...pages().elements, ...menu().elements]}
-        />
-      </>
+      <UserButtonContext.Provider
+        value={{
+          mount: (node, mountProps) =>
+            isomorphicClerk().mountUserButton(node, mountProps),
+          unmount: (node) => isomorphicClerk().unmountUserButton(node),
+          updateProps: (update) =>
+            isomorphicClerk().__internal_updateProps(update),
+          props: shared
+        }}
+      >
+        <UserButtonHost {...props} share={share} />
+      </UserButtonContext.Provider>
     );
   },
   { component: 'UserButton', renderWhileLoading: true }
 );
+
+/**
+ * Where a `<UserButton __experimental_asProvider>` renders: with its props
+ * and custom pages, plus the props passed here.
+ *
+ * @experimental This API is experimental and may change at any moment.
+ */
+export function UserButtonOutlet(
+  outletProps: Without<UserButtonProps, 'userProfileProps'>
+): JSX.Element {
+  const context = useContext(UserButtonContext);
+  if (!context) {
+    logErrorInDevMode(
+      '<UserButton.__experimental_Outlet /> renders only inside <UserButton __experimental_asProvider>.'
+    );
+    return null;
+  }
+  return (
+    <Portal
+      component="UserButton"
+      mount={context.mount}
+      unmount={context.unmount}
+      updateProps={context.updateProps}
+      props={{ ...context.props(), ...outletProps }}
+    />
+  );
+}
 
 export const UserButton: UserButtonExportType = Object.assign(_UserButton, {
   UserProfilePage,
   UserProfileLink,
   MenuItems,
   Action: MenuAction,
-  Link: MenuLink
+  Link: MenuLink,
+  __experimental_Outlet: UserButtonOutlet
 });
 
 const _OrganizationProfile = withClerk(
@@ -401,6 +527,7 @@ const _OrganizationProfile = withClerk(
         portals.handlersFor
       )
     );
+    logBuildWarnings(() => pages().warnings);
 
     return (
       <>
@@ -448,56 +575,130 @@ export const CreateOrganization = withClerk(
   { component: 'CreateOrganization', renderWhileLoading: true }
 );
 
+const OrganizationSwitcherContext = createContext<OutletContextValue>();
+
+type OrganizationSwitcherHostProps = WithClerkProp<
+  ParentProps<OrganizationSwitcherPropsWithoutCustomPages> & FallbackProp
+> & { share: (props: Record<string, unknown>) => void };
+
+/** The switcher itself, inside its Outlet context, as `UserButtonHost`. */
+const OrganizationSwitcherHost = (props: OrganizationSwitcherHostProps) => {
+  const [local, clerkProps] = splitProps(props, [
+    'clerk',
+    'children',
+    'fallback',
+    'share',
+    '__experimental_asProvider'
+  ]);
+  const portals = createCustomElementPortals();
+  const entries = resolveCustomChildren(() => local.children);
+  const pages = createMemo(() =>
+    buildCustomPages(
+      entries(),
+      {
+        ...organizationProfileCustomPagesOptions,
+        allowForAnyChildren: !!local.__experimental_asProvider
+      },
+      portals.handlersFor
+    )
+  );
+  logBuildWarnings(() => pages().warnings);
+
+  const mountProps = () => ({
+    ...clerkProps,
+    organizationProfileProps: {
+      ...clerkProps.organizationProfileProps,
+      customPages: pages().customPages
+    }
+  });
+  createComputed(() => local.share(mountProps()));
+
+  return (
+    <>
+      <Show
+        when={local.__experimental_asProvider}
+        fallback={
+          <Portal
+            component="OrganizationSwitcher"
+            fallback={local.fallback}
+            mount={local.clerk().mountOrganizationSwitcher}
+            unmount={local.clerk().unmountOrganizationSwitcher}
+            updateProps={
+              (local.clerk() as unknown as IsomorphicClerk)
+                .__internal_updateProps
+            }
+            props={mountProps()}
+          />
+        }
+      >
+        {otherChildren(entries())}
+      </Show>
+      <portals.CustomElements elements={pages().elements} />
+    </>
+  );
+};
+
 const _OrganizationSwitcher = withClerk(
   (
     props: WithClerkProp<
       ParentProps<OrganizationSwitcherPropsWithoutCustomPages> & FallbackProp
     >
   ) => {
-    const [local, clerkProps] = splitProps(props, [
-      'clerk',
-      'children',
-      'fallback'
-    ]);
-    const portals = createCustomElementPortals();
-    const entries = resolveCustomChildren(() => local.children);
-    const pages = createMemo(() =>
-      buildCustomPages(
-        entries(),
-        organizationProfileCustomPagesOptions,
-        portals.handlersFor
-      )
+    const [shared, share] = createSignal<Record<string, unknown>>(
+      {},
+      { equals: false }
     );
-
+    const isomorphicClerk = () => props.clerk() as unknown as IsomorphicClerk;
     return (
-      <>
-        <Portal
-          component="OrganizationSwitcher"
-          fallback={local.fallback}
-          mount={local.clerk().mountOrganizationSwitcher}
-          unmount={local.clerk().unmountOrganizationSwitcher}
-          updateProps={
-            (local.clerk() as unknown as IsomorphicClerk).__internal_updateProps
-          }
-          props={{
-            ...clerkProps,
-            organizationProfileProps: {
-              ...clerkProps.organizationProfileProps,
-              customPages: pages().customPages
-            }
-          }}
-        />
-        <portals.CustomElements elements={pages().elements} />
-      </>
+      <OrganizationSwitcherContext.Provider
+        value={{
+          mount: (node, mountProps) =>
+            isomorphicClerk().mountOrganizationSwitcher(node, mountProps),
+          unmount: (node) =>
+            isomorphicClerk().unmountOrganizationSwitcher(node),
+          updateProps: (update) =>
+            isomorphicClerk().__internal_updateProps(update),
+          props: shared
+        }}
+      >
+        <OrganizationSwitcherHost {...props} share={share} />
+      </OrganizationSwitcherContext.Provider>
     );
   },
   { component: 'OrganizationSwitcher', renderWhileLoading: true }
 );
 
+/**
+ * Where an `<OrganizationSwitcher __experimental_asProvider>` renders.
+ *
+ * @experimental This API is experimental and may change at any moment.
+ */
+export function OrganizationSwitcherOutlet(
+  outletProps: Without<OrganizationSwitcherProps, 'organizationProfileProps'>
+): JSX.Element {
+  const context = useContext(OrganizationSwitcherContext);
+  if (!context) {
+    logErrorInDevMode(
+      '<OrganizationSwitcher.__experimental_Outlet /> renders only inside <OrganizationSwitcher __experimental_asProvider>.'
+    );
+    return null;
+  }
+  return (
+    <Portal
+      component="OrganizationSwitcher"
+      mount={context.mount}
+      unmount={context.unmount}
+      updateProps={context.updateProps}
+      props={{ ...context.props(), ...outletProps }}
+    />
+  );
+}
+
 export const OrganizationSwitcher: OrganizationSwitcherExportType =
   Object.assign(_OrganizationSwitcher, {
     OrganizationProfilePage,
-    OrganizationProfileLink
+    OrganizationProfileLink,
+    __experimental_Outlet: OrganizationSwitcherOutlet
   });
 
 export const OrganizationList = withClerk(

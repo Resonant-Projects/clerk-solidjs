@@ -3,9 +3,9 @@
 //
 // 1. Every path in package.json `exports` exists in dist.
 // 2. For the browser, node and solid conditions (with and without
-//    `development`), the ESM files `.`, `./start`, `./legacy` and
-//    `./experimental` resolve to reach exactly one copy of the Clerk
-//    contexts, the same one, so
+//    `development`), the ESM files `.`, `./start`, `./legacy`,
+//    `./experimental` and `./internal` resolve to reach exactly one copy of
+//    the Clerk contexts, the same one, so
 //    `/start`'s ClerkProvider and the other entries' hooks share it.
 // 3. The ESM files import without throwing in node.
 // 4. Nothing is CommonJS: each CommonJS entry carried its own copy of the
@@ -84,7 +84,13 @@ const moduleGraph = (entry) => {
 };
 
 /** The entries that use the Clerk contexts. */
-const contextSubpaths = ['.', './start', './legacy', './experimental'];
+const contextSubpaths = [
+  '.',
+  './start',
+  './legacy',
+  './experimental',
+  './internal'
+];
 
 const conditionSets = [
   ['browser', 'import'],
@@ -179,6 +185,7 @@ for (const subpath of [
   '.',
   './legacy',
   './experimental',
+  './internal',
   './errors',
   './server',
   './start/server',

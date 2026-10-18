@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX, Show } from 'solid-js';
+import { createComputed, createMemo, For, type JSX, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { isServer, Portal } from 'solid-js/web';
 
@@ -75,6 +75,17 @@ export const createCustomElementPortals = () => {
     // (a sibling page renamed or added) must not remount content that Clerk
     // is showing, or it loses local state such as a half-filled form.
     const ids = createMemo(() => [...renderers().keys()]);
+
+    // Forget the handlers of ids that are gone (a page removed or renamed),
+    // so the map does not grow with every change. A node stays until Clerk
+    // unmounts it, through the handler it already holds: it is how a modal
+    // that is still open is told apart from a closed one.
+    createComputed(() => {
+      const current = renderers();
+      for (const id of [...handlers.keys()]) {
+        if (!current.has(id)) handlers.delete(id);
+      }
+    });
 
     return (
       <For each={ids()}>

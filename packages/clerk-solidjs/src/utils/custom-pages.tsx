@@ -9,6 +9,7 @@ import {
 } from '@solid-primitives/jsx-tokenizer';
 import {
   type Accessor,
+  createEffect,
   createMemo,
   type JSX,
   type ParentProps
@@ -106,6 +107,15 @@ const MenuItemTokenizer = createTokenizer<MenuItemToken>({
   name: 'Clerk custom menu items'
 });
 
+/**
+ * Logs a builder's warnings in development. An effect, so they are not
+ * logged from the memo that builds, nor on the server.
+ */
+export const logBuildWarnings = (warnings: Accessor<string[]>) =>
+  createEffect(() => {
+    for (const message of warnings()) logErrorInDevMode(message);
+  });
+
 const renderedOutsideParent = (message: string) => () => {
   logErrorInDevMode(message);
   return null;
@@ -188,6 +198,14 @@ export const resolveCustomChildren = (children: Accessor<JSX.Element>) =>
     includeJSXElements: true
   });
 
+/**
+ * The children that are not custom pages, links or menu items: what an
+ * `__experimental_asProvider` component renders.
+ */
+export const otherChildren = (
+  entries: (TokenElement<CustomChildToken> | JSX.Element)[]
+) => entries.filter((entry) => !isToken(CustomChildrenTokenizer, entry));
+
 const isEmptyChild = (value: unknown) =>
   value == null || value === false || value === true || value === '';
 
@@ -234,6 +252,8 @@ type CustomPagesOptions = {
   /** UserButton also accepts MenuItems beside its pages. */
   ignoredComponentMessage?: string;
   allowMenuItems?: boolean;
+  /** Other children are the app's own, as with `__experimental_asProvider`. */
+  allowForAnyChildren?: boolean;
 };
 
 export const userProfileCustomPagesOptions: CustomPagesOptions = {
@@ -263,6 +283,8 @@ export const buildCustomPages = (
 ) => {
   const customPages: CustomPage[] = [];
   const elements: CustomElement[] = [];
+  // Logged by the component from an effect: this runs in a memo.
+  const warnings: string[] = [];
   const nextId = createPortalIdFactory();
   const ignoredMessage =
     options.ignoredComponentMessage ??
@@ -270,8 +292,9 @@ export const buildCustomPages = (
 
   for (const entry of entries) {
     if (!isToken(CustomChildrenTokenizer, entry)) {
-      if (!isEmptyChild(entry)) {
-        logErrorInDevMode(ignoredMessage);
+      // With __experimental_asProvider, other children render as they are.
+      if (!isEmptyChild(entry) && !options.allowForAnyChildren) {
+        warnings.push(ignoredMessage);
       }
       continue;
     }
@@ -314,7 +337,7 @@ export const buildCustomPages = (
           { id: `icon:${id}`, render: token.icon }
         );
       } else {
-        logErrorInDevMode(customPageWrongProps(options.componentName));
+        warnings.push(customPageWrongProps(options.componentName));
       }
       continue;
     }
@@ -340,15 +363,15 @@ export const buildCustomPages = (
           render: token.icon
         });
       } else {
-        logErrorInDevMode(customLinkWrongProps(options.componentName));
+        warnings.push(customLinkWrongProps(options.componentName));
       }
       continue;
     }
 
-    logErrorInDevMode(ignoredMessage);
+    warnings.push(ignoredMessage);
   }
 
-  return { customPages, elements };
+  return { customPages, elements, warnings };
 };
 
 const USER_BUTTON_REORDER_LABELS = ['manageAccount', 'signOut'];
@@ -359,6 +382,7 @@ export const buildUserButtonMenuItems = (
 ) => {
   const customMenuItems: CustomMenuItem[] = [];
   const elements: CustomElement[] = [];
+  const warnings: string[] = [];
   const nextId = createPortalIdFactory();
 
   for (const entry of entries) {
@@ -372,7 +396,7 @@ export const buildUserButtonMenuItems = (
     for (const item of entry.data.items()) {
       if (!isToken(MenuItemTokenizer, item)) {
         if (!isEmptyChild(item)) {
-          logErrorInDevMode(customMenuItemsIgnoredComponent);
+          warnings.push(customMenuItemsIgnoredComponent);
         }
         continue;
       }
@@ -393,14 +417,14 @@ export const buildUserButtonMenuItems = (
         }
 
         if (!hasIcon || !props.label) {
-          logErrorInDevMode(userButtonMenuItemsActionWrongsProps);
+          warnings.push(userButtonMenuItemsActionWrongsProps);
           continue;
         }
 
         const onClick = props.onClick;
         const open = props.open;
         if (typeof onClick !== 'function' && typeof open !== 'string') {
-          logErrorInDevMode(userButtonMenuItemActionMissingTarget);
+          warnings.push(userButtonMenuItemActionMissingTarget);
           continue;
         }
 
@@ -439,10 +463,10 @@ export const buildUserButtonMenuItems = (
           render: token.icon
         });
       } else {
-        logErrorInDevMode(userButtonMenuItemLinkWrongProps);
+        warnings.push(userButtonMenuItemLinkWrongProps);
       }
     }
   }
 
-  return { customMenuItems, elements };
+  return { customMenuItems, elements, warnings };
 };

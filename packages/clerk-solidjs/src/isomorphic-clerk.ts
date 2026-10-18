@@ -416,13 +416,55 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
       (status) => (this.#status = status)
     );
 
-    // A Clerk instance the app created carries its own key; a constructor or
-    // the CDN build needs one here.
     if (
+      this.#publishableKey &&
+      this.Clerk &&
+      (options.experimental as { runtimeEnvironment?: string } | undefined)
+        ?.runtimeEnvironment === 'headless'
+    ) {
+      void this.#loadHeadlessClerk();
+    } else if (
+      // A Clerk instance the app created carries its own key; a constructor
+      // or the CDN build needs one here.
       this.#publishableKey ||
       (this.Clerk && !isConstructor<BrowserClerkConstructor>(this.Clerk))
     ) {
       void this.loadClerkJS();
+    }
+  }
+
+  /**
+   * Loads the Clerk instance or constructor the app passed, in any runtime,
+   * for `experimental: { runtimeEnvironment: 'headless' }`: no script, no UI
+   * and no window globals, as @clerk/react's `loadHeadlessClerk`. If it
+   * fails, the status is `error` and `addOnLoaded` callbacks still run.
+   */
+  async #loadHeadlessClerk(): Promise<void> {
+    const clerk = isConstructor<
+      BrowserClerkConstructor | HeadlessBrowserClerkConstructor
+    >(this.Clerk)
+      ? new this.Clerk(this.#publishableKey, {
+          proxyUrl: this.proxyUrl,
+          domain: this.domain
+        } as DomainOrProxyUrl)
+      : this.Clerk;
+
+    if (!clerk) {
+      this.#eventBus.emit(clerkEvents.Status, 'error');
+      return;
+    }
+
+    try {
+      if (!clerk.loaded) {
+        await clerk.load({ ...this.options, sdkMetadata: this.#sdkMetadata });
+      }
+      this.hydrateClerkJS(clerk);
+    } catch (err) {
+      if (__DEV__) {
+        console.error('Clerk: Failed to load:', err);
+      }
+      this.#eventBus.emit(clerkEvents.Status, 'error');
+      this.emitLoaded();
     }
   }
 

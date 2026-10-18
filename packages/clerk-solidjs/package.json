@@ -44,6 +44,9 @@
       "experimental": [
         "./dist/experimental/index.d.ts"
       ],
+      "internal": [
+        "./dist/internal/index.d.ts"
+      ],
       "webhooks": [
         "./dist/webhooks/index.d.ts"
       ],
@@ -337,6 +340,70 @@
         "default": "./dist/experimental/index.js"
       }
     },
+    "./internal": {
+      "worker": {
+        "solid": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/server.jsx"
+        },
+        "import": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/server.js"
+        }
+      },
+      "browser": {
+        "solid": {
+          "types": "./dist/internal/index.d.ts",
+          "development": "./dist/internal/dev.jsx",
+          "default": "./dist/internal/index.jsx"
+        },
+        "development": {
+          "import": {
+            "types": "./dist/internal/index.d.ts",
+            "default": "./dist/internal/dev.js"
+          }
+        },
+        "import": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/index.js"
+        }
+      },
+      "deno": {
+        "solid": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/server.jsx"
+        },
+        "import": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/server.js"
+        }
+      },
+      "node": {
+        "solid": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/server.jsx"
+        },
+        "import": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/server.js"
+        }
+      },
+      "solid": {
+        "types": "./dist/internal/index.d.ts",
+        "development": "./dist/internal/dev.jsx",
+        "default": "./dist/internal/index.jsx"
+      },
+      "development": {
+        "import": {
+          "types": "./dist/internal/index.d.ts",
+          "default": "./dist/internal/dev.js"
+        }
+      },
+      "import": {
+        "types": "./dist/internal/index.d.ts",
+        "default": "./dist/internal/index.js"
+      }
+    },
     "./webhooks": {
       "import": {
         "types": "./dist/webhooks/index.d.ts",
@@ -375,8 +442,6 @@
   "dependencies": {
     "@clerk/backend": "^3.25.0",
     "@clerk/shared": "^4.40.0",
-    "@solid-primitives/context": "^0.3.2",
-    "@solid-primitives/destructure": "^0.2.4",
     "@solid-primitives/jsx-tokenizer": "^1.1.4",
     "@tanstack/query-core": "^5.104.3",
     "csstype": "^3.1.3"

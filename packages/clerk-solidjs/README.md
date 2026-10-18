@@ -458,6 +458,37 @@ on unmount:
 </Show>
 ```
 
+### Rendering a button somewhere else
+
+`<UserButton __experimental_asProvider>` and `<OrganizationSwitcher __experimental_asProvider>`
+render their children instead of themselves, and the component renders where its
+`__experimental_Outlet` is, with the provider's props, custom pages and menu items. The Outlet can
+add props of its own:
+
+```tsx
+<UserButton __experimental_asProvider showName>
+  <UserButton.UserProfilePage
+    label="Settings"
+    url="settings"
+    labelIcon={<GearIcon />}
+  >
+    <Settings />
+  </UserButton.UserProfilePage>
+  <header class="toolbar">
+    <UserButton.__experimental_Outlet />
+  </header>
+</UserButton>
+```
+
+These are experimental in `@clerk/react` too.
+
+### Email links
+
+`useEmailLink(() => signIn)` returns `startEmailLinkFlow(params)` and `cancelEmailLinkFlow()`, as
+`@clerk/react` does. The flow is cancelled when the component unmounts, or when the accessor returns
+another resource. Before 4.3 they were accessors, called as `startEmailLinkFlow()(params)`. That
+still works, with a deprecation warning.
+
 ### Clerk UI script
 
 Clerk Core 3 loads the prebuilt components from `@clerk/ui`. The provider loads it from Clerk's CDN
@@ -641,6 +672,23 @@ taken from the current route. Put them on a catch-all route, such as
 `src/routes/sign-in/[...rest].tsx`, and they need no `path` prop. The SolidStart
 `ClerkProvider` also makes Clerk's navigation wait until the router has finished
 each navigation.
+
+## For framework authors
+
+`@resonant-projects/clerk-solidjs/internal` has what `@clerk/react/internal` offers frameworks built
+on it. Its API can change in a minor release:
+
+- `MultisessionAppSupport` renders its children again, from scratch, when the active session changes.
+- `useDerivedAuth(() => authObject)` gives `useAuth`'s state for an auth object you have.
+- `useRoutingProps(name, props, routingOptions)` applies Clerk's routing defaults and checks.
+- `publishableKeyFromHost` and `setErrorThrowerOptions`.
+
+For a runtime without a browser window, such as a browser extension's service worker, pass your own
+`Clerk` instance or constructor with `experimental={{ runtimeEnvironment: 'headless' }}`. The
+provider then loads it without fetching scripts or Clerk's UI, and without setting window globals.
+
+One `ClerkProvider` per tree: a provider inside another throws. Separate roots, such as islands,
+each get their own.
 
 ## Examples
 

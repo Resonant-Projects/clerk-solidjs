@@ -224,12 +224,6 @@ importers:
       '@clerk/shared':
         specifier: ^4.40.0
         version: 4.40.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@solid-primitives/context':
-        specifier: ^0.3.2
-        version: 0.3.2(solid-js@1.9.17)
-      '@solid-primitives/destructure':
-        specifier: ^0.2.4
-        version: 0.2.4(solid-js@1.9.17)
       '@solid-primitives/jsx-tokenizer':
         specifier: ^1.1.4
         version: 1.1.4(solid-js@1.9.17)
@@ -1427,16 +1421,6 @@ packages:
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
-
-  '@solid-primitives/context@0.3.2':
-    resolution: {integrity: sha512-6fvTtpK17PFHnUf/UOc1TzBjd+kLFjtA62aRFEm1kDP9ufTo7FYW2kUzQAWbfbRHi30yjBJtopbR8qd6nShwyg==}
-    peerDependencies:
-      solid-js: ^1.6.12
-
-  '@solid-primitives/destructure@0.2.4':
-    resolution: {integrity: sha512-WKMxvHimkndPaR85EevIKiOa0doOq1LKV3JIZ3RnFY6UTnLgk81k2F7HU5szWmbDutwYuGbg8c/cmhoMm8sbpQ==}
-    peerDependencies:
-      solid-js: ^1.6.12
 
   '@solid-primitives/event-listener@2.4.6':
     resolution: {integrity: sha512-5I0YJcTVYIWoMmgBSROBZGcz+ymhew/pGTg2dHW74BUjFKsV8Li4bOZYl0YAGP4mHw5o4UBd9/BEesqBci3wxw==}
@@ -4692,15 +4676,6 @@ snapshots:
       '@types/hast': 3.0.5
 
   '@shikijs/vscode-textmate@10.0.2': {}
-
-  '@solid-primitives/context@0.3.2(solid-js@1.9.17)':
-    dependencies:
-      solid-js: 1.9.17
-
-  '@solid-primitives/destructure@0.2.4(solid-js@1.9.17)':
-    dependencies:
-      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
-      solid-js: 1.9.17
 
   '@solid-primitives/event-listener@2.4.6(solid-js@1.9.17)':
     dependencies:
