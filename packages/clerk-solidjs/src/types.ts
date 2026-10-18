@@ -221,6 +221,8 @@ export type PaginatedResources<T = unknown, Infinite = false> = {
   isError: () => boolean;
   page: () => number;
   pageCount: () => number;
+  /** Jumps to a page, or in infinite mode loads pages up to it. */
+  fetchPage: ValueOrSetter<number>;
   fetchPrevious: () => void;
   fetchNext: () => void;
   hasNextPage: () => boolean;

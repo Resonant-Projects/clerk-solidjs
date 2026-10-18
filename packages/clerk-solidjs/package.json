@@ -210,8 +210,7 @@
     "@solid-primitives/context": "^0.3.2",
     "@solid-primitives/destructure": "^0.2.4",
     "@solid-primitives/jsx-tokenizer": "^1.1.4",
-    "@solid-primitives/memo": "^1.5.1",
-    "@tanstack/solid-query": "^5.104.3"
+    "@tanstack/query-core": "^5.104.3"
   },
   "devDependencies": {
     "@clerk/clerk-js": "^6.39.1",

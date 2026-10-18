@@ -1,6 +1,6 @@
+import { getCurrentOrganizationMembership } from '@clerk/shared/organization';
 import { eventMethodCalled } from '@clerk/shared/telemetry';
 import type {
-  ClerkPaginatedResponse,
   GetDomainsParams,
   GetInvitationsParams,
   GetMembershipRequestParams,
@@ -10,16 +10,14 @@ import type {
   OrganizationMembershipRequestResource,
   OrganizationMembershipResource
 } from '@clerk/shared/types';
-import { Accessor, createEffect, createMemo } from 'solid-js';
+import { Accessor, createEffect, createMemo, on } from 'solid-js';
 import { useClerkInstanceContext } from '../contexts/clerk-instance';
 import { useOrganizationContext } from '../contexts/organization';
 import { useSessionContext } from '../contexts/session';
-import type { PaginatedHookConfig } from '../types';
+import { createCacheKeys, STABLE_KEYS } from '../query/keys';
+import type { PaginatedHookConfig, PaginatedResources } from '../types';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
-import {
-  convertToSafeValues,
-  usePagesOrInfinite
-} from './use-pages-or-infinite';
+import { createSafeValues, usePagesOrInfinite } from './use-pages-or-infinite';
 
 type UseOrganizationParams = {
   domains?: true | PaginatedHookConfig<GetDomainsParams>;
@@ -28,60 +26,72 @@ type UseOrganizationParams = {
   invitations?: true | PaginatedHookConfig<GetInvitationsParams>;
 };
 
+/**
+ * The active organization, your membership in it, and paginated lists of its
+ * domains, membership requests, memberships and invitations. Each list is
+ * fetched only when its param is passed, as in @clerk/react.
+ *
+ * While Clerk loads, `isLoaded()` is `false` and every field is `undefined`.
+ * With no active organization, `isLoaded()` is `true` and every field is
+ * `null`.
+ */
 export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
   useAssertWrappedByClerkProvider('useOrganization');
 
   const organization = useOrganizationContext();
   const session = useSessionContext();
+  const clerk = useClerkInstanceContext();
 
-  const domainSafeValues = createMemo(() =>
-    convertToSafeValues(params?.().domains, {
-      initialPage: 1,
-      pageSize: 10,
-      keepPreviousData: false,
-      infinite: false,
-      enrollmentMode: undefined
-    })
+  createEffect(
+    on(
+      () => clerk().telemetry,
+      (telemetry) => telemetry?.record(eventMethodCalled('useOrganization'))
+    )
   );
 
-  const membershipRequestSafeValues = createMemo(() =>
-    convertToSafeValues(params?.().membershipRequests, {
+  const listParams =
+    <K extends keyof UseOrganizationParams>(key: K) =>
+    () =>
+      params?.()[key];
+
+  const domainSafeValues = createSafeValues(listParams('domains'), {
+    initialPage: 1,
+    pageSize: 10,
+    keepPreviousData: false,
+    infinite: false,
+    enrollmentMode: undefined
+  } as PaginatedHookConfig<GetDomainsParams>);
+
+  const membershipRequestSafeValues = createSafeValues(
+    listParams('membershipRequests'),
+    {
       initialPage: 1,
       pageSize: 10,
       status: 'pending',
       keepPreviousData: false,
       infinite: false
-    })
+    } as PaginatedHookConfig<GetMembershipRequestParams>
   );
 
-  const membersSafeValues = createMemo(() =>
-    convertToSafeValues(params?.().memberships, {
-      initialPage: 1,
-      pageSize: 10,
-      role: undefined,
-      keepPreviousData: false,
-      infinite: false
-    })
-  );
+  const membersSafeValues = createSafeValues(listParams('memberships'), {
+    initialPage: 1,
+    pageSize: 10,
+    role: undefined,
+    keepPreviousData: false,
+    infinite: false,
+    query: undefined
+  } as PaginatedHookConfig<GetMembersParams>);
 
-  const invitationsSafeValues = createMemo(() =>
-    convertToSafeValues(params?.().invitations, {
-      initialPage: 1,
-      pageSize: 10,
-      status: ['pending'],
-      keepPreviousData: false,
-      infinite: false
-    })
-  );
+  const invitationsSafeValues = createSafeValues(listParams('invitations'), {
+    initialPage: 1,
+    pageSize: 10,
+    status: ['pending'],
+    keepPreviousData: false,
+    infinite: false
+  } as PaginatedHookConfig<GetInvitationsParams>);
 
-  const clerk = useClerkInstanceContext();
-
-  createEffect(() => {
-    clerk().telemetry?.record(eventMethodCalled('useOrganization'));
-  });
-
-  const domainParams = createMemo(() =>
-    typeof params?.().domains === 'undefined'
+  const domainParams = createMemo((): GetDomainsParams | undefined =>
+    listParams('domains')() === undefined
       ? undefined
       : {
           initialPage: domainSafeValues().initialPage,
@@ -90,28 +100,30 @@ export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
         }
   );
 
-  const membershipRequestParams = createMemo(() =>
-    typeof params?.().membershipRequests === 'undefined'
-      ? undefined
-      : {
-          initialPage: membershipRequestSafeValues().initialPage,
-          pageSize: membershipRequestSafeValues().pageSize,
-          status: membershipRequestSafeValues().status
-        }
+  const membershipRequestParams = createMemo(
+    (): GetMembershipRequestParams | undefined =>
+      listParams('membershipRequests')() === undefined
+        ? undefined
+        : {
+            initialPage: membershipRequestSafeValues().initialPage,
+            pageSize: membershipRequestSafeValues().pageSize,
+            status: membershipRequestSafeValues().status
+          }
   );
 
-  const membersParams = createMemo(() =>
-    typeof params?.().memberships === 'undefined'
+  const membersParams = createMemo((): GetMembersParams | undefined =>
+    listParams('memberships')() === undefined
       ? undefined
       : {
           initialPage: membersSafeValues().initialPage,
           pageSize: membersSafeValues().pageSize,
-          role: membersSafeValues().role
+          role: membersSafeValues().role,
+          query: membersSafeValues().query
         }
   );
 
-  const invitationsParams = createMemo(() =>
-    typeof params?.().invitations === 'undefined'
+  const invitationsParams = createMemo((): GetInvitationsParams | undefined =>
+    listParams('invitations')() === undefined
       ? undefined
       : {
           initialPage: invitationsSafeValues().initialPage,
@@ -122,145 +134,133 @@ export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
 
   const domains = usePagesOrInfinite<
     GetDomainsParams,
-    ClerkPaginatedResponse<OrganizationDomainResource>
+    OrganizationDomainResource
   >(() => ({
-    params: {
-      ...domainParams()
-    },
     fetcher: organization()?.getDomains,
     config: {
       keepPreviousData: domainSafeValues().keepPreviousData,
       infinite: domainSafeValues().infinite,
-      enabled: !!domainParams()
+      enabled: !!domainParams(),
+      isSignedIn: organization() !== null,
+      initialPage: domainSafeValues().initialPage,
+      pageSize: domainSafeValues().pageSize
     },
-    cacheKeys: {
-      type: 'domains',
-      organizationId: organization()?.id
-    }
+    keys: createCacheKeys({
+      stablePrefix: STABLE_KEYS.DOMAINS_KEY,
+      authenticated: true,
+      tracked: { organizationId: organization()?.id },
+      untracked: { args: domainParams() }
+    })
   }));
 
   const membershipRequests = usePagesOrInfinite<
     GetMembershipRequestParams,
-    ClerkPaginatedResponse<OrganizationMembershipRequestResource>
+    OrganizationMembershipRequestResource
   >(() => ({
-    params: {
-      ...membershipRequestParams()
-    },
     fetcher: organization()?.getMembershipRequests,
     config: {
       keepPreviousData: membershipRequestSafeValues().keepPreviousData,
       infinite: membershipRequestSafeValues().infinite,
-      enabled: !!membershipRequestParams()
+      enabled: !!membershipRequestParams(),
+      isSignedIn: organization() !== null,
+      initialPage: membershipRequestSafeValues().initialPage,
+      pageSize: membershipRequestSafeValues().pageSize
     },
-    cacheKeys: {
-      type: 'membershipRequests',
-      organizationId: organization()?.id
-    }
+    keys: createCacheKeys({
+      stablePrefix: STABLE_KEYS.MEMBERSHIP_REQUESTS_KEY,
+      authenticated: true,
+      tracked: { organizationId: organization()?.id },
+      untracked: { args: membershipRequestParams() }
+    })
   }));
 
   const memberships = usePagesOrInfinite<
     GetMembersParams,
-    ClerkPaginatedResponse<OrganizationMembershipResource>
+    OrganizationMembershipResource
   >(() => ({
-    params: membersParams() || {},
     fetcher: organization()?.getMemberships,
     config: {
       keepPreviousData: membersSafeValues().keepPreviousData,
       infinite: membersSafeValues().infinite,
-      enabled: !!membersParams()
+      enabled: !!membersParams(),
+      isSignedIn: organization() !== null,
+      initialPage: membersSafeValues().initialPage,
+      pageSize: membersSafeValues().pageSize
     },
-    cacheKeys: {
-      type: 'members',
-      organizationId: organization()?.id
-    }
+    keys: createCacheKeys({
+      stablePrefix: STABLE_KEYS.MEMBERSHIPS_KEY,
+      authenticated: true,
+      tracked: { organizationId: organization()?.id },
+      untracked: { args: membersParams() }
+    })
   }));
 
   const invitations = usePagesOrInfinite<
     GetInvitationsParams,
-    ClerkPaginatedResponse<OrganizationInvitationResource>
+    OrganizationInvitationResource
   >(() => ({
-    params: {
-      ...invitationsParams()
-    },
     fetcher: organization()?.getInvitations,
     config: {
       keepPreviousData: invitationsSafeValues().keepPreviousData,
       infinite: invitationsSafeValues().infinite,
-      enabled: !!invitationsParams()
+      enabled: !!invitationsParams(),
+      isSignedIn: organization() !== null,
+      initialPage: invitationsSafeValues().initialPage,
+      pageSize: invitationsSafeValues().pageSize
     },
-    cacheKeys: {
-      type: 'invitations',
-      organizationId: organization()?.id
-    }
+    keys: createCacheKeys({
+      stablePrefix: STABLE_KEYS.INVITATIONS_KEY,
+      authenticated: true,
+      tracked: { organizationId: organization()?.id },
+      untracked: { args: invitationsParams() }
+    })
   }));
 
-  const isLoaded = createMemo(() => organization() === undefined);
+  // The four states of @clerk/shared's useOrganization: Clerk still loading,
+  // no active organization, an organization rendered on the server before
+  // clerk-js loads, and loaded.
+  const state = createMemo(() => {
+    const org = organization();
+    if (org === undefined) return 'loading';
+    if (org === null) return 'none';
+    return clerk().loaded ? 'ready' : 'ssr';
+  });
+
+  const isLoaded = createMemo(() => state() !== 'loading');
+
+  const list = <T>(resources: PaginatedResources<T>) =>
+    createMemo(() => {
+      switch (state()) {
+        case 'none':
+          return null;
+        case 'ready':
+          return resources;
+        default:
+          return undefined;
+      }
+    });
+
+  const membership = createMemo(() => {
+    switch (state()) {
+      case 'none':
+        return null;
+      case 'ready':
+        return getCurrentOrganizationMembership(
+          session()?.user?.organizationMemberships ?? [],
+          organization()!.id
+        );
+      default:
+        return undefined;
+    }
+  });
 
   return {
     isLoaded,
     organization,
-    membership: createMemo(() => {
-      if (isLoaded()) {
-        if (organization()) {
-          return getCurrentOrganizationMembership(
-            session()!.user!.organizationMemberships,
-            organization()!.id
-          );
-        } else {
-          return null;
-        }
-      }
-      return undefined;
-    }),
-    domains: createMemo(() => {
-      if (isLoaded()) {
-        if (organization()) {
-          return domains;
-        } else {
-          return null;
-        }
-      }
-      return undefined;
-    }),
-    membershipRequests: createMemo(() => {
-      if (isLoaded()) {
-        if (organization()) {
-          return membershipRequests;
-        } else {
-          return null;
-        }
-      }
-      return undefined;
-    }),
-    memberships: createMemo(() => {
-      if (isLoaded()) {
-        if (organization()) {
-          return memberships;
-        } else {
-          return null;
-        }
-      }
-      return undefined;
-    }),
-    invitations: createMemo(() => {
-      if (isLoaded()) {
-        if (organization()) {
-          return invitations;
-        } else {
-          return null;
-        }
-      }
-      return undefined;
-    })
+    membership,
+    domains: list(domains),
+    membershipRequests: list(membershipRequests),
+    memberships: list(memberships),
+    invitations: list(invitations)
   };
 };
-
-function getCurrentOrganizationMembership(
-  organizationMemberships: OrganizationMembershipResource[],
-  activeOrganizationId: string
-) {
-  return organizationMemberships.find(
-    (organizationMembership) =>
-      organizationMembership.organization.id === activeOrganizationId
-  );
-}

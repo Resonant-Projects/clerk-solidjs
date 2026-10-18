@@ -13,9 +13,9 @@ afterEach(() => {
 
 const updatesWith = (
   clerkJS: ReturnType<typeof createFakeClerkJS>['clerkJS'],
-  match: (props: any) => boolean
+  match: (update: any) => boolean
 ) =>
-  clerkJS.__internal_updateProps.mock.calls.filter(([props]) => match(props));
+  clerkJS.__internal_updateProps.mock.calls.filter(([update]) => match(update));
 
 describe('prop updates reach clerk-js', () => {
   it('sends a changed ClerkProvider appearance to __internal_updateProps', async () => {
@@ -41,7 +41,7 @@ describe('prop updates reach clerk-js', () => {
       expect(
         updatesWith(
           clerkJS,
-          (props) => props.appearance?.variables?.colorPrimary === 'blue'
+          (update) => update.appearance?.variables?.colorPrimary === 'blue'
         )
       ).toHaveLength(1)
     );
@@ -70,7 +70,7 @@ describe('prop updates reach clerk-js', () => {
       expect(
         updatesWith(
           clerkJS,
-          (props) => props.options?.localization?.locale === 'fr-FR'
+          (update) => update.options?.localization?.locale === 'fr-FR'
         )
       ).toHaveLength(1)
     );
@@ -97,11 +97,11 @@ describe('prop updates reach clerk-js', () => {
     setPath('/login');
 
     await vi.waitFor(() =>
-      expect(updatesWith(clerkJS, (props) => props.node === node)).toHaveLength(
-        1
-      )
+      expect(
+        updatesWith(clerkJS, (update) => update.node === node)
+      ).toHaveLength(1)
     );
-    const [[update]] = updatesWith(clerkJS, (props) => props.node === node);
+    const [[update]] = updatesWith(clerkJS, (update) => update.node === node);
     expect(update.props).toEqual({ path: '/login', routing: 'path' });
     // clerk-js keeps the object it was given, so it must be a snapshot.
     expect(mountedProps).toEqual({ path: '/sign-in', routing: 'path' });
