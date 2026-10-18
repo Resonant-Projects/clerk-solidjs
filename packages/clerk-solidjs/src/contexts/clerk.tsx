@@ -1,36 +1,76 @@
+import { deprecated } from '@clerk/shared/deprecated';
+import { getEnvVariable } from '@clerk/shared/getEnvVariable';
 import { isPublishableKey } from '@clerk/shared/keys';
-import { createEffect, JSX, splitProps } from 'solid-js';
+import { JSX, mergeProps, splitProps, untrack } from 'solid-js';
 import { errorThrower } from '../errors/error-thrower';
 import { multipleClerkProvidersError } from '../errors/messages';
-import type { ClerkProviderProps } from '../types';
+import type { ClerkProviderProps, IsomorphicClerkOptions, Ui } from '../types';
 import { withMaxAllowedInstancesGuard } from '../utils';
 import { ClerkContextProvider } from './clerk-context';
 
-function ClerkProviderBase(props: ClerkProviderProps): JSX.Element {
-  const [local, restIsomorphicClerkOptions] = splitProps(props, [
-    'initialState',
-    'children'
-  ]);
+/** `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY`, as in @clerk/react. */
+const publishableKeyFromEnv = () =>
+  getEnvVariable('VITE_CLERK_PUBLISHABLE_KEY') ||
+  getEnvVariable('CLERK_PUBLISHABLE_KEY') ||
+  undefined;
 
-  createEffect(() => {
-    if (!restIsomorphicClerkOptions.Clerk) {
-      if (!restIsomorphicClerkOptions.publishableKey) {
-        errorThrower.throwMissingPublishableKeyError();
-      } else if (
-        restIsomorphicClerkOptions.publishableKey &&
-        !isPublishableKey(restIsomorphicClerkOptions.publishableKey)
-      ) {
-        errorThrower.throwInvalidPublishableKeyError({
-          key: restIsomorphicClerkOptions.publishableKey
-        });
-      }
+function ClerkProviderBase<TUi extends Ui = Ui>(
+  props: ClerkProviderProps<TUi>
+): JSX.Element {
+  const [local, rest] = splitProps(props, ['initialState', 'children']);
+
+  // A prop of `undefined` falls back to the env; an empty string does not, so
+  // a framework that passes `''` for an unset variable still gets the error.
+  const publishableKey = () =>
+    rest.publishableKey === undefined
+      ? publishableKeyFromEnv()
+      : rest.publishableKey;
+
+  // Validated during render, so a missing or malformed key also fails on the
+  // server instead of only after the first client render.
+  untrack(() => {
+    if (rest.Clerk) return;
+    const key = publishableKey();
+    if (!key) {
+      errorThrower.throwMissingPublishableKeyError();
+    } else if (!isPublishableKey(key)) {
+      errorThrower.throwInvalidPublishableKeyError({ key });
     }
   });
+
+  // Core 3 removed afterSignInUrl and afterSignUpUrl, and clerk-js ignores
+  // them. Until 4.0 they stand in for the fallback redirect URLs.
+  untrack(() => {
+    if (rest.afterSignInUrl !== undefined) {
+      deprecated(
+        'afterSignInUrl',
+        'Use `signInFallbackRedirectUrl` or `signInForceRedirectUrl` instead.'
+      );
+    }
+    if (rest.afterSignUpUrl !== undefined) {
+      deprecated(
+        'afterSignUpUrl',
+        'Use `signUpFallbackRedirectUrl` or `signUpForceRedirectUrl` instead.'
+      );
+    }
+  });
+
+  const options = mergeProps(rest, {
+    get publishableKey() {
+      return publishableKey();
+    },
+    get signInFallbackRedirectUrl() {
+      return rest.signInFallbackRedirectUrl ?? rest.afterSignInUrl;
+    },
+    get signUpFallbackRedirectUrl() {
+      return rest.signUpFallbackRedirectUrl ?? rest.afterSignUpUrl;
+    }
+  }) as unknown as IsomorphicClerkOptions;
 
   return (
     <ClerkContextProvider
       initialState={local.initialState}
-      isomorphicClerkOptions={restIsomorphicClerkOptions}
+      isomorphicClerkOptions={options}
     >
       {local.children}
     </ClerkContextProvider>
@@ -41,6 +81,6 @@ const ClerkProvider = withMaxAllowedInstancesGuard(
   ClerkProviderBase,
   'ClerkProvider',
   multipleClerkProvidersError
-);
+) as typeof ClerkProviderBase;
 
 export { ClerkProvider };

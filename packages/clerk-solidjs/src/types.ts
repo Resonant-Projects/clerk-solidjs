@@ -20,6 +20,7 @@ import type {
   Without
 } from '@clerk/shared/types';
 import { Accessor, JSX, JSXElement } from 'solid-js';
+import type { Appearance, Theme } from './vendor/clerk-ui-appearance';
 
 declare global {
   interface Window {
@@ -27,6 +28,14 @@ declare global {
     __clerk_proxy_url?: Clerk['proxyUrl'];
     __clerk_domain?: Clerk['domain'];
     __internal_ClerkUICtor?: ClerkUIConstructor;
+  }
+
+  /**
+   * Types every `appearance` prop with Clerk's Core 3 theme, as `@clerk/react`
+   * does: `theme`, `options`, `variables`, `elements` and `captcha`.
+   */
+  interface ClerkAppearanceRegistry {
+    theme: Theme;
   }
 }
 
@@ -48,12 +57,47 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never;
 
-export type ClerkProviderProps = DistributiveOmit<
+/** `@clerk/ui`'s: the appearance type a `ui` carries, or `Default`. */
+type ExtractAppearanceType<T, Default> = T extends {
+  __appearanceType?: infer A;
+}
+  ? 0 extends 1 & A
+    ? Default
+    : A
+  : Default;
+
+/**
+ * The `ui` export of `@clerk/ui`, which bundles Clerk's components instead of
+ * loading them from the CDN. It carries the appearance type of its version.
+ */
+export interface Ui<A = any> {
+  __brand?: '__clerkUI';
+  ClerkUI?: ClerkUIConstructor | Promise<ClerkUIConstructor>;
+  version?: string;
+  __appearanceType?: A;
+}
+
+export type ClerkProviderProps<TUi extends Ui = Ui> = DistributiveOmit<
   IsomorphicClerkOptions,
-  keyof InternalClerkScriptProps
+  keyof InternalClerkScriptProps | 'appearance' | 'publishableKey' | 'ui'
 > & {
   children: JSX.Element;
   initialState?: InitialState;
+  /**
+   * Your Clerk Publishable Key. When omitted, it is read from
+   * `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY`.
+   */
+  publishableKey?: string;
+  /**
+   * Styles Clerk's components: `theme`, `options`, `variables`, `elements`
+   * and `captcha`. With `ui`, it is typed for that version of `@clerk/ui`.
+   */
+  appearance?: ExtractAppearanceType<TUi, Appearance>;
+  /**
+   * Pass `ui` from `@clerk/ui` to bundle Clerk's components instead of
+   * loading them from the CDN.
+   */
+  ui?: TUi;
 };
 
 export interface BrowserClerkConstructor {

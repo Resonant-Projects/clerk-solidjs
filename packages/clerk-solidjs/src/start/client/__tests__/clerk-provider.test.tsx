@@ -1,3 +1,4 @@
+import type { SDKMetadata } from '@clerk/shared/types';
 import { Router } from '@solidjs/router';
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,7 +13,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const loadOptions = async (ui?: { sdkMetadata?: unknown }) => {
+const loadOptions = async (ui?: { sdkMetadata?: SDKMetadata }) => {
   const { clerkJS } = createFakeClerkJS();
   render(() => (
     <Router

@@ -17,6 +17,7 @@ import {
 import { dark } from '@clerk/ui/themes';
 import { expectTypeOf } from 'expect-type';
 
+import type { SignInProps } from '@clerk/shared/types';
 import { describe, it } from 'vitest';
 import type { ClerkProvider } from '../clerk';
 
@@ -32,8 +33,8 @@ describe('ClerkProvider', () => {
         }).toMatchTypeOf<ClerkProviderProps>();
       });
 
-      it('errors if no publishableKey', () => {
-        expectTypeOf({ children: '' }).not.toMatchTypeOf<ClerkProviderProps>();
+      it('accepts no publishableKey, which then comes from the env', () => {
+        expectTypeOf({ children: '' }).toMatchTypeOf<ClerkProviderProps>();
       });
     });
   });
@@ -130,18 +131,33 @@ describe('ClerkProvider', () => {
       }).toMatchTypeOf<ClerkProviderProps>();
     });
 
-    it('includes variables, elements, layout baseTheme', () => {
+    it('takes the Core 3 keys: theme, options, variables, elements', () => {
       expectTypeOf({
         ...defaultProps,
-        appearance: { elements: {}, variables: {}, layout: {}, baseTheme: dark }
+        appearance: {
+          theme: dark,
+          options: { socialButtonsPlacement: 'bottom' as const },
+          variables: { colorPrimary: '' },
+          elements: { card: 'my-card' }
+        }
       }).toMatchTypeOf<ClerkProviderProps>();
     });
 
-    it('allows Clerk appearance options', () => {
+    it('rejects the Core 2 keys layout and baseTheme', () => {
       expectTypeOf({
         ...defaultProps,
-        appearance: { variables: { colorPrimary: '' }, layout: {} }
-      }).toMatchTypeOf<ClerkProviderProps>();
+        appearance: { layout: {} }
+      }).not.toMatchTypeOf<ClerkProviderProps>();
+      expectTypeOf({
+        ...defaultProps,
+        appearance: { baseTheme: dark }
+      }).not.toMatchTypeOf<ClerkProviderProps>();
+    });
+
+    it('types appearance on component props too', () => {
+      expectTypeOf<NonNullable<SignInProps['appearance']>>().toHaveProperty(
+        'theme'
+      );
     });
   });
 

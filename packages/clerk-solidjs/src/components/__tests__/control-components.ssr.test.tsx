@@ -22,19 +22,22 @@ const renderOnServer = (ui: () => JSX.Element, locals = {}) =>
 
 describe('control components on the server', () => {
   it('render ClerkLoading, as the browser does before clerk-js loads', () => {
-    const html = renderOnServer(() => (
-      <>
-        <ClerkLoading>
-          <p>loading</p>
-        </ClerkLoading>
-        <ClerkLoaded>
-          <p>loaded</p>
-        </ClerkLoaded>
-        <ClerkFailed>
-          <p>failed</p>
-        </ClerkFailed>
-      </>
-    ));
+    const html = renderOnServer(
+      () => (
+        <>
+          <ClerkLoading>
+            <p>loading</p>
+          </ClerkLoading>
+          <ClerkLoaded>
+            <p>loaded</p>
+          </ClerkLoaded>
+          <ClerkFailed>
+            <p>failed</p>
+          </ClerkFailed>
+        </>
+      ),
+      { clerkInitialState: signedInInitState() }
+    );
 
     expect(html).toContain('loading');
     expect(html).not.toContain('loaded');
