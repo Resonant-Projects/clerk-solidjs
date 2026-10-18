@@ -144,6 +144,8 @@ type OutletContextValue = Pick<
   'mount' | 'unmount' | 'updateProps'
 > & {
   props: Accessor<Record<string, unknown>>;
+  /** The provider's `fallback`, shown where the Outlet is until Clerk renders. */
+  fallback: () => JSX.Element;
 };
 
 type FallbackProp = {
@@ -460,7 +462,8 @@ const _UserButton = withClerk(
           unmount: (node) => isomorphicClerk().unmountUserButton(node),
           updateProps: (update) =>
             isomorphicClerk().__internal_updateProps(update),
-          props: shared
+          props: shared,
+          fallback: () => props.fallback
         }}
       >
         <UserButtonHost {...props} share={share} />
@@ -490,6 +493,7 @@ export function UserButtonOutlet(
       {(outlet) => (
         <Portal
           component="UserButton"
+          fallback={outlet().fallback()}
           mount={outlet().mount}
           unmount={outlet().unmount}
           updateProps={outlet().updateProps}
@@ -661,7 +665,8 @@ const _OrganizationSwitcher = withClerk(
             isomorphicClerk().unmountOrganizationSwitcher(node),
           updateProps: (update) =>
             isomorphicClerk().__internal_updateProps(update),
-          props: shared
+          props: shared,
+          fallback: () => props.fallback
         }}
       >
         <OrganizationSwitcherHost {...props} share={share} />
@@ -690,6 +695,7 @@ export function OrganizationSwitcherOutlet(
       {(outlet) => (
         <Portal
           component="OrganizationSwitcher"
+          fallback={outlet().fallback()}
           mount={outlet().mount}
           unmount={outlet().unmount}
           updateProps={outlet().updateProps}
@@ -750,6 +756,7 @@ const _UserProfileModal = withClerk(
         portals.handlersFor
       )
     );
+    useBuildWarnings(() => pages().warnings);
 
     // Clerk reads customPages when the modal opens. While it stays open, calling openUserProfile again updates its
     // pages in place and keeps the user on their current page, as long as no start path is passed. Skip the update

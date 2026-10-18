@@ -502,6 +502,25 @@ describe('IsomorphicClerk Core 3 loading', () => {
     error.mockRestore();
   });
 
+  it('reports a headless Clerk constructor that throws as a failed load', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const Throwing = class {
+      constructor() {
+        throw new Error('bad options');
+      }
+    };
+    const isomorphicClerk = new IsomorphicClerk({
+      publishableKey: 'pk_test_XXX',
+      Clerk: Throwing as any,
+      experimental: { runtimeEnvironment: 'headless' } as any
+    });
+
+    // It fails during construction, so the status is all a caller can see.
+    await vi.waitFor(() => expect(isomorphicClerk.status).toBe('error'));
+    expect(isomorphicClerk.loaded).toBe(false);
+    error.mockRestore();
+  });
+
   it('skips directory sync and device verification on a clerk-js without them', async () => {
     const isomorphicClerk = new IsomorphicClerk({
       publishableKey: 'pk_test_XXX',

@@ -440,21 +440,22 @@ export class IsomorphicClerk implements IsomorphicLoadedClerk {
    * fails, the status is `error` and `addOnLoaded` callbacks still run.
    */
   async #loadHeadlessClerk(): Promise<void> {
-    const clerk = isConstructor<
-      BrowserClerkConstructor | HeadlessBrowserClerkConstructor
-    >(this.Clerk)
-      ? new this.Clerk(this.#publishableKey, {
-          proxyUrl: this.proxyUrl,
-          domain: this.domain
-        } as DomainOrProxyUrl)
-      : this.Clerk;
-
-    if (!clerk) {
-      this.#eventBus.emit(clerkEvents.Status, 'error');
-      return;
-    }
-
     try {
+      // Inside the try: a constructor that throws is a failed load too.
+      const clerk = isConstructor<
+        BrowserClerkConstructor | HeadlessBrowserClerkConstructor
+      >(this.Clerk)
+        ? new this.Clerk(this.#publishableKey, {
+            proxyUrl: this.proxyUrl,
+            domain: this.domain
+          } as DomainOrProxyUrl)
+        : this.Clerk;
+
+      if (!clerk) {
+        this.#eventBus.emit(clerkEvents.Status, 'error');
+        return;
+      }
+
       if (!clerk.loaded) {
         await clerk.load({ ...this.options, sdkMetadata: this.#sdkMetadata });
       }

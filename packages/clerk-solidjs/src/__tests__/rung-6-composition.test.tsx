@@ -16,7 +16,8 @@ import {
   ClerkProvider,
   OrganizationSwitcher,
   useEmailLink,
-  UserButton
+  UserButton,
+  UserProfileModal
 } from '..';
 import { ClerkInstanceContextProvider } from '../contexts/clerk-instance';
 import { ClerkLoadStateContext } from '../contexts/clerk-status';
@@ -240,6 +241,23 @@ describe('__experimental_asProvider and the Outlet', () => {
     });
   });
 
+  it("shows the provider's fallback where the Outlet is, until Clerk renders", () => {
+    const clerk = createFakeClerk();
+    renderWithClerk(clerk, () => (
+      <UserButton
+        __experimental_asProvider
+        fallback={<p data-testid="button-fallback">Loading button</p>}
+      >
+        <div data-testid="slot">
+          <UserButton.__experimental_Outlet />
+        </div>
+      </UserButton>
+    ));
+    expect(
+      screen.getByTestId('slot').contains(screen.getByTestId('button-fallback'))
+    ).toBe(true);
+  });
+
   it('works the same for OrganizationSwitcher', () => {
     const clerk = createFakeClerk();
     renderWithClerk(clerk, () => (
@@ -277,6 +295,28 @@ describe('__experimental_asProvider and the Outlet', () => {
     expect(error.mock.calls.flat().join(' ')).toContain(
       '__experimental_Outlet'
     );
+  });
+});
+
+describe('UserProfileModal', () => {
+  it('still warns in development about a page with missing props', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const clerk = {
+      ...createFakeClerk(),
+      openUserProfile: vi.fn(),
+      closeUserProfile: vi.fn()
+    };
+    renderWithClerk(clerk as any, () => (
+      <UserProfileModal>
+        <UserProfileModal.Page
+          {...({ label: 'No url', labelIcon: <svg /> } as any)}
+        >
+          <p>body</p>
+        </UserProfileModal.Page>
+      </UserProfileModal>
+    ));
+    expect(error.mock.calls.flat().join(' ')).toContain('UserProfile');
   });
 });
 
