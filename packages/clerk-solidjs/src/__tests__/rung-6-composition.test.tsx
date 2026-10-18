@@ -342,8 +342,14 @@ describe('custom element portals', () => {
         />
       ));
       expect(portals.handlersFor('b')).toBe(first);
+      // Clerk shows b, then the app drops it and Clerk hides it, through
+      // the handler it already holds.
+      first.mount(document.createElement('div'));
+      expect(portals.hasMountedNode()).toBe(true);
       setIds(['a']);
       expect(portals.handlersFor('b')).not.toBe(first);
+      first.unmount();
+      expect(portals.hasMountedNode()).toBe(false);
       dispose();
     });
   });
