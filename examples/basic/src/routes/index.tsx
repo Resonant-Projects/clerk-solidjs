@@ -87,6 +87,18 @@ export default function Home() {
           {(_key) => (
             <UserProfileModal __experimental_startPath="/preferences">
               <PreferencesPage />
+              {/* Pages can come and go: the open modal shows the change without moving the user. */}
+              <Show when={size.width > 1024}>
+                <UserProfileModal.Page
+                  label="Wide screens"
+                  url="wide-screens"
+                  labelIcon={<DotIcon />}
+                >
+                  <p>
+                    This page is here while the window is wider than 1024px.
+                  </p>
+                </UserProfileModal.Page>
+              </Show>
             </UserProfileModal>
           )}
         </Show>
