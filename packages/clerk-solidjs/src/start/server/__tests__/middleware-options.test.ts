@@ -413,7 +413,7 @@ describe('contentSecurityPolicy', () => {
     for (const keyword of keywords) expect(scriptSrc).not.toContain(keyword);
   });
 
-  it("matches a source list's keywords in any case, but not other directives' names", async () => {
+  it('matches keywords in any case, but not trusted-types policy names', async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
     const event = fetchEvent();
 
@@ -427,6 +427,7 @@ describe('contentSecurityPolicy', () => {
             "'sha256-AbC='"
           ],
           'object-src': ['NONE'],
+          'require-trusted-types-for': ['SCRIPT'],
           // Policy names are case-sensitive.
           'trusted-types': ['NONE', 'Allow-Duplicates']
         }
@@ -443,6 +444,9 @@ describe('contentSecurityPolicy', () => {
     );
     expect(directive(policy, 'script-src')).not.toContain('WASM-UNSAFE-EVAL');
     expect(directive(policy, 'object-src')).toEqual(["'none'"]);
+    expect(directive(policy, 'require-trusted-types-for')).toEqual([
+      "'script'"
+    ]);
     expect(directive(policy, 'trusted-types')).toEqual([
       'NONE',
       'Allow-Duplicates'

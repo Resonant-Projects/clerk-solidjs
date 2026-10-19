@@ -142,13 +142,14 @@ const defaultDirectives = (): Record<string, string[]> => ({
 /** Quotes the keywords (`self`, `none`, …), which CSP requires. */
 const formatValue = (directive: string, value: string) => {
   const unquoted = value.replace(/^'|'$/g, '');
-  // CSP matches a source list's keywords in any case. The names other
-  // directives take are case-sensitive.
-  if (isSourceList(directive)) {
-    const keyword = unquoted.toLowerCase();
-    return SOURCE_KEYWORDS.has(keyword) ? `'${keyword}'` : value;
-  }
-  return DIRECTIVE_KEYWORDS[directive]?.has(unquoted) ? `'${unquoted}'` : value;
+  const keywords = isSourceList(directive)
+    ? SOURCE_KEYWORDS
+    : DIRECTIVE_KEYWORDS[directive];
+  // Keywords match in any case, since browsers want them lowercase, except
+  // in trusted-types, where the other words are case-sensitive policy names.
+  const keyword =
+    directive === 'trusted-types' ? unquoted : unquoted.toLowerCase();
+  return keywords?.has(keyword) ? `'${keyword}'` : value;
 };
 
 const isNone = (directive: string, values: string[]) =>
