@@ -142,14 +142,17 @@ const defaultDirectives = (): Record<string, string[]> => ({
 /** Quotes the keywords (`self`, `none`, …), which CSP requires. */
 const formatValue = (directive: string, value: string) => {
   const unquoted = value.replace(/^'|'$/g, '');
-  const keywords = isSourceList(directive)
-    ? SOURCE_KEYWORDS
-    : DIRECTIVE_KEYWORDS[directive];
-  return keywords?.has(unquoted) ? `'${unquoted}'` : value;
+  // CSP matches a source list's keywords in any case. The names other
+  // directives take are case-sensitive.
+  if (isSourceList(directive)) {
+    const keyword = unquoted.toLowerCase();
+    return SOURCE_KEYWORDS.has(keyword) ? `'${keyword}'` : value;
+  }
+  return DIRECTIVE_KEYWORDS[directive]?.has(unquoted) ? `'${unquoted}'` : value;
 };
 
-const isNone = (values: string[]) =>
-  values.includes("'none'") || values.includes('none');
+const isNone = (directive: string, values: string[]) =>
+  values.some((value) => formatValue(directive, value) === "'none'");
 
 /** A random base64 nonce, new for each request. */
 export const generateNonce = (): string => {
@@ -182,7 +185,7 @@ const buildDirectives = (
 
   for (const [key, raw] of Object.entries(custom ?? {})) {
     const values = Array.isArray(raw) ? raw : [raw as unknown as string];
-    if (isNone(values)) {
+    if (isNone(key, values)) {
       directives[key] = new Set(["'none'"]);
     } else if (directives[key]) {
       // Merged into Clerk's sources for a directive Clerk sets.
