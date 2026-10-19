@@ -62,16 +62,26 @@ export interface ContentSecurityPolicyOptions {
 
 type DirectiveSet = Partial<Record<string, Set<string>>>;
 
-/** The keywords of a source list (`script-src`, `base-uri`, …). */
+/**
+ * The keywords of a source list (`script-src`, `base-uri`, …): CSP3's
+ * `keyword-source`, `'none'`, and the Speculation Rules spec's
+ * `'inline-speculation-rules'`.
+ */
 const SOURCE_KEYWORDS = new Set([
   'inline-speculation-rules',
   'none',
   'report-sample',
+  'report-sha256',
+  'report-sha384',
+  'report-sha512',
   'self',
   'strict-dynamic',
+  'trusted-types-eval',
+  'unsafe-allow-redirects',
   'unsafe-eval',
   'unsafe-hashes',
   'unsafe-inline',
+  'unsafe-webtransport-hashes',
   'wasm-unsafe-eval'
 ]);
 

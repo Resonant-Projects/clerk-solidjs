@@ -379,6 +379,40 @@ describe('contentSecurityPolicy', () => {
     expect(directive(policy, 'connect-src')).toContain('script');
   });
 
+  it("quotes every keyword of CSP3's keyword-source in a source list", async () => {
+    // CSP3's keyword-source grammar, plus the Speculation Rules keyword.
+    const keywords = [
+      'self',
+      'unsafe-inline',
+      'unsafe-eval',
+      'strict-dynamic',
+      'unsafe-hashes',
+      'report-sample',
+      'unsafe-allow-redirects',
+      'wasm-unsafe-eval',
+      'trusted-types-eval',
+      'report-sha256',
+      'report-sha384',
+      'report-sha512',
+      'unsafe-webtransport-hashes',
+      'inline-speculation-rules'
+    ];
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: { directives: { 'script-src': keywords } }
+    })(event);
+
+    const policy = event.response.headers.get('content-security-policy');
+    const scriptSrc = directive(policy, 'script-src');
+    expect(scriptSrc).toEqual(
+      expect.arrayContaining(keywords.map((keyword) => `'${keyword}'`))
+    );
+    for (const keyword of keywords) expect(scriptSrc).not.toContain(keyword);
+  });
+
   it("has one report-to directive, Clerk's group, with reportTo and a report-to directive", async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
     const event = fetchEvent();
