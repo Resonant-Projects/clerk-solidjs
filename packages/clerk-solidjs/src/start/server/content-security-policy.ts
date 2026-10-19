@@ -53,20 +53,53 @@ export interface ContentSecurityPolicyOptions {
   directives?: Partial<Record<ContentSecurityPolicyDirective, string[]>>;
   /** Sends `Content-Security-Policy-Report-Only`, which reports violations without blocking. */
   reportOnly?: boolean;
-  /** Where browsers report violations, through `Reporting-Endpoints` and `report-to`. */
+  /**
+   * Where browsers report violations, through `Reporting-Endpoints` and
+   * `report-to csp-endpoint`, which replaces a `report-to` in `directives`.
+   */
   reportTo?: string;
 }
 
 type DirectiveSet = Partial<Record<string, Set<string>>>;
 
-const KEYWORDS = new Set([
+/**
+ * The keywords of a source list (`script-src`, `base-uri`, …): CSP3's
+ * `keyword-source`, `'none'`, and the Speculation Rules spec's
+ * `'inline-speculation-rules'`.
+ */
+const SOURCE_KEYWORDS = new Set([
+  'inline-speculation-rules',
   'none',
+  'report-sample',
+  'report-sha256',
+  'report-sha384',
+  'report-sha512',
   'self',
   'strict-dynamic',
+  'trusted-types-eval',
+  'unsafe-allow-redirects',
   'unsafe-eval',
   'unsafe-hashes',
-  'unsafe-inline'
+  'unsafe-inline',
+  'unsafe-webtransport-hashes',
+  'wasm-unsafe-eval'
 ]);
+
+/**
+ * The keywords of the directives that take something other than a source
+ * list. Any other word there is a name (a trusted-types policy, a report-to
+ * group) or a flag, and stays bare.
+ */
+const DIRECTIVE_KEYWORDS: Partial<Record<string, Set<string>>> = {
+  'require-trusted-types-for': new Set(['script']),
+  'trusted-types': new Set(['none', 'allow-duplicates'])
+};
+
+const isSourceList = (directive: string) =>
+  /-src(-elem|-attr)?$/.test(directive) ||
+  ['base-uri', 'form-action', 'frame-ancestors', 'navigate-to'].includes(
+    directive
+  );
 
 const defaultDirectives = (): Record<string, string[]> => ({
   'connect-src': [
@@ -107,13 +140,20 @@ const defaultDirectives = (): Record<string, string[]> => ({
 });
 
 /** Quotes the keywords (`self`, `none`, …), which CSP requires. */
-const formatValue = (value: string) => {
+const formatValue = (directive: string, value: string) => {
   const unquoted = value.replace(/^'|'$/g, '');
-  return KEYWORDS.has(unquoted) ? `'${unquoted}'` : value;
+  const keywords = isSourceList(directive)
+    ? SOURCE_KEYWORDS
+    : DIRECTIVE_KEYWORDS[directive];
+  // Keywords match in any case, since browsers want them lowercase, except
+  // in trusted-types, where the other words are case-sensitive policy names.
+  const keyword =
+    directive === 'trusted-types' ? unquoted : unquoted.toLowerCase();
+  return keywords?.has(keyword) ? `'${keyword}'` : value;
 };
 
-const isNone = (values: string[]) =>
-  values.includes("'none'") || values.includes('none');
+const isNone = (directive: string, values: string[]) =>
+  values.some((value) => formatValue(directive, value) === "'none'");
 
 /** A random base64 nonce, new for each request. */
 export const generateNonce = (): string => {
@@ -126,11 +166,12 @@ const buildDirectives = (
   strict: boolean,
   hosts: string[],
   custom: ContentSecurityPolicyOptions['directives'],
-  nonce: string | undefined
+  nonce: string | undefined,
+  reportTo: string | undefined
 ): string => {
   const directives: DirectiveSet = {};
   for (const [key, values] of Object.entries(defaultDirectives())) {
-    directives[key] = new Set(values.map(formatValue));
+    directives[key] = new Set(values.map((value) => formatValue(key, value)));
   }
 
   for (const host of hosts) directives['connect-src']!.add(host);
@@ -145,15 +186,19 @@ const buildDirectives = (
 
   for (const [key, raw] of Object.entries(custom ?? {})) {
     const values = Array.isArray(raw) ? raw : [raw as unknown as string];
-    if (isNone(values)) {
+    if (isNone(key, values)) {
       directives[key] = new Set(["'none'"]);
     } else if (directives[key]) {
       // Merged into Clerk's sources for a directive Clerk sets.
-      values.forEach((value) => directives[key]!.add(formatValue(value)));
+      values.forEach((value) => directives[key]!.add(formatValue(key, value)));
     } else {
-      directives[key] = new Set(values.map(formatValue));
+      directives[key] = new Set(values.map((value) => formatValue(key, value)));
     }
   }
+
+  // A policy takes one report-to group, and browsers ignore a second
+  // report-to directive, so reportTo's group replaces one in `custom`.
+  if (reportTo) directives['report-to'] = new Set(['csp-endpoint']);
 
   return Object.entries(directives)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -175,15 +220,15 @@ export const createContentSecurityPolicyHeaders = (
   const headers: [string, string][] = [];
   const nonce = options.strict ? generateNonce() : undefined;
 
-  let policy = buildDirectives(
+  const policy = buildDirectives(
     options.strict ?? false,
     hosts,
     options.directives,
-    nonce
+    nonce,
+    options.reportTo
   );
 
   if (options.reportTo) {
-    policy += '; report-to csp-endpoint';
     headers.push([
       constants.Headers.ReportingEndpoints,
       `csp-endpoint="${options.reportTo}"`

@@ -343,6 +343,136 @@ describe('contentSecurityPolicy', () => {
     );
   });
 
+  it('quotes the keywords of every directive, including those only one directive takes', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: {
+        directives: {
+          'script-src': ['wasm-unsafe-eval', 'report-sample'],
+          'require-trusted-types-for': ['script'],
+          // Policy and group names stay bare, even when they spell a keyword
+          // of a source list.
+          'trusted-types': ['appPolicy', 'report-sample', 'allow-duplicates'],
+          'report-to': ['wasm-unsafe-eval'],
+          // Elsewhere, `script` is a host.
+          'connect-src': ['script']
+        }
+      }
+    })(event);
+
+    const policy = event.response.headers.get('content-security-policy');
+    expect(directive(policy, 'script-src')).toEqual(
+      expect.arrayContaining(["'wasm-unsafe-eval'", "'report-sample'"])
+    );
+    expect(directive(policy, 'require-trusted-types-for')).toEqual([
+      "'script'"
+    ]);
+    expect(directive(policy, 'trusted-types')).toEqual([
+      'appPolicy',
+      'report-sample',
+      "'allow-duplicates'"
+    ]);
+    expect(directive(policy, 'report-to')).toEqual(['wasm-unsafe-eval']);
+    expect(directive(policy, 'connect-src')).toContain('script');
+  });
+
+  it("quotes every keyword of CSP3's keyword-source in a source list", async () => {
+    // CSP3's keyword-source grammar, plus the Speculation Rules keyword.
+    const keywords = [
+      'self',
+      'unsafe-inline',
+      'unsafe-eval',
+      'strict-dynamic',
+      'unsafe-hashes',
+      'report-sample',
+      'unsafe-allow-redirects',
+      'wasm-unsafe-eval',
+      'trusted-types-eval',
+      'report-sha256',
+      'report-sha384',
+      'report-sha512',
+      'unsafe-webtransport-hashes',
+      'inline-speculation-rules'
+    ];
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: { directives: { 'script-src': keywords } }
+    })(event);
+
+    const policy = event.response.headers.get('content-security-policy');
+    const scriptSrc = directive(policy, 'script-src');
+    expect(scriptSrc).toEqual(
+      expect.arrayContaining(keywords.map((keyword) => `'${keyword}'`))
+    );
+    for (const keyword of keywords) expect(scriptSrc).not.toContain(keyword);
+  });
+
+  it('matches keywords in any case, but not trusted-types policy names', async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: {
+        directives: {
+          'script-src': [
+            'WASM-UNSAFE-EVAL',
+            "'Unsafe-Hashes'",
+            "'sha256-AbC='"
+          ],
+          'object-src': ['NONE'],
+          'require-trusted-types-for': ['SCRIPT'],
+          // Policy names are case-sensitive.
+          'trusted-types': ['NONE', 'Allow-Duplicates']
+        }
+      }
+    })(event);
+
+    const policy = event.response.headers.get('content-security-policy');
+    expect(directive(policy, 'script-src')).toEqual(
+      expect.arrayContaining([
+        "'wasm-unsafe-eval'",
+        "'unsafe-hashes'",
+        "'sha256-AbC='"
+      ])
+    );
+    expect(directive(policy, 'script-src')).not.toContain('WASM-UNSAFE-EVAL');
+    expect(directive(policy, 'object-src')).toEqual(["'none'"]);
+    expect(directive(policy, 'require-trusted-types-for')).toEqual([
+      "'script'"
+    ]);
+    expect(directive(policy, 'trusted-types')).toEqual([
+      'NONE',
+      'Allow-Duplicates'
+    ]);
+  });
+
+  it("has one report-to directive, Clerk's group, with reportTo and a report-to directive", async () => {
+    backend.authenticateRequest.mockResolvedValue(requestState());
+    const event = fetchEvent();
+
+    await clerkMiddleware({
+      ...options,
+      contentSecurityPolicy: {
+        directives: { 'report-to': ['app-group'] },
+        reportTo: 'https://example.com/csp'
+      }
+    })(event);
+
+    const policy: string = event.response.headers.get(
+      'content-security-policy'
+    );
+    // Browsers ignore every report-to directive after the first.
+    expect(policy.match(/(^|;\s*)report-to\s/g)).toHaveLength(1);
+    expect(directive(policy, 'report-to')).toEqual(['csp-endpoint']);
+  });
+
   it("replaces the route's own policy rather than adding a second", async () => {
     backend.authenticateRequest.mockResolvedValue(requestState());
     const response = (await runH3(
