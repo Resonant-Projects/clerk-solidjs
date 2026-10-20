@@ -175,8 +175,10 @@ const watchRendered = (
   selector: string | undefined,
   onReady: () => void
 ) => {
+  // clerk-js sets the ready marker on the node itself, as @clerk/react's
+  // `[data-clerk-component=…][data-component-status="ready"]` expects.
   const isReady = () =>
-    selector ? !!node.querySelector(selector) : node.childElementCount > 0;
+    node.childElementCount > 0 && (!selector || node.matches(selector));
   if (isReady()) {
     onReady();
     return;
@@ -198,7 +200,7 @@ type HostProps = (MountProps | OpenProps) & {
   /** Set as `data-clerk-component` on the host element. */
   component: string;
   fallback?: JSX.Element;
-  /** An element inside the host that means Clerk has rendered. */
+  /** A selector the host matches once Clerk has rendered into it. */
   readySelector?: string;
 };
 
