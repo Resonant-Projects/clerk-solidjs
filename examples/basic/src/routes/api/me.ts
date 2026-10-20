@@ -8,6 +8,11 @@ export function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   return Response.json({
+    orgId: authObject.tokenType === "session_token" ? authObject.orgId : null,
+    orgRole:
+      authObject.tokenType === "session_token" ? authObject.orgRole : null,
+    orgSlug:
+      authObject.tokenType === "session_token" ? authObject.orgSlug : null,
     tokenType: authObject.tokenType,
     userId: authObject.tokenType === "session_token" ? authObject.userId : authObject.subject,
   });

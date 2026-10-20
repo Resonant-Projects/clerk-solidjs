@@ -84,6 +84,18 @@ While changing a file inside a package, check if e.g. a `<name>.test.ts` file or
 
 If your change can't only be tested by unit tests, you should add/edit an integration test. You can find all necessary information about this in the [integration tests README](../integration/README.md).
 
+For this repository's real-instance browser coverage, build the repo and run the
+Playwright suite against `examples/basic`:
+
+```sh
+pnpm run build
+pnpm run e2e
+```
+
+The e2e suite needs a Clerk development instance configured through
+`CLERK_PUBLISHABLE_KEY` (or `VITE_CLERK_PUBLISHABLE_KEY`) and
+`CLERK_SECRET_KEY`.
+
 ## Opening a Pull Request
 
 1. Search our repository for open or closed [Pull Requests](https://github.com/Resonant-Projects/clerk-solidjs/pulls) that relate to your submission. You don't want to duplicate effort.

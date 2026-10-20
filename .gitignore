@@ -176,3 +176,7 @@ dist
 
 # TurboRepo
 .turbo
+
+# Playwright
+playwright-report
+test-results

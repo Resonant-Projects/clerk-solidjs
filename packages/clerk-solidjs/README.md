@@ -93,6 +93,27 @@ To build the package in watch mode, run the following:
 pnpm run dev
 ```
 
+### Testing
+
+Run the unit and package checks from the repository root:
+
+```sh
+pnpm run test
+pnpm run lint
+pnpm run type-check
+pnpm --filter @resonant-projects/clerk-solidjs run publint
+pnpm --filter @resonant-projects/clerk-solidjs run attw
+```
+
+The Playwright suite targets `examples/basic` against a real Clerk development
+instance. Set `CLERK_PUBLISHABLE_KEY` (or `VITE_CLERK_PUBLISHABLE_KEY`) and
+`CLERK_SECRET_KEY`, then build the example and run:
+
+```sh
+pnpm run build
+pnpm run e2e
+```
+
 ## Usage
 
 Clerk requires your application to be wrapped in the `<ClerkProvider />` context.
