@@ -83,6 +83,13 @@ export function makeClerkTestEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${suffix}+clerk_test@example.com`;
 }
 
+export function makeClerkTestUsername(prefix: string) {
+  const compactPrefix = prefix.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return `${compactPrefix}${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
+}
+
 export function makeOrganizationName(prefix: string) {
   return `${prefix} ${Date.now()} ${Math.random().toString(36).slice(2, 6)}`;
 }

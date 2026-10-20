@@ -6,6 +6,7 @@ import type { TrackedUser } from "./clerk-state";
 import {
   createClerkE2EClient,
   makeClerkTestEmail,
+  makeClerkTestUsername,
   makeOrganizationName,
   makeOrganizationSlug,
   readClerkE2EState,
@@ -62,4 +63,11 @@ export const test = base.extend<E2EFixtures>({
   },
 });
 
-export { clerk, expect, makeClerkTestEmail, makeOrganizationName, makeOrganizationSlug };
+export {
+  clerk,
+  expect,
+  makeClerkTestEmail,
+  makeClerkTestUsername,
+  makeOrganizationName,
+  makeOrganizationSlug,
+};

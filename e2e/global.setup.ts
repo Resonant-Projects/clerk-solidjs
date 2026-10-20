@@ -4,6 +4,7 @@ import { getClerkE2EEnv } from "./clerk-env";
 import {
   createClerkE2EClient,
   makeClerkTestEmail,
+  makeClerkTestUsername,
   resetClerkE2EState,
   writeClerkE2EState,
 } from "./clerk-state";
@@ -35,6 +36,7 @@ async function createPrimaryUser(
   clerkClient: ReturnType<typeof createClerkE2EClient>,
   email: string,
 ) {
+  const username = makeClerkTestUsername("playwright-existing-user");
   const attempts: Array<{
     label: string;
     params: Parameters<typeof clerkClient.users.createUser>[0];
@@ -50,6 +52,14 @@ async function createPrimaryUser(
       params: {
         emailAddress: [email],
         password: "ClerkSolidjs-E2E-Password1!",
+      },
+    },
+    {
+      label: "email-username-and-password",
+      params: {
+        emailAddress: [email],
+        password: "ClerkSolidjs-E2E-Password1!",
+        username,
       },
     },
   ];
