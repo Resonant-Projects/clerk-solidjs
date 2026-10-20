@@ -1,4 +1,6 @@
 # Versions and publishes packages with Changesets and npm trusted publishing (OIDC).
+# The version job opens the Version Packages PR with a GitHub App token (secrets RELEASE_APP_ID and
+# RELEASE_APP_PRIVATE_KEY; see docs/CONTRIBUTING.md) so that CI runs on that PR.
 # Only the publish job receives `id-token: write`; it never builds or runs repo scripts.
 # Publishing stays off until the repository variable NPM_PUBLISH_ENABLED is "true"
 # (see docs/PUBLISH.md for the one-time npm bootstrap).
@@ -44,10 +46,34 @@ jobs:
     needs: select-mode
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The Version Packages PR is committed and opened with a GitHub App token, not GITHUB_TOKEN:
+    # GitHub never starts workflow runs for events that GITHUB_TOKEN creates, so a PR opened with
+    # it gets no CI. The job itself only needs to read the repository.
     permissions:
-      contents: write # commit version changes
-      pull-requests: write # open or update the Version Packages PR
+      contents: read
     steps:
+      - name: Require the release App secrets
+        shell: bash
+        env:
+          RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          missing=0
+          for name in RELEASE_APP_ID RELEASE_APP_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The repository secret ${name} is empty. The Version Packages PR is opened with the release GitHub App so that CI runs on it; this job does not fall back to GITHUB_TOKEN. See \"Release GitHub App\" in docs/CONTRIBUTING.md."
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Create the release App token
+        id: release-app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write # commit version changes
+          permission-pull-requests: write # open or update the Version Packages PR
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,6 +85,7 @@ jobs:
       - name: Create or update the Version Packages PR
         uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
+          github-token: ${{ steps.release-app-token.outputs.token }}
           script: pnpm run version
 
   pack:
