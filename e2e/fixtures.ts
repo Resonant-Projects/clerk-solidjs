@@ -16,6 +16,8 @@ import {
 
 type E2EFixtures = {
   app: ReturnType<typeof createPageObjects>;
+  /** The SolidStart app has a server: middleware, auth() and API routes. */
+  hasServer: boolean;
   clerkClient: ReturnType<typeof createClerkE2EClient>;
   primaryUser: TrackedUser;
   registerCreatedOrganization: (organizationId: string) => void;
@@ -38,16 +40,23 @@ export const test = base.extend<E2EFixtures>({
     );
   },
 
+  hasServer: async ({}, use, testInfo) => {
+    await use(testInfo.project.name === "basic");
+  },
+
   clerkClient: async ({}, use) => {
     await use(createClerkE2EClient());
   },
 
-  primaryUser: async ({}, use) => {
+  primaryUser: async ({}, use, testInfo) => {
     const state = readClerkE2EState();
-    if (!state.primaryUser) {
-      throw new Error("Missing primary Clerk E2E user from global setup.");
+    const user = state.primaryUsers[testInfo.project.name];
+    if (!user) {
+      throw new Error(
+        `Missing the primary Clerk E2E user for ${testInfo.project.name} from global setup.`,
+      );
     }
-    await use(state.primaryUser);
+    await use(user);
   },
 
   registerCreatedOrganization: async ({}, use) => {

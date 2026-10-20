@@ -95,15 +95,15 @@ describe('Rung 4 host components', () => {
     await vi.waitFor(() =>
       expect(members.mountPricingTable).toHaveBeenCalled()
     );
-    const [node] = members.mountPricingTable.mock.calls[0]!;
-    // Rendered, but the plans have not loaded.
-    (node as HTMLElement).append(document.createElement('div'));
+    const [node] = members.mountPricingTable.mock.calls[0]! as [HTMLElement];
+    // clerk-js marks the node it was given, as @clerk/react expects. Rendered,
+    // but the plans have not loaded:
+    node.append(document.createElement('div'));
+    node.dataset.componentStatus = 'awaiting-data';
     await Promise.resolve();
     expect(screen.getByText('Loading plans...')).toBeTruthy();
 
-    const ready = document.createElement('div');
-    ready.dataset.componentStatus = 'ready';
-    (node as HTMLElement).append(ready);
+    node.dataset.componentStatus = 'ready';
     await vi.waitFor(() =>
       expect(screen.queryByText('Loading plans...')).toBeNull()
     );

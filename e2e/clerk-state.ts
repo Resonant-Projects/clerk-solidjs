@@ -14,7 +14,12 @@ export type TrackedUser = {
 export type ClerkE2EState = {
   createdOrganizationIds: string[];
   createdUsers: TrackedUser[];
-  primaryUser: null | TrackedUser;
+  /**
+   * One existing user per Playwright project. The projects run the same specs
+   * against different apps, and a user's last active organization carries
+   * into its next session, so they must not share one.
+   */
+  primaryUsers: Record<string, TrackedUser>;
 };
 
 export const clerkE2EStatePath = path.join(
@@ -31,7 +36,7 @@ export function defaultClerkE2EState(): ClerkE2EState {
   return {
     createdOrganizationIds: [],
     createdUsers: [],
-    primaryUser: null,
+    primaryUsers: {},
   };
 }
 

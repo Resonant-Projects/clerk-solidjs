@@ -1,4 +1,5 @@
 import { clerkSetup } from "@clerk/testing/playwright";
+import type { FullConfig } from "@playwright/test";
 
 import { getClerkE2EEnv } from "./clerk-env";
 import {
@@ -82,7 +83,7 @@ async function createPrimaryUser(
   );
 }
 
-export default async function globalSetup() {
+export default async function globalSetup(config: FullConfig) {
   const { publishableKey, secretKey } = getClerkE2EEnv();
 
   await clerkSetup({
@@ -95,15 +96,19 @@ export default async function globalSetup() {
   resetClerkE2EState();
 
   const clerkClient = createClerkE2EClient();
-  const email = makeClerkTestEmail("playwright-existing-user");
-  const primaryUser = await createPrimaryUser(clerkClient, email);
-
-  writeClerkE2EState({
-    createdOrganizationIds: [],
-    createdUsers: [],
-    primaryUser: {
-      email,
-      id: primaryUser.id,
-    },
-  });
+  const primaryUsers: Record<string, { email: string; id: string }> = {};
+  try {
+    for (const project of config.projects) {
+      const email = makeClerkTestEmail(`playwright-${project.name}`);
+      const user = await createPrimaryUser(clerkClient, email);
+      primaryUsers[project.name] = { email, id: user.id };
+    }
+  } finally {
+    // Teardown deletes whichever users were made, even if one failed.
+    writeClerkE2EState({
+      createdOrganizationIds: [],
+      createdUsers: [],
+      primaryUsers,
+    });
+  }
 }

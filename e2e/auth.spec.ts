@@ -18,20 +18,26 @@ async function getApiMe(page: Page) {
 }
 
 test("renders signed-out Show state and signed-out server auth headers", async ({
+  hasServer,
   page,
 }) => {
   const response = await page.goto("/");
 
-  expect(response?.headers()["x-clerk-auth-status"]).toBe("signed-out");
+  if (hasServer) {
+    expect(response?.headers()["x-clerk-auth-status"]).toBe("signed-out");
+  }
   await expect(page.getByTestId("signed-out-state")).toBeVisible();
   await expect(page.getByRole("button", { name: /^sign in$/i })).toBeVisible();
 
-  const me = await getApiMe(page);
-  expect(me.response.status()).toBe(401);
-  expect(me.body).toEqual({ error: "Unauthorized" });
+  if (hasServer) {
+    const me = await getApiMe(page);
+    expect(me.response.status()).toBe(401);
+    expect(me.body).toEqual({ error: "Unauthorized" });
+  }
 });
 
 test("signs in, renders the protected page, exposes /api/me, then signs out cleanly", async ({
+  hasServer,
   page,
   primaryUser,
 }) => {
@@ -46,12 +52,14 @@ test("signs in, renders the protected page, exposes /api/me, then signs out clea
   await expect(page).toHaveURL(/\/protected$/);
   await expect(page.getByText(/^Welcome,/)).toBeVisible();
 
-  const me = await getApiMe(page);
-  expect(me.response.status()).toBe(200);
-  expect(me.body).toMatchObject({
-    tokenType: "session_token",
-    userId: primaryUser.id,
-  });
+  if (hasServer) {
+    const me = await getApiMe(page);
+    expect(me.response.status()).toBe(200);
+    expect(me.body).toMatchObject({
+      tokenType: "session_token",
+      userId: primaryUser.id,
+    });
+  }
 
   await page.goto("/me");
   await expect(page.getByTestId("userId")).toHaveText(primaryUser.id);
@@ -64,8 +72,10 @@ test("signs in, renders the protected page, exposes /api/me, then signs out clea
 
   await expect(page.getByTestId("signed-out-state")).toBeVisible();
 
-  const afterSignOut = await getApiMe(page);
-  expect(afterSignOut.response.status()).toBe(401);
+  if (hasServer) {
+    const afterSignOut = await getApiMe(page);
+    expect(afterSignOut.response.status()).toBe(401);
+  }
 
   await page.goto("/protected");
   await expect(page).toHaveURL(/\/sign-in\?/);
@@ -73,9 +83,11 @@ test("signs in, renders the protected page, exposes /api/me, then signs out clea
 
 test("restores a signed-in session after the session cookie is cleared", async ({
   context,
+  hasServer,
   page,
   primaryUser,
 }) => {
+  test.skip(!hasServer, "The handshake runs in the SolidStart middleware.");
   await page.goto("/");
   await clerk.loaded({ page });
   await clerk.signIn({ emailAddress: primaryUser.email, page });

@@ -96,6 +96,15 @@ The e2e suite needs a Clerk development instance configured through
 `VITE_CLERK_PUBLISHABLE_KEY` (or `CLERK_PUBLISHABLE_KEY`) and
 `CLERK_SECRET_KEY`.
 
+It runs against both example apps: `examples/basic` (SolidStart, where it also
+checks the middleware, `auth()` and API routes) and `examples/solid-vite` (a
+client-only app on Vite and `@solidjs/router`). `E2E_APPS=basic pnpm run e2e`
+runs only the SolidStart app. The organization spec needs Organizations turned
+on in the instance, and the billing spec needs billing for users with a public
+plan; each is skipped, and says why, when its feature is off. CI also runs the
+SolidStart app on the oldest SolidStart and `@solidjs/router` the peer ranges
+allow, and a weekly workflow runs everything on the newest `@clerk/*` packages.
+
 In GitHub Actions, the E2E workflow accepts `VITE_CLERK_PUBLISHABLE_KEY` as
 either a secret or a repository variable and maps it to both env names that the
 example and tests accept.

@@ -1,0 +1,26 @@
+{
+  "name": "clerk-solidjs-vite-example",
+  "description": "@resonant-projects/clerk-solidjs in a client-only Solid app on Vite and @solidjs/router",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist",
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^8.3.4",
+    "vite-plugin-solid": "^2.11.14"
+  },
+  "dependencies": {
+    "@resonant-projects/clerk-solidjs": "workspace:*",
+    "@solidjs/router": "^1.0.0",
+    "solid-js": "^1.9.17"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
