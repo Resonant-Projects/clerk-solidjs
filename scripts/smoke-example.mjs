@@ -456,6 +456,8 @@ async function requiredUserFields() {
   const required = (name) =>
     !!attributes[name]?.enabled && !!attributes[name]?.required;
   return {
+    ...(required("first_name") && { first_name: "Smoke" }),
+    ...(required("last_name") && { last_name: "Test" }),
     ...(required("username") && { username: `smoke_${Date.now()}` }),
     ...(required("phone_number") && {
       phone_number: [
