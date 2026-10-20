@@ -181,10 +181,10 @@ jobs:
         shell: bash
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
         run: |
           if [ -z "$CLERK_SECRET_KEY" ] || [ -z "$VITE_CLERK_PUBLISHABLE_KEY" ]; then
-            echo "::error title=Missing Clerk smoke credentials::Set CLERK_SECRET_KEY and VITE_CLERK_PUBLISHABLE_KEY repository secrets so the smoke job can create examples/basic/.env.local."
+            echo "::error title=Missing Clerk smoke credentials::Set CLERK_SECRET_KEY as a repository secret and VITE_CLERK_PUBLISHABLE_KEY as either a repository secret or variable so the smoke job can create examples/basic/.env.local."
             exit 1
           fi
           printf '%s\n' \
