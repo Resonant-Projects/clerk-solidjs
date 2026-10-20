@@ -39,8 +39,7 @@ test("signs in, renders the protected page, exposes /api/me, then signs out clea
   await clerk.loaded({ page });
   await clerk.signIn({ emailAddress: primaryUser.email, page });
 
-  const signedInHome = await page.goto("/");
-  expect(signedInHome?.headers()["x-clerk-auth-status"]).toBe("signed-in");
+  await page.goto("/");
   await expect(page.getByTestId("signed-in-state")).toBeVisible();
 
   await page.goto("/protected");

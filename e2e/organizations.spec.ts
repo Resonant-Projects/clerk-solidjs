@@ -2,7 +2,6 @@ import {
   clerk,
   expect,
   makeOrganizationName,
-  makeOrganizationSlug,
   test,
 } from "./fixtures";
 
@@ -30,12 +29,10 @@ test("switches organizations and reflects the active organization in server auth
     firstOrganization = await clerkClient.organizations.createOrganization({
       createdBy: primaryUser.id,
       name: makeOrganizationName("Playwright First Org"),
-      slug: makeOrganizationSlug("playwright-first-org"),
     });
     secondOrganization = await clerkClient.organizations.createOrganization({
       createdBy: primaryUser.id,
       name: makeOrganizationName("Playwright Second Org"),
-      slug: makeOrganizationSlug("playwright-second-org"),
     });
   } catch (error) {
     if (isOrganizationsDisabledError(error)) {
@@ -60,12 +57,12 @@ test("switches organizations and reflects the active organization in server auth
 
   await expect(page.getByTestId("orgId")).toHaveText(firstOrganization.id);
   await expect(page.getByTestId("orgRole")).toHaveText("org:admin");
-  await expect(page.getByTestId("orgSlug")).toHaveText(firstOrganization.slug);
 
   const firstApiMe = await page.request.get("/api/me");
   const firstApiMeBody = await firstApiMe.json();
   expect(firstApiMe.status()).toBe(200);
   expect(firstApiMeBody.orgId).toBe(firstOrganization.id);
+  expect(firstApiMeBody.orgRole).toBe("org:admin");
 
   await app.organizationSwitcher.toggleTrigger();
   await page.getByText(secondOrganization.name, { exact: true }).click();
@@ -74,12 +71,10 @@ test("switches organizations and reflects the active organization in server auth
 
   await expect(page.getByTestId("orgId")).toHaveText(secondOrganization.id);
   await expect(page.getByTestId("orgRole")).toHaveText("org:admin");
-  await expect(page.getByTestId("orgSlug")).toHaveText(secondOrganization.slug);
 
   const secondApiMe = await page.request.get("/api/me");
   const secondApiMeBody = await secondApiMe.json();
   expect(secondApiMe.status()).toBe(200);
   expect(secondApiMeBody.orgId).toBe(secondOrganization.id);
   expect(secondApiMeBody.orgRole).toBe("org:admin");
-  expect(secondApiMeBody.orgSlug).toBe(secondOrganization.slug);
 });

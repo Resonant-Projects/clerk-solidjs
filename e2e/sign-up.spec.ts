@@ -35,7 +35,10 @@ test("signs up with an email code and reaches a signed-in server state", async (
   await fillIfVisible(app.signUp.getUsernameInput(), username);
   if (await app.signUp.getPasswordInput().isVisible().catch(() => false)) {
     await app.signUp.setPassword(signUpPassword);
-    await app.signUp.setPasswordConfirmation(signUpPassword);
+    const confirmPasswordInput = page.locator('input[name="confirmPassword"]');
+    if (await confirmPasswordInput.isVisible().catch(() => false)) {
+      await app.signUp.setPasswordConfirmation(signUpPassword);
+    }
   }
   if (await app.signUp.getLegalAccepted().isVisible().catch(() => false)) {
     await app.signUp.getLegalAccepted().check();
