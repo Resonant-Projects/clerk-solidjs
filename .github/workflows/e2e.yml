@@ -1,0 +1,80 @@
+name: E2E
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fork-pr-notice:
+    name: Fork PR notice
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain why E2E is skipped
+        run: |
+          echo "::notice title=E2E skipped for fork PR::Fork pull requests do not receive CLERK_SECRET_KEY, so the Clerk E2E job is intentionally skipped."
+
+  e2e:
+    name: Clerk Playwright E2E
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+
+      - name: Validate Clerk CI configuration
+        shell: bash
+        run: |
+          missing=()
+
+          if [[ -z "${VITE_CLERK_PUBLISHABLE_KEY}" ]]; then
+            missing+=("repo secret or variable VITE_CLERK_PUBLISHABLE_KEY (used for CLERK_PUBLISHABLE_KEY and VITE_CLERK_PUBLISHABLE_KEY)")
+          fi
+
+          if [[ -z "${CLERK_SECRET_KEY}" ]]; then
+            missing+=("repo secret CLERK_SECRET_KEY")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error title=Missing Clerk CI configuration::Missing %s. Same-repo pushes and pull requests must provide these values.\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Build package and example app
+        run: pnpm run build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm run e2e
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          if-no-files-found: ignore
+          path: |
+            playwright-report
+            test-results

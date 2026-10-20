@@ -1,0 +1,48 @@
+name: Package Preview
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pkg-pr-new:
+    name: pkg.pr.new preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+
+      - name: Build package
+        run: pnpm --filter @resonant-projects/clerk-solidjs run build
+
+      - name: Publish preview
+        shell: bash
+        run: |
+          set +e
+          output="$(pnpm dlx pkg-pr-new publish --compact --pnpm "./packages/clerk-solidjs" 2>&1)"
+          status=$?
+          set -e
+
+          printf '%s\n' "$output"
+
+          if [[ $status -ne 0 ]]; then
+            if [[ "$output" == *"The app https://github.com/apps/pkg-pr-new is not installed"* ]]; then
+              echo "::notice title=pkg.pr.new app not installed::Install the pkg.pr.new GitHub App on this repository to enable preview publishing."
+              exit 0
+            fi
+
+            exit "$status"
+          fi

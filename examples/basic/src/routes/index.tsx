@@ -49,60 +49,81 @@ export default function Home() {
       {/* ClerkShow is Clerk's <Show>, named so it can sit beside solid-js's. It
           renders on the server from the request's auth state. */}
       <ClerkShow when="signed-out">
-        {/* Your own button as the child: Clerk's click handler goes on it. */}
-        <SignInButton>
-          <button class="bg-slate-200 rounded-md px-3 py-1">Sign in</button>
-        </SignInButton>
+        <div
+          class="flex flex-col items-center gap-2"
+          data-testid="signed-out-state"
+        >
+          {/* Your own button as the child: Clerk's click handler goes on it. */}
+          <SignInButton>
+            <button class="bg-slate-200 rounded-md px-3 py-1">Sign in</button>
+          </SignInButton>
+          <A href="/sign-up" class="bg-slate-200 rounded-md px-3 py-1">
+            Sign up
+          </A>
+        </div>
       </ClerkShow>
       <ClerkShow when="signed-in">
-        <UserButton
-          showName={size.width > 768}
-          userProfileMode="modal"
-          fallback={<span class="text-slate-500">Loading account...</span>}
+        <div
+          class="flex flex-col items-center gap-2"
+          data-testid="signed-in-state"
         >
-          <UserButton.MenuItems>
-            <UserButton.Action
-              label="Preferences"
-              labelIcon={<DotIcon />}
-              open="preferences"
-            />
-            <UserButton.Link
-              label="Protected page"
-              labelIcon={<DotIcon />}
-              href="/protected"
-            />
-            <UserButton.Action label="manageAccount" />
-            <UserButton.Action label="signOut" />
-          </UserButton.MenuItems>
-          <PreferencesPage />
-        </UserButton>
-        <button
-          class="bg-slate-200 rounded-md px-3 py-1"
-          onClick={() => setModalKey(Date.now())}
-        >
-          Open preferences
-        </button>
-        {/* The callback takes the key, so each click mounts a new modal (a zero-argument child is an accessor). */}
-        <Show when={modalKey()} keyed>
-          {(_key) => (
-            <UserProfileModal __experimental_startPath="/preferences">
-              <PreferencesPage />
-              {/* Pages can come and go: the open modal shows the change without moving the user. */}
-              <Show when={size.width > 1024}>
-                <UserProfileModal.Page
-                  label="Wide screens"
-                  url="wide-screens"
-                  labelIcon={<DotIcon />}
-                >
-                  <p>
-                    This page is here while the window is wider than 1024px.
-                  </p>
-                </UserProfileModal.Page>
-              </Show>
-            </UserProfileModal>
-          )}
-        </Show>
-        <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
+          <UserButton
+            showName={size.width > 768}
+            userProfileMode="modal"
+            fallback={<span class="text-slate-500">Loading account...</span>}
+          >
+            <UserButton.MenuItems>
+              <UserButton.Action
+                label="Preferences"
+                labelIcon={<DotIcon />}
+                open="preferences"
+              />
+              <UserButton.Link
+                label="Protected page"
+                labelIcon={<DotIcon />}
+                href="/protected"
+              />
+              <UserButton.Link
+                label="Auth details"
+                labelIcon={<DotIcon />}
+                href="/me"
+              />
+              <UserButton.Action label="manageAccount" />
+              <UserButton.Action label="signOut" />
+            </UserButton.MenuItems>
+            <PreferencesPage />
+          </UserButton>
+          <button
+            class="bg-slate-200 rounded-md px-3 py-1"
+            onClick={() => setModalKey(Date.now())}
+          >
+            Open preferences
+          </button>
+          <A href="/me" class="bg-slate-200 rounded-md px-3 py-1">
+            Auth details
+          </A>
+          {/* The callback takes the key, so each click mounts a new modal (a zero-argument child is an accessor). */}
+          <Show when={modalKey()} keyed>
+            {(_key) => (
+              <UserProfileModal __experimental_startPath="/preferences">
+                <PreferencesPage />
+                {/* Pages can come and go: the open modal shows the change without moving the user. */}
+                <Show when={size.width > 1024}>
+                  <UserProfileModal.Page
+                    label="Wide screens"
+                    url="wide-screens"
+                    labelIcon={<DotIcon />}
+                  >
+                    <p>
+                      This page is here while the window is wider than 1024px.
+                    </p>
+                  </UserProfileModal.Page>
+                </Show>
+              </UserProfileModal>
+            )}
+          </Show>
+          <SignOutButton class="bg-slate-200 rounded-md px-3 py-1" />
+        </div>
       </ClerkShow>
       <A href="/protected" class="bg-slate-200 rounded-md px-3 py-1">
         Protected Page
