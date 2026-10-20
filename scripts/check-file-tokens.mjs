@@ -126,9 +126,10 @@ function git(args, input) {
 
 // Staged regular files as { file, blob }. Binary files (git's own detection,
 // including .gitattributes), submodule gitlinks and symlinks are skipped.
-// --no-renames makes every entry a plain path (renames become A + D).
+// --no-renames makes every entry a plain path (renames become A + D), and T
+// catches a symlink replaced by a regular file.
 function stagedTextFiles() {
-  const common = ["diff", "--cached", "-z", "--no-renames", "--diff-filter=ACM"];
+  const common = ["diff", "--cached", "-z", "--no-renames", "--diff-filter=ACMT"];
 
   // numstat: "added\tdeleted\tpath\0"; binary files report "-\t-". Paths are
   // emitted verbatim with -z, so split only at the first two tabs.
