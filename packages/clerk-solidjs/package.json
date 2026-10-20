@@ -412,10 +412,7 @@
     },
     "./package.json": "./package.json"
   },
-  "browser": {
-    "./dist/index/server.js": "./dist/index/index.js",
-    "./dist/start/server.js": "./dist/start/index.js"
-  },
+  "browser": "./dist/index/index.js",
   "files": [
     "./dist",
     "./start-env.d.ts",
@@ -431,7 +428,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "publint": "publint run --pack pnpm .",
+    "publint": "publint run --strict --pack pnpm .",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "clean": "rimraf dist",
