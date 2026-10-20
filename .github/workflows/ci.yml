@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - renovate/**
   pull_request:
-    branches: [master]
+    branches:
+      - master
 
 permissions:
   contents: read
@@ -14,8 +17,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-test:
-    name: Build & Test
+  build:
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -27,10 +30,71 @@ jobs:
         uses: ./.github/actions/ci-setup
       - name: Build
         run: pnpm run build
+
+  export-paths:
+    name: Export paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Build package
+        run: pnpm --filter @resonant-projects/clerk-solidjs run build
       - name: Check dist
-        # exports paths exist, and `.` and `./start` share one copy of the
+        # Export paths exist, and `.` and `./start` share one copy of the
         # Clerk contexts under the browser, node and solid conditions.
         run: pnpm --filter @resonant-projects/clerk-solidjs run check:dist
+
+  tests:
+    name: Tests (solid-js ${{ matrix.solid-js-label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - solid-js-label: latest
+            solid-js-version: latest
+          - solid-js-label: 1.9.0
+            solid-js-version: 1.9.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Pin solid-js to 1.9.0
+        if: matrix.solid-js-version != 'latest'
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          pkg.pnpm ??= {};
+          pkg.pnpm.overrides ??= {};
+          pkg.pnpm.overrides['solid-js'] = '1.9.0';
+          fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+      - name: Reinstall with oldest supported solid-js
+        if: matrix.solid-js-version != 'latest'
+        run: pnpm install --no-frozen-lockfile
+      - name: Verify resolved solid-js version
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const version = JSON.parse(
+            fs.readFileSync('examples/basic/node_modules/solid-js/package.json', 'utf8'),
+          ).version;
+          console.log(`solid-js ${version}`);
+          if ('${{ matrix.solid-js-version }}' !== 'latest' && version !== '${{ matrix.solid-js-version }}') {
+            process.exit(1);
+          }
+          NODE
       - name: Test
         run: pnpm run test
 
@@ -79,3 +143,55 @@ jobs:
         uses: ./.github/actions/ci-setup
       - name: Run ${{ matrix.script }}
         run: pnpm run ${{ matrix.script }}
+
+  smoke:
+    name: Smoke example
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Write smoke env file
+        shell: bash
+        run: |
+          test -n "${{ secrets.CLERK_SECRET_KEY }}"
+          test -n "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}"
+          cat > examples/basic/.env.local <<'EOF'
+          CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          EOF
+      - name: Smoke
+        run: pnpm run smoke
+
+  ci-required:
+    name: ci-required
+    if: ${{ always() }}
+    needs:
+      - build
+      - export-paths
+      - tests
+      - oldest-node
+      - quality
+      - smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs passed
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          node - <<'NODE'
+          const needs = JSON.parse(process.env.NEEDS_JSON);
+          const failed = Object.entries(needs).filter(([, job]) => job.result !== 'success');
+          if (failed.length > 0) {
+            console.error('Required jobs did not pass:');
+            for (const [name, job] of failed) {
+              console.error(`- ${name}: ${job.result}`);
+            }
+            process.exit(1);
+          }
+          console.log('All required jobs passed.');
+          NODE
