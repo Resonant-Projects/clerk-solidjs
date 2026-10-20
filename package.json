@@ -21,7 +21,8 @@
     "test": "turbo test",
     "type-check": "turbo type-check",
     "version": "changeset version && pnpm install --no-frozen-lockfile && pnpm run format",
-    "smoke": "node scripts/smoke-example.mjs"
+    "smoke": "node scripts/smoke-example.mjs",
+    "check-file-tokens": "node scripts/check-file-tokens.mjs"
   },
   "author": "Resonant Projects",
   "license": "MIT",

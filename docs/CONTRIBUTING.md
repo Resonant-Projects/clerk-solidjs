@@ -174,6 +174,18 @@ Great release notes and changelogs are an incredibly important trait of good sof
 
 Changesets provides streamlined tooling and enforcement to ensure that developers working on features have as easy of a time as possible writing great changelogs, and puts together release notes for us at the quality bar that we strive for. Make sure to think from the perspective of a user when writing changesets to make it crystal clear what your feature is, what impact is has on the library, how to use it, and how to find more detail, if relevant.
 
+### File size limit
+
+A husky pre-commit hook (`scripts/check-file-tokens.mjs`) blocks commits that
+add or change a source file over **5,000 estimated tokens** (bytes / 4, so
+20,000 bytes). Large files are hard for people and coding agents to read and
+edit in one pass. If the hook fails, split the file by responsibility: move
+types, constants and helpers into their own modules, extract components or
+sub-functions, and re-export from an index if callers depend on the old path.
+Lockfiles, generated and vendored code, binaries and snapshots are ignored; the
+list lives at the top of the script. `git commit --no-verify` bypasses the hook
+in an emergency. The hook is installed by `pnpm install` through husky.
+
 ### Commit messages
 
 Even though we don't use commit messages to track changes between releases, all commit messages need to respect the [conventional-commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
