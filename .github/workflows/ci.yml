@@ -159,6 +159,13 @@ jobs:
 
   smoke:
     name: Smoke example
+    # GitHub withholds repository secrets from fork and Dependabot pull
+    # requests. ci-required accepts this job's skip only for those runs, and
+    # repeats this condition to decide.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -168,6 +175,8 @@ jobs:
           persist-credentials: false
       - name: CI setup
         uses: ./.github/actions/ci-setup
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Write smoke env file
         shell: bash
         env:
@@ -178,10 +187,10 @@ jobs:
             echo "::error title=Missing Clerk smoke credentials::Set CLERK_SECRET_KEY and VITE_CLERK_PUBLISHABLE_KEY repository secrets so the smoke job can create examples/basic/.env.local."
             exit 1
           fi
-          cat > examples/basic/.env.local <<'EOF'
-          CLERK_SECRET_KEY=$CLERK_SECRET_KEY
-          VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
-          EOF
+          printf '%s\n' \
+            "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" \
+            "VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY" \
+            > examples/basic/.env.local
       - name: Smoke
         run: pnpm run smoke
 
@@ -200,16 +209,30 @@ jobs:
       - name: Verify required jobs passed
         env:
           NEEDS_JSON: ${{ toJson(needs) }}
+          # The smoke job's condition: false when the run has no secrets.
+          HAS_SECRETS: >-
+            ${{ github.event_name != 'pull_request' ||
+            (github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]') }}
         run: |
           node - <<'NODE'
           const needs = JSON.parse(process.env.NEEDS_JSON);
-          const failed = Object.entries(needs).filter(([, job]) => job.result !== 'success');
+          const secretJobs = new Set(['smoke']);
+          const hasSecrets = process.env.HAS_SECRETS === 'true';
+          const failed = Object.entries(needs).filter(
+            ([name, job]) =>
+              job.result !== 'success' &&
+              !(job.result === 'skipped' && !hasSecrets && secretJobs.has(name)),
+          );
           if (failed.length > 0) {
             console.error('Required jobs did not pass:');
             for (const [name, job] of failed) {
               console.error(`- ${name}: ${job.result}`);
             }
             process.exit(1);
+          }
+          if (!hasSecrets) {
+            console.log('No repository secrets on this run, so the Clerk jobs were skipped.');
           }
           console.log('All required jobs passed.');
           NODE

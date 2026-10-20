@@ -50,13 +50,13 @@
       "groupSlug": "solid"
     },
     {
-      "description": "Automerge non-Clerk dev tooling patch and minor updates only after required checks pass",
+      "description": "Automerge non-Clerk dev tooling patch and minor updates. Renovate merges only once every check passes, so this is safe without branch protection",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "matchPackageNames": ["!@clerk/**"],
       "automerge": true,
       "automergeType": "pr",
-      "platformAutomerge": true
+      "platformAutomerge": false
     },
     {
       "description": "All majors require dashboard approval",
