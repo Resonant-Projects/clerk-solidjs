@@ -237,7 +237,12 @@ that the repository owns. GitHub does not start workflow runs for events created
 by an App does. The job fails with a clear error, before it checks anything out, if either secret
 below is empty; it never falls back to `GITHUB_TOKEN`.
 
-Setting the App up is a one-time task for a repository admin:
+Setting the App up is a one-time task, and repository admin access alone is not enough for all
+of it. Only an organization owner or a GitHub App manager can register an App for the
+organization. The App manager role cannot install it. An organization owner can install it,
+and so can a repository admin on this repository, because it requests no organization
+permissions, unless the organization restricts App installation by repository admins. Adding
+the secrets needs repository admin access.
 
 1. Create the App. For an organization-owned repository, go to the organization's
    **Settings → Developer settings → GitHub Apps → New GitHub App**. For a personal repository,
@@ -275,9 +280,11 @@ Setting the App up is a one-time task for a repository admin:
    environment secrets: the `Version packages` job does not run in an environment.
 
 5. Check it works: merge a pull request that carries a changeset, or run the `Release` workflow
-   from the **Actions** tab. The `Version packages` job should open a **Version Packages** pull
-   request authored by `<name>[bot]`, and the `CI` workflow should start on it without anyone
-   approving a run.
+   from the **Actions** tab while `master` has a pending changeset. Without one, the workflow
+   selects the `publish` or `none` mode and skips the `Version packages` job, so it creates no
+   token and proves nothing. The job should open or update the **Version Packages** pull
+   request with a commit by `<name>[bot]`, and the `CI` workflow should start on it without
+   anyone approving a run.
 
 The workflow asks the App for a token limited to `contents: write` and `pull-requests: write` on
 this repository, and the token is revoked when the job ends. If the private key is ever exposed,
