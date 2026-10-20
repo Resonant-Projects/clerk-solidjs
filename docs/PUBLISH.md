@@ -16,10 +16,14 @@ in GitHub. Every published version carries a provenance attestation.
    tarballs, and then the `Publish to npm` job, which publishes them, pushes the release tag and
    creates the GitHub release.
 
-The `Version packages` job opens its pull request with the default `GITHUB_TOKEN`, and GitHub does
-not start workflow runs for events that token creates. CI therefore does not run on the Version
-Packages pull request by itself. To see checks there, close and reopen the pull request. Either
-way, the `Build & pack` job runs the full `prerelease` verification before anything is published.
+The `Version packages` job commits and opens its pull request with a token from the repository's
+release GitHub App, read from the secrets `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`. GitHub
+does not start workflow runs for events that the default `GITHUB_TOKEN` creates, so a pull
+request opened with it would get no CI; one opened by the App does. The job fails before it
+checks anything out if either secret is empty and never falls back to `GITHUB_TOKEN`. How to
+create the App and add the secrets is in the
+[contributing guide](CONTRIBUTING.md#release-github-app). The `Build & pack` job still runs the
+full `prerelease` verification before anything is published.
 
 The publish job is the only job with `id-token: write`. It installs with `--ignore-scripts`, does
 not build, and publishes only the tarballs packed by the previous job.
@@ -65,9 +69,10 @@ version is published by hand.
 6. After the first trusted publish succeeds, set the package's **Publishing access** to
    _Require two-factor authentication and disallow tokens_.
 
-The repository also needs **Settings → Actions → General → Allow GitHub Actions to create and
-approve pull requests** enabled so the `Version packages` job can open its pull request. The
-organization must allow it first, under the same setting in the organization's Actions settings.
+The `Version packages` job needs the release GitHub App installed on the repository and its two
+secrets set; see [Release GitHub App](CONTRIBUTING.md#release-github-app). Because the pull
+request is opened by the App rather than by `GITHUB_TOKEN`, the **Allow GitHub Actions to create
+and approve pull requests** setting is not needed for it.
 Keep the repository's **Actions permissions** on _Allow all actions and reusable workflows_
 (every action is pinned to a commit SHA). Allowing only repository-local actions makes every
 workflow fail at startup.

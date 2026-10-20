@@ -20,6 +20,7 @@ When contributing to this repository, please first discuss the change you wish t
   - [Issues and feature requests](#issues-and-feature-requests)
   - [Localizations](#localizations)
   - [Publishing packages](#publishing-packages)
+    - [Release GitHub App](#release-github-app)
   - [License](#license)
 
 </details>
@@ -226,6 +227,72 @@ If you want to add or edit localizations (e.g. how a button text is translated t
 _Note: Only maintainers can publish packages._
 
 For more information visit [publish documentation](https://github.com/Resonant-Projects/clerk-solidjs/blob/master/docs/PUBLISH.md).
+
+### Release GitHub App
+
+The `Version packages` job of the [`Release` workflow](../.github/workflows/release.yml) commits
+the version bump and opens the **Version Packages** pull request with a token from a GitHub App
+that the repository owns. GitHub does not start workflow runs for events created with the default
+`GITHUB_TOKEN`, so a pull request opened with it would never get CI checks. A pull request opened
+by an App does. The job fails with a clear error, before it checks anything out, if either secret
+below is empty; it never falls back to `GITHUB_TOKEN`.
+
+Setting the App up is a one-time task, and repository admin access alone is not enough for all
+of it. Only an organization owner or a GitHub App manager can register an App for the
+organization. The App manager role cannot install it. An organization owner can install it,
+and so can a repository admin on this repository, because it requests no organization
+permissions, unless the organization restricts App installation by repository admins. Adding
+the secrets needs repository admin access.
+
+1. Create the App. For an organization-owned repository, go to the organization's
+   **Settings → Developer settings → GitHub Apps → New GitHub App**. For a personal repository,
+   use the same path under your own account settings. Fill in:
+
+   - **GitHub App name**: for example `clerk-solidjs-release`. The pull request and its commits
+     are attributed to `<name>[bot]`.
+   - **Homepage URL**: the repository URL.
+   - **Webhook**: untick **Active**. The App is only used to mint tokens.
+   - **Repository permissions**:
+     - **Contents**: _Read and write_ (push the version commit).
+     - **Pull requests**: _Read and write_ (open and update the Version Packages pull request).
+     - **Workflows**: leave at _No access_. It is only needed if a Version Packages pull
+       request has to change files under `.github/workflows`, which `changeset version` never
+       does.
+   - Leave every other permission at _No access_, and **Where can this GitHub App be
+     installed?** on _Only on this account_.
+
+2. On the App's **General** page, note the **Client ID** and, under **Private keys**, click
+   **Generate a private key**. GitHub downloads a `.pem` file; it is the only copy, so keep it
+   somewhere safe and delete it from the download folder once the secret below is stored.
+
+3. Install the App: **Install App** in the App's left-hand menu, choose the account, and select
+   **Only select repositories → `clerk-solidjs`**.
+
+4. Add two **Actions secrets** to the repository (**Settings → Secrets and variables → Actions →
+   New repository secret**):
+
+   | Secret                    | Value                                                                                                                 |
+   | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+   | `RELEASE_APP_ID`          | The App's **Client ID** (the numeric **App ID** also works; both identify the App when signing its token).            |
+   | `RELEASE_APP_PRIVATE_KEY` | The full contents of the downloaded `.pem` file, including the `-----BEGIN ...-----` and `-----END ...-----` lines. |
+
+   They must be repository secrets (or organization secrets granted to this repository), not
+   environment secrets: the `Version packages` job does not run in an environment.
+
+5. Check it works: merge a pull request that carries a changeset, or run the `Release` workflow
+   from the **Actions** tab while `master` has a pending changeset. Without one, the workflow
+   selects the `publish` or `none` mode and skips the `Version packages` job, so it creates no
+   token and proves nothing. The job should open or update the **Version Packages** pull
+   request with a commit by `<name>[bot]`, and the `CI` workflow should start on it without
+   anyone approving a run.
+
+The workflow asks the App for a token limited to `contents: write` and `pull-requests: write` on
+this repository, and the token is revoked when the job ends. If the private key is ever exposed,
+generate a new one on the App's **General** page, update `RELEASE_APP_PRIVATE_KEY`, and delete
+the old key there.
+
+npm publishing is separate and unaffected: the `Publish to npm` job keeps authenticating with
+npm trusted publishing (OIDC) as described in the publish documentation.
 
 ## License
 
