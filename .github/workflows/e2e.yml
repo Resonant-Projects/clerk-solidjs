@@ -30,8 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
-      VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+      CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
     steps:
       - name: Checkout
@@ -47,8 +47,8 @@ jobs:
         run: |
           missing=()
 
-          if [[ -z "${CLERK_PUBLISHABLE_KEY}" ]]; then
-            missing+=("repo variable CLERK_PUBLISHABLE_KEY (used for CLERK_PUBLISHABLE_KEY and VITE_CLERK_PUBLISHABLE_KEY)")
+          if [[ -z "${VITE_CLERK_PUBLISHABLE_KEY}" ]]; then
+            missing+=("repo secret or variable VITE_CLERK_PUBLISHABLE_KEY (used for CLERK_PUBLISHABLE_KEY and VITE_CLERK_PUBLISHABLE_KEY)")
           fi
 
           if [[ -z "${CLERK_SECRET_KEY}" ]]; then

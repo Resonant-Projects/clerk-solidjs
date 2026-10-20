@@ -93,8 +93,12 @@ pnpm run e2e
 ```
 
 The e2e suite needs a Clerk development instance configured through
-`CLERK_PUBLISHABLE_KEY` (or `VITE_CLERK_PUBLISHABLE_KEY`) and
+`VITE_CLERK_PUBLISHABLE_KEY` (or `CLERK_PUBLISHABLE_KEY`) and
 `CLERK_SECRET_KEY`.
+
+In GitHub Actions, the E2E workflow accepts `VITE_CLERK_PUBLISHABLE_KEY` as
+either a secret or a repository variable and maps it to both env names that the
+example and tests accept.
 
 ## Opening a Pull Request
 
