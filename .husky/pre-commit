@@ -3,4 +3,8 @@ pnpm run lint:fix
 # Re-stage only files that were already staged, picking up formatter fixes.
 git update-index --again
 
+# Block files over 5,000 estimated tokens (see scripts/check-file-tokens.mjs).
+# Runs after re-staging so it measures what the formatter actually produced.
+pnpm run check-file-tokens
+
 pnpm run test
