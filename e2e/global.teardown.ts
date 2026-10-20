@@ -14,7 +14,7 @@ export default async function globalTeardown() {
   removeClerkE2EState();
 
   if (
-    !state.primaryUser &&
+    Object.keys(state.primaryUsers).length === 0 &&
     state.createdUsers.length === 0 &&
     state.createdOrganizationIds.length === 0
   ) {
@@ -37,9 +37,7 @@ export default async function globalTeardown() {
     }
   }
 
-  const users = state.primaryUser
-    ? [...state.createdUsers, state.primaryUser]
-    : [...state.createdUsers];
+  const users = [...state.createdUsers, ...Object.values(state.primaryUsers)];
 
   for (const user of [...users].reverse()) {
     try {

@@ -48,12 +48,15 @@ export const test = base.extend<E2EFixtures>({
     await use(createClerkE2EClient());
   },
 
-  primaryUser: async ({}, use) => {
+  primaryUser: async ({}, use, testInfo) => {
     const state = readClerkE2EState();
-    if (!state.primaryUser) {
-      throw new Error("Missing primary Clerk E2E user from global setup.");
+    const user = state.primaryUsers[testInfo.project.name];
+    if (!user) {
+      throw new Error(
+        `Missing the primary Clerk E2E user for ${testInfo.project.name} from global setup.`,
+      );
     }
-    await use(state.primaryUser);
+    await use(user);
   },
 
   registerCreatedOrganization: async ({}, use) => {
