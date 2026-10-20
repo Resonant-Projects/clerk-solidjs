@@ -59,8 +59,8 @@ jobs:
         include:
           - solid-js-label: latest
             solid-js-version: latest
-          - solid-js-label: 1.9.0
-            solid-js-version: 1.9.0
+          - solid-js-label: 1.9.8
+            solid-js-version: 1.9.8
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,17 +68,19 @@ jobs:
           persist-credentials: false
       - name: CI setup
         uses: ./.github/actions/ci-setup
-      - name: Pin solid-js to 1.9.0
+      - name: Pin solid-js to oldest supported 1.9.x
         if: matrix.solid-js-version != 'latest'
+        env:
+          SOLID_JS_VERSION: ${{ matrix.solid-js-version }}
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
           const edits = [
             ['packages/clerk-solidjs/package.json', (pkg) => {
-              pkg.devDependencies['solid-js'] = '1.9.0';
+              pkg.devDependencies['solid-js'] = process.env.SOLID_JS_VERSION;
             }],
             ['examples/basic/package.json', (pkg) => {
-              pkg.dependencies['solid-js'] = '1.9.0';
+              pkg.dependencies['solid-js'] = process.env.SOLID_JS_VERSION;
             }],
           ];
           for (const [path, edit] of edits) {
