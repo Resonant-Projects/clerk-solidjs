@@ -24,9 +24,7 @@ export default async function globalSetup() {
   const email = makeClerkTestEmail("playwright-existing-user");
   const primaryUser = await clerkClient.users.createUser({
     emailAddress: [email],
-    firstName: "Playwright",
-    lastName: "Existing User",
-    password: "ClerkSolidjs-E2E-Password1!",
+    skipPasswordRequirement: true,
   });
 
   writeClerkE2EState({
