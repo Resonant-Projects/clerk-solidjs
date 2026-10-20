@@ -22,6 +22,7 @@ async function fillIfVisible(
 test("signs up with an email code and reaches a signed-in server state", async ({
   app,
   clerkClient,
+  hasServer,
   page,
   registerCreatedUser,
 }) => {
@@ -61,8 +62,10 @@ test("signs up with an email code and reaches a signed-in server state", async (
   await page.goto("/me");
   await expect(page.getByTestId("userId")).toHaveText(createdUser.id);
 
-  const me = await page.request.get("/api/me");
-  expect(me.status()).toBe(200);
+  if (hasServer) {
+    const me = await page.request.get("/api/me");
+    expect(me.status()).toBe(200);
+  }
 
   await page.goto("/");
   await clerk.signOut({ page });

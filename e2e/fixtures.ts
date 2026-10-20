@@ -16,6 +16,8 @@ import {
 
 type E2EFixtures = {
   app: ReturnType<typeof createPageObjects>;
+  /** The SolidStart app has a server: middleware, auth() and API routes. */
+  hasServer: boolean;
   clerkClient: ReturnType<typeof createClerkE2EClient>;
   primaryUser: TrackedUser;
   registerCreatedOrganization: (organizationId: string) => void;
@@ -36,6 +38,10 @@ export const test = base.extend<E2EFixtures>({
         useTestingToken: false,
       }),
     );
+  },
+
+  hasServer: async ({}, use, testInfo) => {
+    await use(testInfo.project.name === "basic");
   },
 
   clerkClient: async ({}, use) => {
