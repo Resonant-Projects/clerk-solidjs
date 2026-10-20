@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - renovate/**
   pull_request:
-    branches: [master]
+    branches:
+      - master
 
 permissions:
   contents: read
@@ -14,8 +17,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-test:
-    name: Build & Test
+  build:
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -27,10 +30,84 @@ jobs:
         uses: ./.github/actions/ci-setup
       - name: Build
         run: pnpm run build
+
+  export-paths:
+    name: Export paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Build package
+        run: pnpm --filter @resonant-projects/clerk-solidjs run build
       - name: Check dist
-        # exports paths exist, and `.` and `./start` share one copy of the
+        # Export paths exist, and `.` and `./start` share one copy of the
         # Clerk contexts under the browser, node and solid conditions.
         run: pnpm --filter @resonant-projects/clerk-solidjs run check:dist
+
+  tests:
+    name: Tests (solid-js ${{ matrix.solid-js-label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - solid-js-label: latest
+            solid-js-version: latest
+          - solid-js-label: 1.9.8
+            solid-js-version: 1.9.8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Pin solid-js to oldest supported 1.9.x
+        if: matrix.solid-js-version != 'latest'
+        env:
+          SOLID_JS_VERSION: ${{ matrix.solid-js-version }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const edits = [
+            ['packages/clerk-solidjs/package.json', (pkg) => {
+              pkg.devDependencies['solid-js'] = process.env.SOLID_JS_VERSION;
+            }],
+            ['examples/basic/package.json', (pkg) => {
+              pkg.dependencies['solid-js'] = process.env.SOLID_JS_VERSION;
+            }],
+          ];
+          for (const [path, edit] of edits) {
+            const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+            edit(pkg);
+            fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+          }
+          NODE
+      - name: Reinstall with oldest supported solid-js
+        if: matrix.solid-js-version != 'latest'
+        run: pnpm install --no-frozen-lockfile
+      - name: Verify resolved solid-js version
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const paths = [
+            'examples/basic/node_modules/solid-js/package.json',
+            'packages/clerk-solidjs/node_modules/solid-js/package.json',
+          ];
+          for (const path of paths) {
+            const version = JSON.parse(fs.readFileSync(path, 'utf8')).version;
+            console.log(`${path}: ${version}`);
+            if ('${{ matrix.solid-js-version }}' !== 'latest' && version !== '${{ matrix.solid-js-version }}') {
+              process.exit(1);
+            }
+          }
+          NODE
       - name: Test
         run: pnpm run test
 
@@ -79,3 +156,83 @@ jobs:
         uses: ./.github/actions/ci-setup
       - name: Run ${{ matrix.script }}
         run: pnpm run ${{ matrix.script }}
+
+  smoke:
+    name: Smoke example
+    # GitHub withholds repository secrets from fork and Dependabot pull
+    # requests. ci-required accepts this job's skip only for those runs, and
+    # repeats this condition to decide.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Write smoke env file
+        shell: bash
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$CLERK_SECRET_KEY" ] || [ -z "$VITE_CLERK_PUBLISHABLE_KEY" ]; then
+            echo "::error title=Missing Clerk smoke credentials::Set CLERK_SECRET_KEY as a repository secret and VITE_CLERK_PUBLISHABLE_KEY as either a repository secret or variable so the smoke job can create examples/basic/.env.local."
+            exit 1
+          fi
+          printf '%s\n' \
+            "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" \
+            "VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY" \
+            > examples/basic/.env.local
+      - name: Smoke
+        run: pnpm run smoke
+
+  ci-required:
+    name: ci-required
+    if: ${{ always() }}
+    needs:
+      - build
+      - export-paths
+      - tests
+      - oldest-node
+      - quality
+      - smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs passed
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+          # The smoke job's condition: false when the run has no secrets.
+          HAS_SECRETS: >-
+            ${{ github.event_name != 'pull_request' ||
+            (github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]') }}
+        run: |
+          node - <<'NODE'
+          const needs = JSON.parse(process.env.NEEDS_JSON);
+          const secretJobs = new Set(['smoke']);
+          const hasSecrets = process.env.HAS_SECRETS === 'true';
+          const failed = Object.entries(needs).filter(
+            ([name, job]) =>
+              job.result !== 'success' &&
+              !(job.result === 'skipped' && !hasSecrets && secretJobs.has(name)),
+          );
+          if (failed.length > 0) {
+            console.error('Required jobs did not pass:');
+            for (const [name, job] of failed) {
+              console.error(`- ${name}: ${job.result}`);
+            }
+            process.exit(1);
+          }
+          if (!hasSecrets) {
+            console.log('No repository secrets on this run, so the Clerk jobs were skipped.');
+          }
+          console.log('All required jobs passed.');
+          NODE

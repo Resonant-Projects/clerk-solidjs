@@ -428,11 +428,41 @@ async function backendApi(method, pathname, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
+    // Clerk's error codes and messages say what the instance requires, and
+    // carry no credentials.
+    const body = await response.json().catch(() => ({}));
+    const reasons = (body.errors ?? [])
+      .map((error) => `${error.code}: ${error.long_message ?? error.message}`)
+      .join("; ");
     throw new Error(
-      `Backend API ${method} /${pathname.replace(/\/.*$/, "")}: ${response.status}`,
+      `Backend API ${method} /${pathname.replace(/\/.*$/, "")}: ${response.status}${reasons ? ` (${reasons})` : ""}`,
     );
   }
   return response.json();
+}
+
+// What else the instance requires of a new user, from its public settings.
+// 555-01xx numbers are test numbers, like +clerk_test addresses.
+async function requiredUserFields() {
+  const encoded = process.env.VITE_CLERK_PUBLISHABLE_KEY.split("_")[2] ?? "";
+  const frontendApi = Buffer.from(encoded, "base64")
+    .toString()
+    .replace(/\$$/, "");
+  const response = await fetch(`https://${frontendApi}/v1/environment`);
+  if (!response.ok) {
+    throw new Error(`Frontend API /v1/environment: ${response.status}`);
+  }
+  const { attributes } = (await response.json()).user_settings;
+  const required = (name) =>
+    !!attributes[name]?.enabled && !!attributes[name]?.required;
+  return {
+    ...(required("username") && { username: `smoke_${Date.now()}` }),
+    ...(required("phone_number") && {
+      phone_number: [
+        `+1201555${String(100 + Math.floor(Math.random() * 100)).padStart(4, "0")}`,
+      ],
+    }),
+  };
 }
 
 // Signs a new test user in with a sign-in token, then opens the example's
@@ -444,6 +474,7 @@ async function runSignedInChecks(browser, baseUrl) {
   const user = await backendApi("POST", "users", {
     email_address: [`smoke-${Date.now()}+clerk_test@example.com`],
     skip_password_requirement: true,
+    ...(await requiredUserFields()),
   });
   let context;
   try {

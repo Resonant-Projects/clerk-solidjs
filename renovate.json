@@ -1,0 +1,73 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommitTypeAll(chore)"],
+  "baseBranchPatterns": ["master"],
+  "timezone": "America/New_York",
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "3 days",
+  "rangeStrategy": "bump",
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 5,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on the first day of the month"]
+  },
+  "github-actions": {
+    "enabled": false
+  },
+  "packageRules": [
+    {
+      "description": "Clerk SDK packages move together; review every bump for Solid porting work",
+      "matchPackageNames": ["@clerk/**"],
+      "groupName": "clerk",
+      "groupSlug": "clerk",
+      "schedule": ["at any time"],
+      "minimumReleaseAge": "1 day",
+      "automerge": false,
+      "labels": ["clerk-sync"],
+      "prBodyNotes": [
+        "Check @clerk/react changes for new or changed exports that need Solid ports before merging."
+      ]
+    },
+    {
+      "description": "Clerk majors require dashboard approval",
+      "matchPackageNames": ["@clerk/**"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "Solid ecosystem packages move together",
+      "matchPackageNames": [
+        "solid-js",
+        "@solidjs/**",
+        "vite-plugin-solid",
+        "eslint-plugin-solid",
+        "tsup-preset-solid",
+        "@solid-primitives/**"
+      ],
+      "groupName": "solid ecosystem",
+      "groupSlug": "solid"
+    },
+    {
+      "description": "Automerge non-Clerk dev tooling patch and minor updates. Renovate merges only once every check passes, so this is safe without branch protection",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "matchPackageNames": ["!@clerk/**"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "All majors require dashboard approval",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "Peer dependency ranges are a public contract; widen them manually",
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
+    }
+  ]
+}

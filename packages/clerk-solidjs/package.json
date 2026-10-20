@@ -475,7 +475,7 @@
   "peerDependencies": {
     "@solidjs/router": ">=0.16 <2",
     "@solidjs/start": "^2",
-    "solid-js": "^1.9"
+    "solid-js": "^1.9.8"
   },
   "peerDependenciesMeta": {
     "@solidjs/router": {
