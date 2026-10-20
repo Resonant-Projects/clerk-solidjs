@@ -428,8 +428,14 @@ async function backendApi(method, pathname, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
+    // Clerk's error codes and messages say what the instance requires, and
+    // carry no credentials.
+    const body = await response.json().catch(() => ({}));
+    const reasons = (body.errors ?? [])
+      .map((error) => `${error.code}: ${error.long_message ?? error.message}`)
+      .join("; ");
     throw new Error(
-      `Backend API ${method} /${pathname.replace(/\/.*$/, "")}: ${response.status}`,
+      `Backend API ${method} /${pathname.replace(/\/.*$/, "")}: ${response.status}${reasons ? ` (${reasons})` : ""}`,
     );
   }
   return response.json();
