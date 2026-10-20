@@ -29,4 +29,20 @@ jobs:
         run: pnpm --filter @resonant-projects/clerk-solidjs run build
 
       - name: Publish preview
-        run: pnpm dlx pkg-pr-new publish --compact --pnpm "./packages/clerk-solidjs"
+        shell: bash
+        run: |
+          set +e
+          output="$(pnpm dlx pkg-pr-new publish --compact --pnpm "./packages/clerk-solidjs" 2>&1)"
+          status=$?
+          set -e
+
+          printf '%s\n' "$output"
+
+          if [[ $status -ne 0 ]]; then
+            if [[ "$output" == *"The app https://github.com/apps/pkg-pr-new is not installed"* ]]; then
+              echo "::notice title=pkg.pr.new app not installed::Install the pkg.pr.new GitHub App on this repository to enable preview publishing."
+              exit 0
+            fi
+
+            exit "$status"
+          fi
