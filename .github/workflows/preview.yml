@@ -1,3 +1,7 @@
+# Publishes an installable preview of the package for each pull request from
+# this repository's branches with pkg.pr.new. Fork and dependency-bot pull
+# requests get no preview, so unreviewed code is never published under this
+# repository's name.
 name: Package Preview
 
 on:
@@ -14,6 +18,10 @@ concurrency:
 jobs:
   pkg-pr-new:
     name: pkg.pr.new preview
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'renovate[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -32,7 +40,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          output="$(pnpm dlx pkg-pr-new publish --compact --pnpm "./packages/clerk-solidjs" 2>&1)"
+          # From the lockfile, like every other tool CI runs.
+          output="$(pnpm exec pkg-pr-new publish --compact --pnpm "./packages/clerk-solidjs" 2>&1)"
           status=$?
           set -e
 

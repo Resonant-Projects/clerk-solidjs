@@ -1,0 +1,83 @@
+# Once a week, runs the tests against the newest @clerk/* packages, to catch a
+# Clerk release that breaks the SDK between our own releases. A failed
+# scheduled run opens an issue, or comments on the one already open.
+name: Latest Clerk
+
+on:
+  schedule:
+    - cron: "0 10 * * 1" # Mondays, after Renovate's window
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  latest-clerk:
+    name: Tests on the latest Clerk
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI setup
+        uses: ./.github/actions/ci-setup
+      - name: Update every @clerk/* package to its latest release
+        run: |
+          pnpm --recursive update --latest '@clerk/*'
+          pnpm --recursive list --depth 0 '@clerk/*'
+      - name: Build
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: pnpm run build
+      - name: Unit tests
+        run: pnpm run test
+      - name: Type-check
+        run: pnpm run type-check
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: E2E
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: pnpm run e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          if-no-files-found: ignore
+          path: |
+            playwright-report
+            test-results
+          retention-days: 14
+
+  report:
+    name: Report a failure
+    needs: latest-clerk
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Tests fail on the latest Clerk packages"
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          body="The weekly run against the newest @clerk/* releases failed: $RUN_URL"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

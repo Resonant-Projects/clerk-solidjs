@@ -16,23 +16,47 @@ concurrency:
 jobs:
   fork-pr-notice:
     name: Fork PR notice
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.user.login == 'dependabot[bot]' ||
+      github.event.pull_request.user.login == 'renovate[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Explain why E2E is skipped
         run: |
-          echo "::notice title=E2E skipped for fork PR::Fork pull requests do not receive CLERK_SECRET_KEY, so the Clerk E2E job is intentionally skipped."
+          echo "::notice title=E2E skipped::Fork and dependency-bot pull requests do not get CLERK_SECRET_KEY, so the Clerk E2E job is skipped."
 
   e2e:
-    name: Clerk Playwright E2E
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # The first leg runs both example apps on the lockfile's versions; the
+    # others run the SolidStart app on the oldest SolidStart and router the
+    # package's peer ranges allow.
+    name: Clerk Playwright E2E (${{ matrix.name }})
+    # Clerk secrets only for master and people's same-repository pull
+    # requests: never forks, and never dependency updates (Renovate,
+    # Dependabot), whose updated code must not see them.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'renovate[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
-      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
-      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SolidStart and Vite apps
+            apps: basic,solid-vite
+          - name: SolidStart 2.0.0, router 0.16.0
+            apps: basic
+            solidjs-start: 2.0.0
+            solidjs-router: 0.16.0
+          - name: router 0.16.0
+            apps: basic
+            solidjs-router: 0.16.0
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,8 +66,48 @@ jobs:
       - name: CI setup
         uses: ./.github/actions/ci-setup
 
+      - name: Pin SolidStart and the router
+        if: matrix.solidjs-start || matrix.solidjs-router
+        env:
+          SOLIDJS_START: ${{ matrix.solidjs-start }}
+          SOLIDJS_ROUTER: ${{ matrix.solidjs-router }}
+        # An override, so the app and the package's peers resolve one copy, as
+        # they do in an app that installs the package.
+        run: |
+          {
+            echo 'overrides:'
+            if [ -n "$SOLIDJS_START" ]; then echo "  '@solidjs/start': $SOLIDJS_START"; fi
+            if [ -n "$SOLIDJS_ROUTER" ]; then echo "  '@solidjs/router': $SOLIDJS_ROUTER"; fi
+          } >> pnpm-workspace.yaml
+          pnpm install --no-frozen-lockfile
+
+      - name: Verify resolved versions
+        env:
+          SOLIDJS_START: ${{ matrix.solidjs-start }}
+          SOLIDJS_ROUTER: ${{ matrix.solidjs-router }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const expected = {
+            '@solidjs/start': process.env.SOLIDJS_START,
+            '@solidjs/router': process.env.SOLIDJS_ROUTER,
+          };
+          for (const dir of ['examples/basic', 'packages/clerk-solidjs']) {
+            for (const [name, want] of Object.entries(expected)) {
+              const path = `${dir}/node_modules/${name}/package.json`;
+              const { version } = JSON.parse(fs.readFileSync(path, 'utf8'));
+              console.log(`${path}: ${version}`);
+              if (want && version !== want) process.exit(1);
+            }
+          }
+          NODE
+
+      # The keys reach only the steps below, not the dependency install above.
       - name: Validate Clerk CI configuration
         shell: bash
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
           missing=()
 
@@ -60,20 +124,28 @@ jobs:
             exit 1
           fi
 
-      - name: Build package and example app
+      - name: Build package and example apps
+        env:
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
         run: pnpm run build
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
+        env:
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          E2E_APPS: ${{ matrix.apps }}
         run: pnpm run e2e
 
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ strategy.job-index }}
           if-no-files-found: ignore
           path: |
             playwright-report
