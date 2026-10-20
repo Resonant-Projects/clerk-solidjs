@@ -159,13 +159,17 @@ jobs:
 
   smoke:
     name: Smoke example
-    # GitHub withholds repository secrets from fork and Dependabot pull
-    # requests. ci-required accepts this job's skip only for those runs, and
-    # repeats this condition to decide.
+    # Runs with Clerk secrets only on master and on people's same-repository
+    # pull requests. Fork and Dependabot runs get no secrets, and dependency
+    # update runs (Renovate, Dependabot) must not hand them to updated code.
+    # ci-required accepts this job's skip only for those runs, and repeats
+    # this condition to decide.
     if: >-
-      github.event_name != 'pull_request' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.user.login != 'dependabot[bot]')
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'renovate[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -209,11 +213,13 @@ jobs:
       - name: Verify required jobs passed
         env:
           NEEDS_JSON: ${{ toJson(needs) }}
-          # The smoke job's condition: false when the run has no secrets.
+          # The smoke job's condition: false when the run gets no secrets.
           HAS_SECRETS: >-
-            ${{ github.event_name != 'pull_request' ||
-            (github.event.pull_request.head.repo.full_name == github.repository &&
-            github.event.pull_request.user.login != 'dependabot[bot]') }}
+            ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+            (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]' &&
+            github.event.pull_request.user.login != 'renovate[bot]') }}
         run: |
           node - <<'NODE'
           const needs = JSON.parse(process.env.NEEDS_JSON);
@@ -232,7 +238,7 @@ jobs:
             process.exit(1);
           }
           if (!hasSecrets) {
-            console.log('No repository secrets on this run, so the Clerk jobs were skipped.');
+            console.log('This run gets no Clerk secrets, so the Clerk jobs were skipped.');
           }
           console.log('All required jobs passed.');
           NODE
