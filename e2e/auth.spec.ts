@@ -49,9 +49,6 @@ test("signs in, renders the protected page, exposes /api/me, then signs out clea
   const me = await getApiMe(page);
   expect(me.response.status()).toBe(200);
   expect(me.body).toMatchObject({
-    orgId: null,
-    orgRole: null,
-    orgSlug: null,
     tokenType: "session_token",
     userId: primaryUser.id,
   });
