@@ -437,17 +437,17 @@
     "vendor:clerk-ui-types": "node scripts/vendor-clerk-ui-types.mjs"
   },
   "dependencies": {
-    "@clerk/backend": "^3.25.0",
-    "@clerk/shared": "^4.40.0",
+    "@clerk/backend": "^3.26.1",
+    "@clerk/shared": "^4.41.0",
     "@solid-primitives/jsx-tokenizer": "^1.1.4",
     "@tanstack/query-core": "^5.104.3",
     "csstype": "^3.1.3"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@clerk/clerk-js": "^6.39.1",
-    "@clerk/localizations": "^4.23.0",
-    "@clerk/ui": "^1.40.2",
+    "@clerk/clerk-js": "^6.40.0",
+    "@clerk/localizations": "^4.24.0",
+    "@clerk/ui": "^1.41.1",
     "@eslint/js": "^10.0.1",
     "@solidjs/testing-library": "^0.8.10",
     "@testing-library/jest-dom": "^7.0.1",

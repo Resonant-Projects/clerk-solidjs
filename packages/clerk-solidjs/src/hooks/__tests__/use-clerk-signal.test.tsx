@@ -151,6 +151,48 @@ describe('useSignIn', () => {
     await vi.waitFor(() => expect(text('status')).toBe('needs_second_factor'));
   });
 
+  it.each(['signal', 'client'] as const)(
+    'waits for Clerk to load before completing passkey MFA through the %s resource',
+    async (source) => {
+      const mfa = { passkey: vi.fn(async () => ({ error: null })) };
+      const future = {
+        status: 'needs_second_factor',
+        supportedSecondFactors: [{ strategy: 'passkey' }],
+        mfa
+      };
+      const { clerkJS, emit, finishLoading } = setup({
+        signIn: source === 'signal' ? future : null
+      });
+      if (source === 'client') {
+        emit({ client: { signIn: { __internal_future: future } } as any });
+      }
+
+      let signIn!: SignInSignalValue['signIn'];
+      const Form = () => {
+        ({ signIn } = useSignIn());
+        return null;
+      };
+      render(() => (
+        <ClerkProvider
+          publishableKey={TEST_PUBLISHABLE_KEY}
+          Clerk={clerkJS as any}
+        >
+          <Form />
+        </ClerkProvider>
+      ));
+
+      expect(signIn.supportedSecondFactors).toEqual([]);
+      const result = signIn.mfa.passkey();
+      expect(mfa.passkey).not.toHaveBeenCalled();
+
+      finishLoading();
+      await expect(result).resolves.toEqual({ error: null });
+      expect(mfa.passkey).toHaveBeenCalledExactlyOnceWith();
+      expect(mfa.passkey.mock.contexts[0]).toBe(mfa);
+      expect(signIn.supportedSecondFactors).toEqual([{ strategy: 'passkey' }]);
+    }
+  );
+
   it("stops following clerk-js's signal when its owner is disposed", async () => {
     const { clerkJS, signals, finishLoading } = setup({
       signIn: new FakeSignInFuture()
