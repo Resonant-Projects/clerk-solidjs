@@ -271,7 +271,8 @@ export class StateProxy implements State {
           'sendEmailCode',
           'verifyEmailCode',
           'verifyTOTP',
-          'verifyBackupCode'
+          'verifyBackupCode',
+          'passkey'
         ] as const),
         ticket: this.gateMethod(target, 'ticket'),
         passkey: this.gateMethod(target, 'passkey'),
