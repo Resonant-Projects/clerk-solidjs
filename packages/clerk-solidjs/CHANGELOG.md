@@ -1,5 +1,21 @@
 # clerk-solidjs
 
+## 4.3.2
+
+### Patch Changes
+
+- ebae4be: Update Clerk dependencies to the latest releases: `@clerk/backend` 3.26.1, `@clerk/shared` 4.41.0, `@clerk/clerk-js` 6.40.0, `@clerk/localizations` 4.24.0, `@clerk/ui` 1.41.1, and `@clerk/testing` 2.2.49.
+
+  Gate sign-in `mfa.passkey` on Clerk load like the other MFA methods.
+
+- 9bbb5a8: The `browser` field in `package.json` now just names the browser build of the main entry. It used to remap the server build that the `worker` condition chooses, so a bundler honouring both could give a worker the browser build. `exports` is unchanged.
+- bb2a211: `<PricingTable>` hides its `fallback` once Clerk has loaded the plans. clerk-js marks the table's own element as ready, and the check looked only inside it, so the fallback stayed on screen beside the table.
+- 0b227ac: Raise the `solid-js` peer dependency floor to `^1.9.8`.
+
+  The package now relies on Solid behavior that fails on earlier `1.9.x` releases:
+  the test suite reproduces `setStyleProperty is not a function` on `1.9.0` through
+  `1.9.7`, while `1.9.8` is the oldest passing version we verified.
+
 ## 4.3.1
 
 ### Patch Changes
