@@ -2,7 +2,7 @@
   "name": "@resonant-projects/clerk-solidjs",
   "description": "Clerk SDK for SolidJS and SolidStart",
   "private": false,
-  "version": "4.3.2",
+  "version": "4.3.3",
   "keywords": [
     "solidjs",
     "clerk",
