@@ -1,8 +1,10 @@
 import type {
   SignInSignalValue,
+  SignUpSignalValue,
   WaitlistSignalValue
 } from '@clerk/shared/types';
 import { cleanup, render, screen } from '@solidjs/testing-library';
+import { expectTypeOf } from 'expect-type';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClerkProvider, useSignIn, useSignUp, useWaitlist } from '../..';
 import {
@@ -282,6 +284,78 @@ describe('useSignUp', () => {
       fetchStatus: 'fetching'
     });
     expect(text('sign-up')).toBe('complete fetching');
+  });
+});
+
+describe('Slack workspace hint', () => {
+  it('types slackTeamIdHint on the sign-in and sign-up methods that accept it', () => {
+    type SignIn = SignInSignalValue['signIn'];
+    type SignUp = SignUpSignalValue['signUp'];
+    expectTypeOf<Parameters<SignIn['sso']>[0]>().toHaveProperty(
+      'slackTeamIdHint'
+    );
+    expectTypeOf<Parameters<SignIn['create']>[0]>().toHaveProperty(
+      'slackTeamIdHint'
+    );
+    expectTypeOf<Parameters<SignUp['sso']>[0]>().toHaveProperty(
+      'slackTeamIdHint'
+    );
+    expectTypeOf<Parameters<SignUp['create']>[0]>().toHaveProperty(
+      'slackTeamIdHint'
+    );
+  });
+
+  it("passes the hint to clerk-js's sso() and create() unchanged once Clerk loads", async () => {
+    const signInFuture = {
+      sso: vi.fn(async () => ({ error: null })),
+      create: vi.fn(async () => ({ error: null }))
+    };
+    const signUpFuture = {
+      sso: vi.fn(async () => ({ error: null })),
+      create: vi.fn(async () => ({ error: null }))
+    };
+    const { clerkJS, finishLoading } = setup({
+      signIn: signInFuture,
+      signUp: signUpFuture
+    });
+
+    let signIn!: SignInSignalValue['signIn'];
+    let signUp!: SignUpSignalValue['signUp'];
+    const Form = () => {
+      ({ signIn } = useSignIn());
+      ({ signUp } = useSignUp());
+      return null;
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <Form />
+      </ClerkProvider>
+    ));
+
+    const sso = {
+      strategy: 'oauth_slack',
+      redirectUrl: '/sso-callback',
+      redirectCallbackUrl: '/sso-callback',
+      slackTeamIdHint: 'T123ABC'
+    } as const;
+    const create = { strategy: 'oauth_slack', slackTeamIdHint: '' } as const;
+    const results = [
+      signIn.sso(sso),
+      signIn.create(create),
+      signUp.sso(sso),
+      signUp.create(create)
+    ];
+    expect(signInFuture.sso).not.toHaveBeenCalled();
+
+    finishLoading();
+    await expect(Promise.all(results)).resolves.toHaveLength(4);
+    expect(signInFuture.sso).toHaveBeenCalledExactlyOnceWith(sso);
+    expect(signInFuture.create).toHaveBeenCalledExactlyOnceWith(create);
+    expect(signUpFuture.sso).toHaveBeenCalledExactlyOnceWith(sso);
+    expect(signUpFuture.create).toHaveBeenCalledExactlyOnceWith(create);
   });
 });
 
