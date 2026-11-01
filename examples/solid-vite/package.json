@@ -13,12 +13,12 @@
   "devDependencies": {
     "typescript": "^6.0.3",
     "vite": "^8.3.5",
-    "vite-plugin-solid": "^2.11.14"
+    "vite-plugin-solid": "^2.11.15"
   },
   "dependencies": {
     "@resonant-projects/clerk-solidjs": "workspace:*",
-    "@solidjs/router": "^1.0.0",
-    "solid-js": "^1.9.17"
+    "@solidjs/router": "^1.0.1",
+    "solid-js": "^1.9.18"
   },
   "engines": {
     "node": ">=24"
