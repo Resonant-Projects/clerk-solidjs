@@ -6,6 +6,26 @@ import { useSignIn, useSignUp } from '../hooks/use-clerk-signal';
 
 type Flow = 'signIn' | 'signUp';
 
+/** The step that failed, for the diagnostic. */
+type Stage =
+  'finalize' | 'activate' | 'not_activated' | 'navigation' | 'unexpected';
+
+/**
+ * A Clerk error code, such as `network_error`, when the value carries one in
+ * that shape. Nothing else from an error is logged: its message, URL or
+ * other fields can hold tokens or user data.
+ */
+const errorCode = (error: unknown): string | undefined => {
+  try {
+    const code = (error as { code?: unknown } | null | undefined)?.code;
+    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(code)
+      ? code
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 interface Finalizable {
   readonly createdSessionId?: string | null;
   finalize: (params: {
@@ -96,26 +116,37 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     return handOff(flow);
   };
 
-  // A failure that `errors` does not carry is always logged, so it is not
-  // lost; one on `errors` is logged in development only.
-  const report = (error: unknown, onErrors = false) => {
-    if (__DEV__ || !onErrors) {
-      console.error('Clerk: HandleSSOCallback could not finish:', error);
-    }
+  // A fixed diagnostic: the stage, the flow and at most a Clerk error code,
+  // never the error itself. A failure that `errors` does not carry is always
+  // logged, so it is not lost; one on `errors` in development only.
+  const report = (
+    stage: Stage,
+    flow: Flow,
+    error?: unknown,
+    onErrors = false
+  ) => {
+    if (!__DEV__ && onErrors) return;
+    const code = errorCode(error);
+    console.error(
+      `Clerk: HandleSSOCallback could not finish the ${flow} flow: ${stage} failed` +
+        (code ? ` (${code}).` : '.')
+    );
   };
 
   // clerk-js's setActive() signs out instead, resolving without an error
   // and without navigating, when its client does not list the session, even
-  // after it reloads the client. Its own check tells it apart from a session
-  // that clerk-js activated without our navigation, such as one with a task
-  // URL: the session is not on the client.
+  // after it reloads the client, or does not list it as signed in. Its own
+  // check tells it apart from a session that clerk-js activated without our
+  // navigation, such as one with a task URL.
   const checkActivated = (sessionId: string | null | undefined, flow: Flow) => {
     if (navigatingToApp || !sessionId) return;
-    const listed = untrack(clerk).client?.sessions.some(
+    // signedInSessions, as clerk-js checks after touching the session: an
+    // ended or revoked session can stay on `sessions`.
+    const listed = untrack(clerk).client?.signedInSessions.some(
       (session) => session.id === sessionId
     );
     if (listed) return;
-    report(new Error('Clerk did not activate the session it was given.'));
+    report('not_activated', flow);
     return retry(flow);
   };
 
@@ -126,7 +157,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     const sessionId = resource.createdSessionId;
     const { error } = await resource.finalize({ navigate: toApp });
     if (error) {
-      report(error, true);
+      report('finalize', flow, error, true);
       return retry(flow);
     }
     return checkActivated(sessionId, flow);
@@ -200,7 +231,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       try {
         await instance.setActive({ session: sessionId, navigate: toApp });
       } catch (error) {
-        report(error);
+        report('activate', step, error);
         return retry(step);
       }
       return checkActivated(sessionId, step);
@@ -225,11 +256,13 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       // session, also goes back to the step's flow to try again instead of
       // leaving an unhandled rejection; so does a navigation that throws.
       run(flow).catch((error) => {
-        report(error);
+        const failed = step ?? flow ?? 'signIn';
+        // After a handoff, only the app's navigation callback can throw.
+        report(handedOff ? 'navigation' : 'unexpected', failed, error);
         try {
-          retry(step ?? flow ?? 'signIn');
+          retry(failed);
         } catch (navigationError) {
-          report(navigationError);
+          report('navigation', failed, navigationError);
         }
       });
     })
