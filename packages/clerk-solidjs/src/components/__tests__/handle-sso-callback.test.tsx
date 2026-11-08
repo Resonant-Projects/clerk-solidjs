@@ -311,20 +311,52 @@ describe('HandleSSOCallback', () => {
       expect(failures.unhandled).toEqual([]);
     });
 
-    it('sends a request that throws back to the flow it came from', async () => {
-      window.history.replaceState(null, '', '/sso-callback?intent=signUp');
+    it('sends a step that throws back to the flow of that step', async () => {
       const failures = watchFailures();
-      const signIn = resource({ isTransferable: true });
-      const signUp = resource();
-      signUp.create = vi.fn(async () => {
-        throw networkError;
+      // As clerk-js's finalize() does when there is no created session. No
+      // intent in the URL: the failed step decides the page.
+      const missingSession = new Error(
+        'Cannot finalize sign-up without a created session.'
+      );
+      const signUp = resource({
+        status: 'complete',
+        finalize: vi.fn(() => {
+          throw missingSession;
+        })
       });
-      const { props } = setup(signIn, signUp);
+      const { props } = setup(resource(), signUp);
 
       await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
       await failures.settle();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
       expect(props.navigateToApp).not.toHaveBeenCalled();
       expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        expect.stringContaining('HandleSSOCallback'),
+        missingSession
+      );
+    });
+
+    it("calls an app's navigation that throws once, without an unhandled rejection", async () => {
+      const failures = watchFailures();
+      const navigationError = new Error('router not ready');
+      const { props } = setup(
+        resource({ status: 'needs_second_factor' }),
+        resource({ status: 'missing_requirements' })
+      );
+      props.navigateToSignIn.mockImplementation(() => {
+        throw navigationError;
+      });
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).toHaveBeenCalledOnce();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        expect.stringContaining('HandleSSOCallback'),
+        navigationError
+      );
     });
 
     it("leaves the route to the app once the app's navigation has started", async () => {

@@ -65,7 +65,12 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   let hasRun = false;
+  // Set once the user has been sent somewhere, so a failure is not sent
+  // again, even when the app's navigation throws.
   let navigatingToApp = false;
+  let handedOff = false;
+  // The flow of the step in progress, for a step that throws.
+  let step: Flow | undefined;
 
   // Returned, so clerk-js waits for the app's navigation before it
   // publishes the session.
@@ -74,18 +79,26 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     return props.navigateToApp(...params);
   };
 
-  // Sends a step that failed back to its flow's page to try again, as a
-  // failed Protect challenge does. Never to the app: the session is not
-  // active. Once the app's navigation has started, the app owns the route.
-  const retry = (flow: Flow) => {
-    if (navigatingToApp) return;
+  // Hands the user to the sign-in or sign-up page, once.
+  const handOff = (flow: Flow) => {
+    handedOff = true;
     return flow === 'signUp'
       ? props.navigateToSignUp()
       : props.navigateToSignIn();
   };
 
-  const report = (error: unknown) => {
-    if (__DEV__) {
+  // Sends a step that failed back to its flow's page to try again, as a
+  // failed Protect challenge does. Never to the app: the session is not
+  // active. Once the app's navigation has started, the app owns the route.
+  const retry = (flow: Flow) => {
+    if (navigatingToApp || handedOff) return;
+    return handOff(flow);
+  };
+
+  // A failure that `errors` does not carry is always logged, so it is not
+  // lost; one on `errors` is logged in development only.
+  const report = (error: unknown, onErrors = false) => {
+    if (__DEV__ || !onErrors) {
       console.error('Clerk: HandleSSOCallback could not finish:', error);
     }
   };
@@ -93,9 +106,10 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
   // clerk-js returns a failed finalize() as `{ error }` and also sets it on
   // the flow's `errors`, so the sign-in or sign-up page can show it.
   const finalize = async (resource: Finalizable, flow: Flow) => {
+    step = flow;
     const { error } = await resource.finalize({ navigate: toApp });
     if (error) {
-      report(error);
+      report(error, true);
       return retry(flow);
     }
   };
@@ -108,7 +122,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       const failedSignUp = flow
         ? flow === 'signUp'
         : !signIn.protectCheck && !!signUp.protectCheck;
-      return failedSignUp ? props.navigateToSignUp() : props.navigateToSignIn();
+      return handOff(failedSignUp ? 'signUp' : 'signIn');
     }
 
     // A completed sign-in has nothing left to do. The cast keeps TypeScript
@@ -119,11 +133,12 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
 
     // A sign-up for an account that exists becomes a sign-in.
     if (signUp.isTransferable) {
+      step = 'signIn';
       await signIn.create({ transfer: true });
       if (signIn.status === 'complete') {
         return finalize(signIn, 'signIn');
       }
-      return props.navigateToSignIn();
+      return handOff('signIn');
     }
 
     if (
@@ -132,16 +147,17 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
         (factor) => factor.strategy === 'enterprise_sso'
       )
     ) {
-      return props.navigateToSignIn();
+      return handOff('signIn');
     }
 
     // A sign-in with an external account no user has becomes a sign-up.
     if (signIn.isTransferable) {
+      step = 'signUp';
       await signUp.create({ transfer: true });
       if (signUp.status === 'complete') {
         return finalize(signUp, 'signUp');
       }
-      return props.navigateToSignUp();
+      return handOff('signUp');
     }
 
     if (signUp.status === 'complete') {
@@ -152,7 +168,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       signIn.status === 'needs_second_factor' ||
       signIn.status === 'needs_new_password'
     ) {
-      return props.navigateToSignIn();
+      return handOff('signIn');
     }
 
     // The external account already belongs to a user with an active session
@@ -162,11 +178,12 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     const signInSessionId = signIn.existingSession?.sessionId;
     const sessionId = signInSessionId || signUp.existingSession?.sessionId;
     if (sessionId) {
+      step = signInSessionId ? 'signIn' : 'signUp';
       try {
         await instance.setActive({ session: sessionId, navigate: toApp });
       } catch (error) {
         report(error);
-        return retry(signInSessionId ? 'signIn' : 'signUp');
+        return retry(step);
       }
       return;
     }
@@ -174,7 +191,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     // A sign-up through SSO that still needs fields, such as a username,
     // continues on the sign-up page.
     if (signUp.status === 'missing_requirements') {
-      return props.navigateToSignUp();
+      return handOff('signUp');
     }
   };
 
@@ -186,11 +203,16 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       const intent = new URLSearchParams(window.location.search).get('intent');
       const flow =
         intent === 'signIn' || intent === 'signUp' ? intent : undefined;
-      // Anything else that throws, such as a transfer request, also goes back
-      // to try again instead of leaving an unhandled rejection.
+      // Anything else that throws, such as finalize() without a created
+      // session, also goes back to the step's flow to try again instead of
+      // leaving an unhandled rejection; so does a navigation that throws.
       run(flow).catch((error) => {
         report(error);
-        retry(flow ?? 'signIn');
+        try {
+          retry(step ?? flow ?? 'signIn');
+        } catch (navigationError) {
+          report(navigationError);
+        }
       });
     })
   );
