@@ -1,5 +1,5 @@
 import { cleanup, render } from '@solidjs/testing-library';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { ClerkProvider, HandleSSOCallback } from '../..';
 import {
   createFakeClerkJS,
@@ -51,6 +51,27 @@ const setup = (signIn: object, signUp: object, protect?: () => unknown) => {
     </ClerkProvider>
   ));
   return { ...result, props, members };
+};
+
+// clerk-js 6.42.3 rejects setActive() with a network error, and finalize()
+// returns it as `{ error }`, when it cannot confirm a new session.
+const networkError = Object.assign(new Error('Network error'), {
+  code: 'network_error'
+});
+
+/** Collects unhandled rejections and console errors while a test runs. */
+const watchFailures = () => {
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  onTestFinished(() => {
+    process.off('unhandledRejection', onUnhandled);
+    consoleError.mockRestore();
+  });
+  // Lets a rejection that nothing handles reach the process.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+  return { unhandled, consoleError, settle };
 };
 
 afterEach(() => {
@@ -199,5 +220,127 @@ describe('HandleSSOCallback', () => {
       'signUp'
     );
     expect(props.navigateToSignIn).not.toHaveBeenCalled();
+  });
+
+  describe('when a step fails', () => {
+    it('sends a sign-in whose finalize() fails back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const signIn = resource({
+        status: 'complete',
+        finalize: vi.fn(async () => ({ error: networkError }))
+      });
+      const { props } = setup(signIn, resource());
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).toHaveBeenCalledOnce();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        expect.stringContaining('HandleSSOCallback'),
+        networkError
+      );
+    });
+
+    it('sends a sign-up whose finalize() fails back to the sign-up page', async () => {
+      const failures = watchFailures();
+      const signUp = resource({
+        status: 'complete',
+        finalize: vi.fn(async () => ({ error: networkError }))
+      });
+      const { props } = setup(resource(), signUp);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends a transferred sign-up whose finalize() fails back to the sign-up page', async () => {
+      const failures = watchFailures();
+      const signUp = resource({
+        finalize: vi.fn(async () => ({ error: networkError }))
+      });
+      signUp.create = vi.fn(async () => {
+        signUp.status = 'complete';
+        return { error: null };
+      });
+      const { props } = setup(resource({ isTransferable: true }), signUp);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(signUp.finalize).toHaveBeenCalledOnce();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends a failed activation of an existing session back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource({ existingSession: { sessionId: 'sess_existing' } }),
+        resource({ status: 'missing_requirements' })
+      );
+      members.setActive.mockRejectedValue(networkError);
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(members.setActive).toHaveBeenCalledOnce();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        expect.stringContaining('HandleSSOCallback'),
+        networkError
+      );
+    });
+
+    it("sends a failed activation of a sign-up's existing session back to the sign-up page", async () => {
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource(),
+        resource({ existingSession: { sessionId: 'sess_existing' } })
+      );
+      members.setActive.mockRejectedValue(networkError);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends a request that throws back to the flow it came from', async () => {
+      window.history.replaceState(null, '', '/sso-callback?intent=signUp');
+      const failures = watchFailures();
+      const signIn = resource({ isTransferable: true });
+      const signUp = resource();
+      signUp.create = vi.fn(async () => {
+        throw networkError;
+      });
+      const { props } = setup(signIn, signUp);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it("leaves the route to the app once the app's navigation has started", async () => {
+      const failures = watchFailures();
+      const signIn = resource({ status: 'complete' });
+      signIn.finalize = vi.fn(async ({ navigate }) => {
+        await navigate({ session: { id: 'sess_1' }, decorateUrl: String });
+        return { error: networkError };
+      });
+      const { props } = setup(signIn, resource());
+
+      await vi.waitFor(() => expect(props.navigateToApp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
   });
 });

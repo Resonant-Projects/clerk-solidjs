@@ -4,12 +4,28 @@ import { useClerkLoadState } from '../contexts/clerk-status';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { useSignIn, useSignUp } from '../hooks/use-clerk-signal';
 
+type Flow = 'signIn' | 'signUp';
+
+interface Finalizable {
+  finalize: (params: {
+    navigate: SetActiveNavigate;
+  }) => Promise<{ error: unknown }>;
+}
+
 export interface HandleSSOCallbackProps {
   /** Called with `finalize()`'s navigation once the user is signed in. */
   navigateToApp: (...params: Parameters<SetActiveNavigate>) => void;
-  /** Called when the sign-in needs another step, such as a second factor. */
+  /**
+   * Called when the sign-in needs another step, such as a second factor, or
+   * when it fails: a failed Protect challenge or a sign-in that cannot be
+   * activated. A failed `finalize()` leaves its error on `errors` from
+   * `useSignIn()`.
+   */
   navigateToSignIn: () => void;
-  /** Called when the sign-up needs another step. */
+  /**
+   * Called when the sign-up needs another step, or when it fails, as for
+   * `navigateToSignIn`, with the error on `errors` from `useSignUp()`.
+   */
   navigateToSignUp: () => void;
 }
 
@@ -18,9 +34,11 @@ export interface HandleSSOCallbackProps {
  * provider redirects back to, with the Core 3 resources, as `@clerk/react`'s
  * does. It resolves a pending bot-protection check, then finalizes the
  * sign-in or sign-up, transfers between them when the account exists or does
- * not, or hands off to your sign-in or sign-up page for another step. It runs
- * once, when Clerk has loaded, and renders the CAPTCHA element a transferred
- * sign-up may need.
+ * not, or hands off to your sign-in or sign-up page for another step. If a
+ * step fails, for example when clerk-js cannot confirm the new session, it
+ * sends the user back to the sign-in or sign-up page to try again rather than
+ * leaving them on the callback route. It runs once, when Clerk has loaded,
+ * and renders the CAPTCHA element a transferred sign-up may need.
  *
  * @example
  * // src/routes/sso-callback.tsx
@@ -47,17 +65,43 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   let hasRun = false;
+  let navigatingToApp = false;
 
   // Returned, so clerk-js waits for the app's navigation before it
   // publishes the session.
-  const toApp = async (...params: Parameters<SetActiveNavigate>) =>
-    props.navigateToApp(...params);
+  const toApp = async (...params: Parameters<SetActiveNavigate>) => {
+    navigatingToApp = true;
+    return props.navigateToApp(...params);
+  };
 
-  const run = async () => {
+  // Sends a step that failed back to its flow's page to try again, as a
+  // failed Protect challenge does. Never to the app: the session is not
+  // active. Once the app's navigation has started, the app owns the route.
+  const retry = (flow: Flow) => {
+    if (navigatingToApp) return;
+    return flow === 'signUp'
+      ? props.navigateToSignUp()
+      : props.navigateToSignIn();
+  };
+
+  const report = (error: unknown) => {
+    if (__DEV__) {
+      console.error('Clerk: HandleSSOCallback could not finish:', error);
+    }
+  };
+
+  // clerk-js returns a failed finalize() as `{ error }` and also sets it on
+  // the flow's `errors`, so the sign-in or sign-up page can show it.
+  const finalize = async (resource: Finalizable, flow: Flow) => {
+    const { error } = await resource.finalize({ navigate: toApp });
+    if (error) {
+      report(error);
+      return retry(flow);
+    }
+  };
+
+  const run = async (flow: Flow | undefined) => {
     const instance = untrack(clerk);
-    const intent = new URLSearchParams(window.location.search).get('intent');
-    const flow =
-      intent === 'signIn' || intent === 'signUp' ? intent : undefined;
     try {
       await instance.__internal_resolvePendingProtectCheck?.(flow);
     } catch {
@@ -70,16 +114,14 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     // A completed sign-in has nothing left to do. The cast keeps TypeScript
     // from narrowing a status the awaits below can change.
     if ((signIn.status as string) === 'complete') {
-      await signIn.finalize({ navigate: toApp });
-      return;
+      return finalize(signIn, 'signIn');
     }
 
     // A sign-up for an account that exists becomes a sign-in.
     if (signUp.isTransferable) {
       await signIn.create({ transfer: true });
       if (signIn.status === 'complete') {
-        await signIn.finalize({ navigate: toApp });
-        return;
+        return finalize(signIn, 'signIn');
       }
       return props.navigateToSignIn();
     }
@@ -97,15 +139,13 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     if (signIn.isTransferable) {
       await signUp.create({ transfer: true });
       if (signUp.status === 'complete') {
-        await signUp.finalize({ navigate: toApp });
-        return;
+        return finalize(signUp, 'signUp');
       }
       return props.navigateToSignUp();
     }
 
     if (signUp.status === 'complete') {
-      await signUp.finalize({ navigate: toApp });
-      return;
+      return finalize(signUp, 'signUp');
     }
 
     if (
@@ -117,10 +157,17 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
 
     // The external account already belongs to a user with an active session
     // on this client: activate it, which finalize() cannot.
-    const sessionId =
-      signIn.existingSession?.sessionId || signUp.existingSession?.sessionId;
+    // setActive() rejects when it fails, for example when clerk-js cannot
+    // confirm the session, and there is no `errors` to carry it.
+    const signInSessionId = signIn.existingSession?.sessionId;
+    const sessionId = signInSessionId || signUp.existingSession?.sessionId;
     if (sessionId) {
-      await instance.setActive({ session: sessionId, navigate: toApp });
+      try {
+        await instance.setActive({ session: sessionId, navigate: toApp });
+      } catch (error) {
+        report(error);
+        return retry(signInSessionId ? 'signIn' : 'signUp');
+      }
       return;
     }
 
@@ -136,7 +183,15 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       if (!isLoaded || hasRun) return;
       // Once, even if the page renders again while the session activates.
       hasRun = true;
-      void run();
+      const intent = new URLSearchParams(window.location.search).get('intent');
+      const flow =
+        intent === 'signIn' || intent === 'signUp' ? intent : undefined;
+      // Anything else that throws, such as a transfer request, also goes back
+      // to try again instead of leaving an unhandled rejection.
+      run(flow).catch((error) => {
+        report(error);
+        retry(flow ?? 'signIn');
+      });
     })
   );
 
