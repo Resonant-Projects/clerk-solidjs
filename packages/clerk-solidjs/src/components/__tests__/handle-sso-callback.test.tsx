@@ -27,8 +27,17 @@ const resource = (fields: Record<string, unknown> = {}) => {
   return self;
 };
 
-const setup = (signIn: object, signUp: object, protect?: () => unknown) => {
-  const { clerkJS } = createFakeClerkJS();
+const setup = (
+  signIn: object,
+  signUp: object,
+  protect?: () => unknown,
+  sessionIds: string[] = []
+) => {
+  const client = {
+    sessions: sessionIds.map((id) => ({ id })),
+    signedInSessions: []
+  };
+  const { clerkJS } = createFakeClerkJS({ client: client as any });
   const signals = createFakeState({ signIn, signUp });
   const members = {
     __internal_state: signals.state,
@@ -371,6 +380,61 @@ describe('HandleSSOCallback', () => {
       await vi.waitFor(() => expect(props.navigateToApp).toHaveBeenCalled());
       await failures.settle();
       expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    // clerk-js's setActive() signs out, with no error and no navigation, when
+    // its client does not list the session even after a reload.
+    const signedOutFinalize = () =>
+      resource({
+        status: 'complete',
+        createdSessionId: 'sess_new',
+        finalize: vi.fn(async () => ({ error: null }))
+      });
+
+    it('sends a sign-in that clerk-js signed out instead of activating back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const { props } = setup(signedOutFinalize(), resource());
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        expect.stringContaining('HandleSSOCallback'),
+        expect.objectContaining({
+          message: 'Clerk did not activate the session it was given.'
+        })
+      );
+    });
+
+    it('leaves a session clerk-js activated without our navigation alone', async () => {
+      // A session with a task URL: clerk-js navigates to it itself.
+      const failures = watchFailures();
+      const signIn = signedOutFinalize();
+      const { props } = setup(signIn, resource(), undefined, ['sess_new']);
+
+      await vi.waitFor(() => expect(signIn.finalize).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.consoleError).not.toHaveBeenCalled();
+    });
+
+    it('sends an existing session clerk-js signed out instead of activating back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource({ existingSession: { sessionId: 'sess_existing' } }),
+        resource({ status: 'missing_requirements' })
+      );
+      members.setActive.mockResolvedValue(undefined);
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
       expect(props.navigateToSignUp).not.toHaveBeenCalled();
       expect(failures.unhandled).toEqual([]);
     });

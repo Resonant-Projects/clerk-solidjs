@@ -7,6 +7,7 @@ import { useSignIn, useSignUp } from '../hooks/use-clerk-signal';
 type Flow = 'signIn' | 'signUp';
 
 interface Finalizable {
+  readonly createdSessionId?: string | null;
   finalize: (params: {
     navigate: SetActiveNavigate;
   }) => Promise<{ error: unknown }>;
@@ -103,15 +104,32 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     }
   };
 
+  // clerk-js's setActive() signs out instead, resolving without an error
+  // and without navigating, when its client does not list the session, even
+  // after it reloads the client. Its own check tells it apart from a session
+  // that clerk-js activated without our navigation, such as one with a task
+  // URL: the session is not on the client.
+  const checkActivated = (sessionId: string | null | undefined, flow: Flow) => {
+    if (navigatingToApp || !sessionId) return;
+    const listed = untrack(clerk).client?.sessions.some(
+      (session) => session.id === sessionId
+    );
+    if (listed) return;
+    report(new Error('Clerk did not activate the session it was given.'));
+    return retry(flow);
+  };
+
   // clerk-js returns a failed finalize() as `{ error }` and also sets it on
   // the flow's `errors`, so the sign-in or sign-up page can show it.
   const finalize = async (resource: Finalizable, flow: Flow) => {
     step = flow;
+    const sessionId = resource.createdSessionId;
     const { error } = await resource.finalize({ navigate: toApp });
     if (error) {
       report(error, true);
       return retry(flow);
     }
+    return checkActivated(sessionId, flow);
   };
 
   const run = async (flow: Flow | undefined) => {
@@ -185,7 +203,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
         report(error);
         return retry(step);
       }
-      return;
+      return checkActivated(sessionId, step);
     }
 
     // A sign-up through SSO that still needs fields, such as a username,
