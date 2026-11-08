@@ -103,6 +103,7 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
   // Hands the user to the sign-in or sign-up page, once.
   const handOff = (flow: Flow) => {
     handedOff = true;
+    step = flow;
     return flow === 'signUp'
       ? props.navigateToSignUp()
       : props.navigateToSignIn();
@@ -259,10 +260,13 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
         const failed = step ?? flow ?? 'signIn';
         // After a handoff, only the app's navigation callback can throw.
         report(handedOff ? 'navigation' : 'unexpected', failed, error);
-        try {
-          retry(failed);
-        } catch (navigationError) {
+        // An async navigation callback can reject instead of throwing.
+        const failedNavigation = (navigationError: unknown) =>
           report('navigation', failed, navigationError);
+        try {
+          void Promise.resolve(retry(failed)).catch(failedNavigation);
+        } catch (navigationError) {
+          failedNavigation(navigationError);
         }
       });
     })

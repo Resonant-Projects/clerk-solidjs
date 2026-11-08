@@ -344,6 +344,25 @@ describe('HandleSSOCallback', () => {
       );
     });
 
+    it('logs an async navigation that rejects after a step throws', async () => {
+      const failures = watchFailures();
+      const signUp = resource({
+        status: 'complete',
+        finalize: vi.fn(() => {
+          throw new Error('no created session');
+        })
+      });
+      const { props } = setup(resource(), signUp);
+      props.navigateToSignUp.mockRejectedValue(new Error('router not ready'));
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenLastCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signUp flow: navigation failed.'
+      );
+    });
+
     it("calls an app's navigation that throws once, without an unhandled rejection", async () => {
       const failures = watchFailures();
       const navigationError = new Error('router not ready');
