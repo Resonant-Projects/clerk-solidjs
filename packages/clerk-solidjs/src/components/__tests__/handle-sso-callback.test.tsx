@@ -1,5 +1,5 @@
 import { cleanup, render } from '@solidjs/testing-library';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { ClerkProvider, HandleSSOCallback } from '../..';
 import {
   createFakeClerkJS,
@@ -27,8 +27,18 @@ const resource = (fields: Record<string, unknown> = {}) => {
   return self;
 };
 
-const setup = (signIn: object, signUp: object, protect?: () => unknown) => {
-  const { clerkJS } = createFakeClerkJS();
+const setup = (
+  signIn: object,
+  signUp: object,
+  protect?: () => unknown,
+  sessionIds: string[] = [],
+  signedInIds: string[] = sessionIds
+) => {
+  const client = {
+    sessions: sessionIds.map((id) => ({ id })),
+    signedInSessions: signedInIds.map((id) => ({ id }))
+  };
+  const { clerkJS } = createFakeClerkJS({ client: client as any });
   const signals = createFakeState({ signIn, signUp });
   const members = {
     __internal_state: signals.state,
@@ -51,6 +61,27 @@ const setup = (signIn: object, signUp: object, protect?: () => unknown) => {
     </ClerkProvider>
   ));
   return { ...result, props, members };
+};
+
+// clerk-js 6.42.3 rejects setActive() with a network error, and finalize()
+// returns it as `{ error }`, when it cannot confirm a new session.
+const networkError = Object.assign(new Error('Network error'), {
+  code: 'network_error'
+});
+
+/** Collects unhandled rejections and console errors while a test runs. */
+const watchFailures = () => {
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  onTestFinished(() => {
+    process.off('unhandledRejection', onUnhandled);
+    consoleError.mockRestore();
+  });
+  // Lets a rejection that nothing handles reach the process.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+  return { unhandled, consoleError, settle };
 };
 
 afterEach(() => {
@@ -199,5 +230,275 @@ describe('HandleSSOCallback', () => {
       'signUp'
     );
     expect(props.navigateToSignIn).not.toHaveBeenCalled();
+  });
+
+  describe('when a step fails', () => {
+    it('sends a sign-in whose finalize() fails back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const signIn = resource({
+        status: 'complete',
+        finalize: vi.fn(async () => ({ error: networkError }))
+      });
+      const { props } = setup(signIn, resource());
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).toHaveBeenCalledOnce();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signIn flow: finalize failed (network_error).'
+      );
+    });
+
+    it('sends a sign-up whose finalize() fails back to the sign-up page', async () => {
+      const failures = watchFailures();
+      const signUp = resource({
+        status: 'complete',
+        finalize: vi.fn(async () => ({ error: networkError }))
+      });
+      const { props } = setup(resource(), signUp);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends a transferred sign-up whose finalize() fails back to the sign-up page', async () => {
+      const failures = watchFailures();
+      const signUp = resource({
+        finalize: vi.fn(async () => ({ error: networkError }))
+      });
+      signUp.create = vi.fn(async () => {
+        signUp.status = 'complete';
+        return { error: null };
+      });
+      const { props } = setup(resource({ isTransferable: true }), signUp);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(signUp.finalize).toHaveBeenCalledOnce();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends a failed activation of an existing session back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource({ existingSession: { sessionId: 'sess_existing' } }),
+        resource({ status: 'missing_requirements' })
+      );
+      members.setActive.mockRejectedValue(networkError);
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(members.setActive).toHaveBeenCalledOnce();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signIn flow: activate failed (network_error).'
+      );
+    });
+
+    it("sends a failed activation of a sign-up's existing session back to the sign-up page", async () => {
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource(),
+        resource({ existingSession: { sessionId: 'sess_existing' } })
+      );
+      members.setActive.mockRejectedValue(networkError);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends a step that throws back to the flow of that step', async () => {
+      const failures = watchFailures();
+      // As clerk-js's finalize() does when there is no created session. No
+      // intent in the URL: the failed step decides the page.
+      const missingSession = new Error(
+        'Cannot finalize sign-up without a created session.'
+      );
+      const signUp = resource({
+        status: 'complete',
+        finalize: vi.fn(() => {
+          throw missingSession;
+        })
+      });
+      const { props } = setup(resource(), signUp);
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signUp flow: unexpected failed.'
+      );
+    });
+
+    it('logs an async navigation that rejects after a step throws', async () => {
+      const failures = watchFailures();
+      const signUp = resource({
+        status: 'complete',
+        finalize: vi.fn(() => {
+          throw new Error('no created session');
+        })
+      });
+      const { props } = setup(resource(), signUp);
+      props.navigateToSignUp.mockRejectedValue(new Error('router not ready'));
+
+      await vi.waitFor(() => expect(props.navigateToSignUp).toHaveBeenCalled());
+      await failures.settle();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenLastCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signUp flow: navigation failed.'
+      );
+    });
+
+    it("calls an app's navigation that throws once, without an unhandled rejection", async () => {
+      const failures = watchFailures();
+      const navigationError = new Error('router not ready');
+      const { props } = setup(
+        resource({ status: 'needs_second_factor' }),
+        resource({ status: 'missing_requirements' })
+      );
+      props.navigateToSignIn.mockImplementation(() => {
+        throw navigationError;
+      });
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).toHaveBeenCalledOnce();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signIn flow: navigation failed.'
+      );
+    });
+
+    it("leaves the route to the app once the app's navigation has started", async () => {
+      const failures = watchFailures();
+      const signIn = resource({ status: 'complete' });
+      signIn.finalize = vi.fn(async ({ navigate }) => {
+        await navigate({ session: { id: 'sess_1' }, decorateUrl: String });
+        return { error: networkError };
+      });
+      const { props } = setup(signIn, resource());
+
+      await vi.waitFor(() => expect(props.navigateToApp).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    // clerk-js's setActive() signs out, with no error and no navigation, when
+    // its client does not list the session even after a reload.
+    const signedOutFinalize = () =>
+      resource({
+        status: 'complete',
+        createdSessionId: 'sess_new',
+        finalize: vi.fn(async () => ({ error: null }))
+      });
+
+    it('sends a sign-in that clerk-js signed out instead of activating back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const { props } = setup(signedOutFinalize(), resource());
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+      expect(failures.consoleError).toHaveBeenCalledWith(
+        'Clerk: HandleSSOCallback could not finish the signIn flow: not_activated failed.'
+      );
+    });
+
+    it('leaves a session clerk-js activated without our navigation alone', async () => {
+      // A session with a task URL: clerk-js navigates to it itself.
+      const failures = watchFailures();
+      const signIn = signedOutFinalize();
+      const { props } = setup(signIn, resource(), undefined, ['sess_new']);
+
+      await vi.waitFor(() => expect(signIn.finalize).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToSignIn).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.consoleError).not.toHaveBeenCalled();
+    });
+
+    it('sends a sign-in whose session ended instead of activating back to the sign-in page', async () => {
+      const failures = watchFailures();
+      // On the client, but not signed in: clerk-js signs out.
+      const { props } = setup(
+        signedOutFinalize(),
+        resource(),
+        undefined,
+        ['sess_new'],
+        []
+      );
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('sends an existing session clerk-js signed out instead of activating back to the sign-in page', async () => {
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource({ existingSession: { sessionId: 'sess_existing' } }),
+        resource({ status: 'missing_requirements' })
+      );
+      members.setActive.mockResolvedValue(undefined);
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(props.navigateToApp).not.toHaveBeenCalled();
+      expect(props.navigateToSignUp).not.toHaveBeenCalled();
+      expect(failures.unhandled).toEqual([]);
+    });
+
+    it('logs only a fixed diagnostic, never what a thrown value carries', async () => {
+      // Synthetic markers stand in for a token, a private URL and user data.
+      const marker = 'SYNTHETIC-PRIVATE-MARKER';
+      const thrown = Object.assign(
+        new Error(`fetch https://fapi.example.test/?__clerk_db_jwt=${marker}`),
+        { code: `bad code ${marker}`, url: `https://example.test/${marker}` }
+      );
+      const failures = watchFailures();
+      const { props, members } = setup(
+        resource({ existingSession: { sessionId: `sess_${marker}` } }),
+        resource({ status: 'missing_requirements' })
+      );
+      members.setActive.mockRejectedValue(thrown);
+      props.navigateToSignIn.mockImplementation(() => {
+        throw new Error(`router state ${marker}`);
+      });
+
+      await vi.waitFor(() => expect(props.navigateToSignIn).toHaveBeenCalled());
+      await failures.settle();
+      expect(failures.unhandled).toEqual([]);
+      const logged = failures.consoleError.mock.calls;
+      expect(logged).toEqual([
+        [
+          'Clerk: HandleSSOCallback could not finish the signIn flow: activate failed.'
+        ],
+        [
+          'Clerk: HandleSSOCallback could not finish the signIn flow: navigation failed.'
+        ]
+      ]);
+      expect(JSON.stringify(logged)).not.toContain(marker);
+    });
   });
 });
