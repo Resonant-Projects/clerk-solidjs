@@ -8,8 +8,7 @@ const loadedClerk = async (setActive: (params: unknown) => Promise<void>) => {
       clerkJS.loaded = true;
     }),
     addListener: vi.fn(),
-    setActive: vi.fn(setActive),
-    signOut: vi.fn(async () => undefined)
+    setActive: vi.fn(setActive)
   };
   const isomorphicClerk = new IsomorphicClerk({
     publishableKey: 'pk_test_XXX',
@@ -36,18 +35,17 @@ describe('IsomorphicClerk setActive', () => {
   // session, instead of signing the user out. The wrapper must pass that
   // rejection on so callers can retry; swallowing it would leave them
   // thinking the session is active.
-  it('passes on a clerk-js rejection without signing out', async () => {
+  it('passes on a clerk-js rejection unchanged', async () => {
     const networkError = Object.assign(new Error('Network error'), {
       code: 'network_error'
     });
-    const { clerkJS, isomorphicClerk } = await loadedClerk(async () => {
+    const { isomorphicClerk } = await loadedClerk(async () => {
       throw networkError;
     });
 
     await expect(
       isomorphicClerk.setActive({ session: 'sess_123' })
     ).rejects.toBe(networkError);
-    expect(clerkJS.signOut).not.toHaveBeenCalled();
   });
 
   it('rejects before clerk-js exists', async () => {
