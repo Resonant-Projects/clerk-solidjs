@@ -12,22 +12,41 @@
     "enabled": true,
     "schedule": ["before 6am on the first day of the month"]
   },
+  "vulnerabilityAlerts": {
+    "automerge": false,
+    "labels": ["security"],
+    "minimumReleaseAge": "3 days"
+  },
+  "osvVulnerabilityAlerts": true,
   "github-actions": {
     "enabled": false
   },
   "packageRules": [
     {
+      "description": "Batch minor updates into one weekly PR for manual review. Listed first so the Clerk and Solid groups below keep their own PRs",
+      "matchUpdateTypes": ["minor"],
+      "groupName": "minor updates",
+      "groupSlug": "minor",
+      "automerge": false
+    },
+    {
       "description": "Clerk SDK packages move together; review every bump for Solid porting work",
       "matchPackageNames": ["@clerk/**"],
       "groupName": "clerk",
       "groupSlug": "clerk",
-      "schedule": ["at any time"],
-      "minimumReleaseAge": "1 day",
       "automerge": false,
       "labels": ["clerk-sync"],
       "prBodyNotes": [
         "Check @clerk/react changes for new or changed exports that need Solid ports before merging."
       ]
+    },
+    {
+      "description": "Clerk patches open as soon as they are 3 days old, outside the weekly window; they are still reviewed by hand",
+      "matchPackageNames": ["@clerk/**"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "clerk patches",
+      "groupSlug": "clerk-patch",
+      "schedule": ["at any time"]
     },
     {
       "description": "Clerk majors require dashboard approval",
@@ -50,13 +69,18 @@
       "groupSlug": "solid"
     },
     {
-      "description": "Automerge non-Clerk dev tooling patch and minor updates. Renovate merges only once every check passes, so this is safe without branch protection",
+      "description": "Automerge non-Clerk dev tooling patch updates only. platformAutomerge is off, so Renovate merges itself once every check, including the required ci-required, has passed",
       "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchUpdateTypes": ["patch"],
       "matchPackageNames": ["!@clerk/**"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": false
+    },
+    {
+      "description": "Never automerge 0.x packages: SemVer lets them break in any release. Matches the locked version",
+      "matchCurrentVersion": "/^0\\./",
+      "automerge": false
     },
     {
       "description": "All majors require dashboard approval",
