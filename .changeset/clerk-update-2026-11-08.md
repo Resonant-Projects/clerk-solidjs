@@ -1,5 +1,0 @@
----
-"@resonant-projects/clerk-solidjs": patch
----
-
-Update Clerk dependencies to the Nov 5 releases: `@clerk/backend` 3.27.0 and `@clerk/shared` 4.44.1. The `@resonant-projects/clerk-solidjs/webhooks` entry re-exports `@clerk/backend/webhooks`, so `verifyWebhook()` now narrows the Directory Sync events (`directoryGroup.created`, `.updated`, `.synced`, `.deleted`, `directoryGroupMembership.created` and `.deleted`) and exports `DirectoryGroupWebhookEvent` and `DirectoryGroupMembershipWebhookEvent`. The fixes in clerk-js 6.42.3 and `@clerk/ui` 1.42.4 ship in those packages, not in this one. These include `setActive({ session })` rejecting with a network error instead of signing the user out, and corrected labels for annual base fees. `setActive` already passes clerk-js rejections to the caller unchanged. By default apps load clerk-js and `@clerk/ui` from the CDN by major version, so they get these fixes from Clerk; apps that pin a script version, bundle `@clerk/ui` or pass their own `Clerk` must update those themselves.
