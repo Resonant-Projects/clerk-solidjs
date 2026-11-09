@@ -13,6 +13,8 @@
 // 5. `./start/server` gives the browser its stub, which reaches no
 //    @clerk/backend, and every server runtime the real entry, including
 //    worker builds that also set `browser`.
+// 6. `./errors` exports, and its d.ts declares, what @clerk/react's
+//    `/errors` does.
 //
 // Run it after `pnpm build`.
 
@@ -198,6 +200,50 @@ for (const subpath of [
   } catch (error) {
     fail(
       `node could not import ${subpath} (${target}): ${error instanceof Error ? error.message : error}`
+    );
+  }
+}
+
+// `./errors` exports what @clerk/react's `/errors` does, in its JS and d.ts.
+{
+  const expected = [
+    'ClerkAPIResponseError',
+    'ClerkOfflineError',
+    'ClerkRuntimeError',
+    'EmailLinkErrorCode',
+    'EmailLinkErrorCodeStatus',
+    'isClerkAPIResponseError',
+    'isClerkRuntimeError',
+    'isEmailLinkError',
+    'isKnownError',
+    'isMetamaskError',
+    'isReverificationCancelledError'
+  ];
+  const entry = pkg.exports['./errors'].import;
+  try {
+    const built = await import(
+      pathToFileURL(path.join(packageDir, entry.default)).href
+    );
+    const declarations = fs.readFileSync(
+      path.join(packageDir, entry.types),
+      'utf8'
+    );
+    const missing = expected.filter((name) => !(name in built));
+    const extra = Object.keys(built).filter((name) => !expected.includes(name));
+    const undeclared = expected.filter(
+      (name) => !new RegExp(`\\b${name}\\b`).test(declarations)
+    );
+    if (missing.length) fail(`./errors lacks ${missing.join(', ')}`);
+    if (extra.length) fail(`./errors also exports ${extra.join(', ')}`);
+    if (undeclared.length) {
+      fail(`${entry.types} does not declare ${undeclared.join(', ')}`);
+    }
+    if (!missing.length && !extra.length && !undeclared.length) {
+      console.log('PASS  ./errors exports and declares what @clerk/react does');
+    }
+  } catch (error) {
+    fail(
+      `could not check ./errors: ${error instanceof Error ? error.message : error}`
     );
   }
 }
