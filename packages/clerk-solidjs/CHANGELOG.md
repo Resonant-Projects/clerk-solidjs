@@ -1,5 +1,18 @@
 # clerk-solidjs
 
+## 4.3.8
+
+### Patch Changes
+
+- 0f3febc: `@resonant-projects/clerk-solidjs/errors` now exports everything `@clerk/react/errors` does. Six exports were missing: `ClerkAPIResponseError`, `ClerkOfflineError`, `ClerkRuntimeError`, `EmailLinkErrorCodeStatus`, `isClerkRuntimeError` and `isReverificationCancelledError`. Each is re-exported from `@clerk/shared/error`, so `instanceof` checks and the type guards behave as they do in `@clerk/react`:
+
+  ```ts
+  import {
+    ClerkOfflineError,
+    isReverificationCancelledError
+  } from '@resonant-projects/clerk-solidjs/errors';
+  ```
+
 ## 4.3.7
 
 ### Patch Changes
