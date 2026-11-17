@@ -92,6 +92,16 @@
       "description": "Peer dependency ranges are a public contract; widen them manually",
       "matchDepTypes": ["peerDependencies"],
       "enabled": false
+    },
+    {
+      "description": "Playwright follows the homelab browser pool, which serves one minor (keithce/homelab-infra runners/browser-pool/playwright-fleet.json). Raise allowedVersions only together with the pool.",
+      "matchPackageNames": [
+        "@playwright/test",
+        "playwright",
+        "playwright-core"
+      ],
+      "groupName": "playwright",
+      "allowedVersions": "<1.66.0"
     }
   ]
 }
