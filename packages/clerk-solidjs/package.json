@@ -446,8 +446,8 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@clerk/clerk-js": "^6.42.3",
-    "@clerk/localizations": "^4.24.6",
-    "@clerk/ui": "^1.42.4",
+    "@clerk/localizations": "^4.24.8",
+    "@clerk/ui": "^1.42.6",
     "@eslint/js": "^10.0.1",
     "@solidjs/testing-library": "^0.8.10",
     "@testing-library/jest-dom": "^7.0.1",
