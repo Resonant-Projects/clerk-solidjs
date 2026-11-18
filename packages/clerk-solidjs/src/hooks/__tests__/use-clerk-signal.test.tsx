@@ -359,6 +359,49 @@ describe('Slack workspace hint', () => {
   });
 });
 
+// @clerk/shared 4.45.0 added preferImmediatelyAvailableCredentials.
+describe('passkey sign-in on the device only', () => {
+  it('types preferImmediatelyAvailableCredentials on passkey() and authenticateWithPasskey()', () => {
+    type SignIn = SignInSignalValue['signIn'];
+    type LegacySignIn = NonNullable<
+      ReturnType<ReturnType<typeof legacy.useSignIn>['signIn']>
+    >;
+    expectTypeOf<
+      NonNullable<Parameters<SignIn['passkey']>[0]>
+    >().toHaveProperty('preferImmediatelyAvailableCredentials');
+    expectTypeOf<
+      NonNullable<Parameters<LegacySignIn['authenticateWithPasskey']>[0]>
+    >().toHaveProperty('preferImmediatelyAvailableCredentials');
+  });
+
+  it("passes the option to clerk-js's passkey() unchanged once Clerk loads", async () => {
+    const signInFuture = { passkey: vi.fn(async () => ({ error: null })) };
+    const { clerkJS, finishLoading } = setup({ signIn: signInFuture });
+
+    let signIn!: SignInSignalValue['signIn'];
+    const Form = () => {
+      ({ signIn } = useSignIn());
+      return null;
+    };
+    render(() => (
+      <ClerkProvider
+        publishableKey={TEST_PUBLISHABLE_KEY}
+        Clerk={clerkJS as any}
+      >
+        <Form />
+      </ClerkProvider>
+    ));
+
+    const params = { preferImmediatelyAvailableCredentials: true };
+    const result = signIn.passkey(params);
+    expect(signInFuture.passkey).not.toHaveBeenCalled();
+
+    finishLoading();
+    await expect(result).resolves.toEqual({ error: null });
+    expect(signInFuture.passkey).toHaveBeenCalledExactlyOnceWith(params);
+  });
+});
+
 describe('useWaitlist', () => {
   it("joins through clerk-js's waitlist once Clerk loads", async () => {
     const join = vi.fn(async () => ({ error: null }));
