@@ -1,6 +1,6 @@
 import { defineHandler, H3, type H3Event } from 'h3';
 import { provideRequestEvent } from 'solid-js/web/storage';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEST_PUBLISHABLE_KEY } from '../../../__tests__/helpers/fake-clerk-js';
 
 const backend = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ vi.mock('@clerk/backend', async (importOriginal) => ({
   })
 }));
 
-import { clerkMiddleware } from '../middleware';
+import { clerkMiddleware, type ClerkMiddleware } from '../middleware';
 
 // Ported from the `Poppy middleware` tests of @clerk/nextjs 7.10.0.
 
@@ -90,6 +90,28 @@ afterEach(() => {
   backend.authenticateRequest.mockReset();
   backend.getPoppyJson.mockReset();
 });
+
+/** The middleware on an H3 app, run as @solidjs/start 2 runs it. */
+const h3App = (middleware: ClerkMiddleware, route: () => unknown) => {
+  const solidFetchEvent = (event: H3Event) =>
+    ((event.context as Record<string, any>).solidFetchEvent ||= {
+      request: event.req,
+      response: event.res,
+      locals: {},
+      nativeEvent: event
+    });
+  return new H3().use(
+    defineHandler({
+      middleware: [
+        (event, next) =>
+          provideRequestEvent(solidFetchEvent(event), () =>
+            middleware(event, next)
+          ) as Promise<unknown>
+      ],
+      handler: route
+    })
+  );
+};
 
 describe('clerkMiddleware({ poppy: true })', () => {
   it.each([
@@ -206,33 +228,97 @@ describe('clerkMiddleware({ poppy: true })', () => {
   it('returns discovery from the h3 form without running the route', async () => {
     backend.getPoppyJson.mockResolvedValue(metadata);
     const route = vi.fn(() => 'route');
-    const solidFetchEvent = (event: H3Event) =>
-      ((event.context as Record<string, any>).solidFetchEvent ||= {
-        request: event.req,
-        response: event.res,
-        locals: {},
-        nativeEvent: event
-      });
-    const middleware = clerkMiddleware({ ...options, poppy: true });
-    const app = new H3().use(
-      defineHandler({
-        middleware: [
-          (event, next) =>
-            provideRequestEvent(solidFetchEvent(event), () =>
-              middleware(event, next)
-            ) as Promise<unknown>
-        ],
-        handler: route
-      })
-    );
 
-    const response = await app.request(
-      'https://company.example/.well-known/poppy.json'
-    );
+    const response = await h3App(
+      clerkMiddleware({ ...options, poppy: true }),
+      route
+    ).request('https://company.example/.well-known/poppy.json');
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(metadata);
     expect(route).not.toHaveBeenCalled();
     expect(backend.authenticateRequest).not.toHaveBeenCalled();
+  });
+});
+
+// authenticateRequest() rejects a missing or malformed publishable key, and
+// discovery runs before it, so discovery has to reject one itself.
+describe('Poppy discovery with a bad publishable key', () => {
+  const keys = [
+    { name: 'missing', publishableKey: undefined, error: /missing/ },
+    { name: 'empty', publishableKey: '', error: /missing/ },
+    {
+      name: 'malformed',
+      publishableKey: 'pk_test_garbage',
+      error: /not valid/
+    },
+    { name: 'not a key', publishableKey: 'not-a-key', error: /not valid/ }
+  ];
+  const cases = DISCOVERY_PATHS.flatMap((path) =>
+    keys.map((key) => ({ path, ...key }))
+  );
+  const badOptions = (publishableKey: string | undefined) => ({
+    secretKey: 'sk_test_fake',
+    poppy: true,
+    ...(publishableKey === undefined ? {} : { publishableKey })
+  });
+
+  beforeEach(() => {
+    // No env fallback, so a missing option means a missing key.
+    vi.stubEnv('VITE_CLERK_PUBLISHABLE_KEY', '');
+    vi.stubEnv('CLERK_PUBLISHABLE_KEY', '');
+    backend.getPoppyJson.mockResolvedValue(metadata);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each(cases)(
+    'throws for $path with a $name key in the onRequest form, before fetching',
+    async ({ path, publishableKey, error }) => {
+      await expect(
+        clerkMiddleware(badOptions(publishableKey))(
+          fetchEvent(`https://company.example${path}`)
+        )
+      ).rejects.toThrow(error);
+      expect(backend.getPoppyJson).not.toHaveBeenCalled();
+      expect(backend.authenticateRequest).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(cases)(
+    'fails $path with a $name key in the h3 form, without serving it',
+    async ({ path, publishableKey }) => {
+      const route = vi.fn(() => 'route');
+
+      const response = await h3App(
+        clerkMiddleware(badOptions(publishableKey)),
+        route
+      ).request(`https://company.example${path}`);
+
+      expect(response.status).toBe(500);
+      expect(response.headers.get('cache-control')).not.toBe('no-store');
+      expect(backend.getPoppyJson).not.toHaveBeenCalled();
+      expect(route).not.toHaveBeenCalled();
+    }
+  );
+
+  it('throws for a bad key on a non-GET discovery request too', async () => {
+    await expect(
+      clerkMiddleware(badOptions('pk_test_garbage'))(
+        fetchEvent('https://company.example/.well-known/poppy.json', {
+          method: 'POST'
+        })
+      )
+    ).rejects.toThrow(/not valid/);
+  });
+
+  it('throws for a bad key from per-request options', async () => {
+    await expect(
+      clerkMiddleware(() => badOptions(undefined))(
+        fetchEvent('https://company.example/.well-known/poppy.json')
+      )
+    ).rejects.toThrow(/missing/);
+    expect(backend.getPoppyJson).not.toHaveBeenCalled();
   });
 });

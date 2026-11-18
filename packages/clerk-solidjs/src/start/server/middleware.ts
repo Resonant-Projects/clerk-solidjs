@@ -240,6 +240,10 @@ export const clerkMiddleware = (
       // Poppy discovery is public, so it is served before authenticating,
       // as @clerk/nextjs does. With `poppy` off the app keeps these paths.
       if (loadedOptions.poppy && isPoppyDiscoveryPath(clerkRequest.clerkUrl)) {
+        // authenticateRequest() would reject a missing or malformed
+        // publishable key. Reject it here too, so a broken config fails
+        // loudly instead of serving discovery.
+        parsePublishableKey(loadedOptions.publishableKey, { fatal: true });
         logger.debug('poppy', `served ${clerkRequest.clerkUrl.pathname}`);
         return {
           response: await poppyDiscoveryResponse(
