@@ -1,8 +1,10 @@
+import type { UserMergedJSON } from '@clerk/backend';
 import { expectTypeOf } from 'expect-type';
 import { describe, expect, it } from 'vitest';
 import type {
   DirectoryGroupMembershipWebhookEvent,
   DirectoryGroupWebhookEvent,
+  UserWebhookEvent,
   WebhookEvent,
   WebhookEventType
 } from '../webhooks';
@@ -39,6 +41,22 @@ describe('@resonant-projects/clerk-solidjs/webhooks', () => {
             { type: 'directoryGroupMembership.deleted' }
           >
         >();
+      }
+    };
+    expect(typeof narrow).toBe('function');
+  });
+
+  // @clerk/backend 3.29.0 added `user.merged` to UserWebhookEvent.
+  it('narrows the user.merged event', () => {
+    expectTypeOf<'user.merged'>().toExtend<WebhookEventType>();
+    expectTypeOf<
+      Extract<UserWebhookEvent, { type: 'user.merged' }>
+    >().toExtend<WebhookEvent>();
+
+    const narrow = (event: WebhookEvent) => {
+      if (event.type === 'user.merged') {
+        expectTypeOf(event.data).toExtend<UserMergedJSON>();
+        expectTypeOf(event.data.id).toEqualTypeOf<undefined>();
       }
     };
     expect(typeof narrow).toBe('function');

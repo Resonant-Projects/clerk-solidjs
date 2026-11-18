@@ -33,6 +33,13 @@ export type FrontendApiProxyOptions = {
  * accepted and forwarded: `organizationSyncOptions`, `satelliteAutoSync`,
  * `clockSkewInMs`, `jwksCacheTtlInMs`, `skipJwksCache`, `headerType`,
  * `issuer` and the rest. Options not passed come from the `CLERK_*` env.
+ *
+ * `poppy: true` is Clerk's preview flag for Personal Agent Protocol sessions:
+ * the middleware serves `/.well-known/poppy.json` and
+ * `/.well-known/oauth-protected-resource` from the Backend API, before
+ * authenticating. Clerk may change it while the protocol is a draft. Agent
+ * sessions are attributed with or without it: `auth().agent` names the
+ * agent when the session token carries one.
  */
 export type ClerkMiddlewareOptions = Omit<
   AuthenticateRequestOptions,

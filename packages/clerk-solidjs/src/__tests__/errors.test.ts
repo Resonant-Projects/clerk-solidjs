@@ -1,10 +1,11 @@
 import * as shared from '@clerk/shared/error';
+import type { ClerkAPIError as ClerkAPIErrorShape } from '@clerk/shared/types';
 import { expectTypeOf } from 'expect-type';
 import { describe, expect, it } from 'vitest';
 import * as errors from '../errors';
 
-// @clerk/react 6.18.6's `/errors` entry point, which re-exports each of these
-// from @clerk/shared/error.
+// @clerk/react's `/errors` entry point, which re-exports each of these from
+// @clerk/shared/error. Unchanged from 6.18.6 through 6.18.8.
 const reactErrorsExports = [
   'ClerkAPIResponseError',
   'ClerkOfflineError',
@@ -84,5 +85,26 @@ describe('@resonant-projects/clerk-solidjs/errors', () => {
       }
     };
     narrow(undefined);
+  });
+
+  // @clerk/shared 4.45.0 added meta.providerError, parsed from the API's
+  // meta.provider_error, for oauth_token_retrieval_error.
+  it('carries the OAuth provider error on ClerkAPIResponseError', () => {
+    const error = new errors.ClerkAPIResponseError('token retrieval failed', {
+      status: 400,
+      data: [
+        {
+          code: 'oauth_token_retrieval_error',
+          message: 'token retrieval failed',
+          meta: { provider_error: 'invalid_grant' }
+        }
+      ]
+    });
+
+    expect(error.errors[0]?.meta?.providerError).toBe('invalid_grant');
+    // The error class types `meta` loosely; the shared interface types it.
+    expectTypeOf<
+      NonNullable<ClerkAPIErrorShape['meta']>['providerError']
+    >().toEqualTypeOf<string | undefined>();
   });
 });

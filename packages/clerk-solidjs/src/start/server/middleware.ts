@@ -22,6 +22,7 @@ import {
 } from './debug-logger';
 import { loadOptions } from './load-options';
 import { CLERK_LOCALS, clerkLocals } from './locals';
+import { isPoppyDiscoveryPath, poppyDiscoveryResponse } from './poppy';
 import type {
   ClerkMiddlewareOptions,
   ClerkMiddlewareOptionsCallback,
@@ -160,8 +161,10 @@ const withHeaders = (response: Response, headers: Headers): Response => {
  * Options not passed come from the `CLERK_*` env, read per request. Pass a
  * function to compute them per request, for example from runtime bindings.
  * `frontendApiProxy` serves Clerk's Frontend API from this app,
- * `contentSecurityPolicy` sets a CSP that allows Clerk, and `debug` logs
- * each request's auth.
+ * `contentSecurityPolicy` sets a CSP that allows Clerk, `poppy` (a Clerk
+ * preview) serves Poppy discovery at `/.well-known/poppy.json` and
+ * `/.well-known/oauth-protected-resource`, and `debug` logs each request's
+ * auth.
  *
  * @example
  * // src/middleware.ts
@@ -221,7 +224,7 @@ export const clerkMiddleware = (
         };
       }
 
-      const requestState = await clerkClient({
+      const client = clerkClient({
         secretKey: loadedOptions.secretKey,
         machineSecretKey: loadedOptions.machineSecretKey,
         publishableKey: loadedOptions.publishableKey,
@@ -232,7 +235,22 @@ export const clerkMiddleware = (
         domain: loadedOptions.domain,
         proxyUrl: loadedOptions.proxyUrl,
         isSatellite: loadedOptions.isSatellite
-      }).authenticateRequest(clerkRequest, {
+      });
+
+      // Poppy discovery is public, so it is served before authenticating,
+      // as @clerk/nextjs does. With `poppy` off the app keeps these paths.
+      if (loadedOptions.poppy && isPoppyDiscoveryPath(clerkRequest.clerkUrl)) {
+        logger.debug('poppy', `served ${clerkRequest.clerkUrl.pathname}`);
+        return {
+          response: await poppyDiscoveryResponse(
+            event.request,
+            clerkRequest.clerkUrl,
+            client
+          )
+        };
+      }
+
+      const requestState = await client.authenticateRequest(clerkRequest, {
         ...loadedOptions,
         acceptsToken: 'any'
       });
