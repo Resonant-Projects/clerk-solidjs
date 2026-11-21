@@ -24,7 +24,8 @@ export type {
   NeedsReverificationParameters,
   NeedsReverificationResultParameters,
   UseReverificationOptions,
-  UseReverificationResult
+  UseReverificationResult,
+  UseReverificationResultOptions
 } from './use-reverification';
 export { useSession } from './use-session';
 export { useSessionList } from './use-session-list';
