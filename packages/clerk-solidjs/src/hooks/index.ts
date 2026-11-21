@@ -22,6 +22,7 @@ export { useOrganizationList } from './use-organization-list';
 export { useReverification } from './use-reverification';
 export type {
   NeedsReverificationParameters,
+  NeedsReverificationResultParameters,
   UseReverificationOptions,
   UseReverificationResult
 } from './use-reverification';

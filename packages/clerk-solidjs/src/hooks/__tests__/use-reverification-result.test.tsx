@@ -209,6 +209,23 @@ describe('useReverification with passReverificationResult', () => {
       });
     expectTypeOf(wrapped).returns.parameters.toEqualTypeOf<[]>();
   });
+
+  it('gives stored opted-in options the same complete', () => {
+    const verify = async () => null;
+    const stored = {
+      passReverificationResult: true,
+      onNeedsReverification: ({ complete }) => {
+        // @ts-expect-error The resolved null would reach the fetcher.
+        void verify().then(complete);
+      }
+    } satisfies UseReverificationOptions;
+    const plain = {
+      onNeedsReverification: ({ complete }) => {
+        void verify().then(complete);
+      }
+    } satisfies UseReverificationOptions;
+    expect([stored, plain]).toHaveLength(2);
+  });
 });
 
 // Custom flows can build the same reset with the session's first factor.

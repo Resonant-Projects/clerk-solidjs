@@ -60,12 +60,35 @@ export type NeedsReverificationParameters = {
   level: SessionVerificationLevel | undefined;
 };
 
-export type UseReverificationOptions = {
+/**
+ * What `onNeedsReverification` gets with `passReverificationResult`. Whatever
+ * `complete` is given reaches the fetcher, so it takes only a
+ * `ReverificationResult`.
+ */
+export type NeedsReverificationResultParameters = Omit<
+  NeedsReverificationParameters,
+  'complete'
+> & {
+  complete: (result?: ReverificationResult) => void;
+};
+
+type PlainReverificationOptions = {
   /**
    * Called instead of opening Clerk's reverification modal, for apps that
    * render their own. Call `complete` or `cancel` when it is done.
    */
   onNeedsReverification?: (properties: NeedsReverificationParameters) => void;
+  passReverificationResult?: undefined;
+};
+
+type PassReverificationResultOptions = {
+  /**
+   * Called instead of opening Clerk's reverification modal, for apps that
+   * render their own. Call `complete` or `cancel` when it is done.
+   */
+  onNeedsReverification?: (
+    properties: NeedsReverificationResultParameters
+  ) => void;
   /**
    * When `true`, the fetcher's first argument is a `ReverificationResult`
    * (`undefined` on the first call), and the returned function takes the
@@ -88,29 +111,21 @@ export type UseReverificationOptions = {
    *
    * await updatePassword(user()!, { newPassword, signOutOfOtherSessions: true });
    */
-  passReverificationResult?: true;
+  passReverificationResult: true;
 };
+
+/**
+ * `useReverification()`'s options. The `passReverificationResult` flag picks
+ * the type of `onNeedsReverification`'s `complete`, also for options stored
+ * before they are passed.
+ */
+export type UseReverificationOptions =
+  PlainReverificationOptions | PassReverificationResultOptions;
 
 export type UseReverificationResult<
   Fetcher extends (...args: any[]) => Promise<any> | undefined,
   Args extends any[] = Parameters<Fetcher>
 > = (...args: Args) => Promise<ExcludeClerkError<Awaited<ReturnType<Fetcher>>>>;
-
-/**
- * Options that turn on `passReverificationResult`. Here `complete` takes only
- * a `ReverificationResult`, since whatever it is given reaches the fetcher.
- */
-type PassReverificationResultOptions = Omit<
-  UseReverificationOptions,
-  'onNeedsReverification' | 'passReverificationResult'
-> & {
-  onNeedsReverification?: (
-    properties: Omit<NeedsReverificationParameters, 'complete'> & {
-      complete: (result?: ReverificationResult) => void;
-    }
-  ) => void;
-  passReverificationResult: true;
-};
 
 /** The fetcher's parameters after the leading `ReverificationResult`. */
 type ParametersAfterResult<
@@ -147,7 +162,7 @@ export function useReverification<
 export function useReverification<
   Fetcher extends (...args: any[]) => Promise<any> | undefined,
   Options extends UseReverificationOptions = Omit<
-    UseReverificationOptions,
+    PlainReverificationOptions,
     'passReverificationResult'
   >
 >(
