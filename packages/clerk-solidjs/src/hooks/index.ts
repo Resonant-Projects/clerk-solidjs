@@ -1,3 +1,4 @@
+export type { ReverificationResult } from '@clerk/shared/types';
 export { useAPIKeys } from './use-api-keys';
 export type { UseAPIKeysParams, UseAPIKeysReturn } from './use-api-keys';
 export { useAuth } from './use-auth';

@@ -97,6 +97,14 @@ describe('hook telemetry', () => {
     expect(
       events.find((event) => event.payload.method === 'useAuth').payload
     ).toMatchObject({ treatPendingAsSignedOut: false });
+    // As @clerk/shared 4.46.0's useReverification reports its options.
+    expect(
+      events.find((event) => event.payload.method === 'useReverification')
+        .payload
+    ).toMatchObject({
+      onNeedsReverification: false,
+      passReverificationResult: false
+    });
     // The Core 3 hooks report the API version, as @clerk/react's do.
     for (const method of ['useSignIn', 'useSignUp', 'useWaitlist']) {
       expect(
