@@ -1,3 +1,4 @@
+export type { ReverificationResult } from '@clerk/shared/types';
 export { useAPIKeys } from './use-api-keys';
 export type { UseAPIKeysParams, UseAPIKeysReturn } from './use-api-keys';
 export { useAuth } from './use-auth';
@@ -21,8 +22,10 @@ export { useOrganizationList } from './use-organization-list';
 export { useReverification } from './use-reverification';
 export type {
   NeedsReverificationParameters,
+  NeedsReverificationResultParameters,
   UseReverificationOptions,
-  UseReverificationResult
+  UseReverificationResult,
+  UseReverificationResultOptions
 } from './use-reverification';
 export { useSession } from './use-session';
 export { useSessionList } from './use-session-list';

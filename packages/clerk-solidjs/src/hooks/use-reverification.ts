@@ -8,7 +8,10 @@ import {
   isClerkAPIResponseError
 } from '@clerk/shared/error';
 import { eventMethodCalled } from '@clerk/shared/telemetry';
-import type { SessionVerificationLevel } from '@clerk/shared/types';
+import type {
+  ReverificationResult,
+  SessionVerificationLevel
+} from '@clerk/shared/types';
 import { untrack } from 'solid-js';
 import { useIsomorphicClerkContext } from '../contexts/isomorphic-clerk';
 import { useAssertWrappedByClerkProvider } from './use-assert-wrapped-by-clerk-provider';
@@ -49,19 +52,81 @@ export type NeedsReverificationParameters = {
   level: SessionVerificationLevel | undefined;
 };
 
+/**
+ * What `onNeedsReverification` gets with `passReverificationResult`. Whatever
+ * `complete` is given reaches the fetcher, so it takes only a
+ * `ReverificationResult`.
+ */
+export type NeedsReverificationResultParameters = Omit<
+  NeedsReverificationParameters,
+  'complete'
+> & {
+  /**
+   * Runs the fetcher again, with what the reverification did, if anything,
+   * as its first argument.
+   */
+  complete: (result?: ReverificationResult) => void;
+};
+
 export type UseReverificationOptions = {
   /**
    * Called instead of opening Clerk's reverification modal, for apps that
    * render their own. Call `complete` or `cancel` when it is done.
    */
   onNeedsReverification?: (properties: NeedsReverificationParameters) => void;
+  /** Use `UseReverificationResultOptions` to set it. */
+  passReverificationResult?: undefined;
+};
+
+/**
+ * `useReverification()`'s options with `passReverificationResult`, kept apart
+ * from `UseReverificationOptions` so that type stays as it was before the flag.
+ */
+export type UseReverificationResultOptions = {
+  /**
+   * Called instead of opening Clerk's reverification modal, for apps that
+   * render their own. Call `complete` or `cancel` when it is done.
+   */
+  onNeedsReverification?: (
+    properties: NeedsReverificationResultParameters
+  ) => void;
+  /**
+   * When `true`, the fetcher's first argument is a `ReverificationResult`
+   * (`undefined` on the first call), and the returned function takes the
+   * remaining arguments. After the user resets a breached password to
+   * reverify, `passwordReset` is set and the new password is already saved,
+   * so a password change should not be sent again.
+   *
+   * @example
+   * const updatePassword = useReverification(
+   *   (
+   *     reverification: ReverificationResult | undefined,
+   *     currentUser: UserResource,
+   *     params: UpdateUserPasswordParams
+   *   ) =>
+   *     reverification?.passwordReset
+   *       ? currentUser.reload()
+   *       : currentUser.updatePassword(params),
+   *   { passReverificationResult: true }
+   * );
+   *
+   * await updatePassword(user()!, { newPassword, signOutOfOtherSessions: true });
+   */
+  passReverificationResult: true;
 };
 
 export type UseReverificationResult<
+  Fetcher extends (...args: any[]) => Promise<any> | undefined,
+  Args extends any[] = Parameters<Fetcher>
+> = (...args: Args) => Promise<ExcludeClerkError<Awaited<ReturnType<Fetcher>>>>;
+
+/** The fetcher's parameters after the leading `ReverificationResult`. */
+type ParametersAfterResult<
   Fetcher extends (...args: any[]) => Promise<any> | undefined
-> = (
-  ...args: Parameters<Fetcher>
-) => Promise<ExcludeClerkError<Awaited<ReturnType<Fetcher>>>>;
+> =
+  Parameters<Fetcher> extends [any?, ...infer Rest]
+    ? Rest
+    : Parameters<Fetcher>;
 
 /**
  * Wraps a fetcher that may need the user to verify again. When it returns
@@ -69,38 +134,70 @@ export type UseReverificationResult<
  * fails with `session_reverification_required`, the wrapper opens Clerk's
  * reverification modal, or calls `onNeedsReverification`, and runs the
  * fetcher once more after the user verifies. Cancelling rejects with a
- * `ClerkRuntimeError` whose code is `reverification_cancelled`.
+ * `ClerkRuntimeError` whose code is `reverification_cancelled`. With
+ * `passReverificationResult`, the fetcher also receives what the
+ * reverification did as its first argument.
  *
  * @example
  * const updatePrimaryEmail = useReverification((emailAddressId: string) =>
  *   user()!.update({ primaryEmailAddressId: emailAddressId })
  * );
  */
-export const useReverification = <
+export function useReverification<
+  Fetcher extends (...args: any[]) => Promise<any> | undefined
+>(
+  fetcher: Fetcher &
+    ((
+      reverification: ReverificationResult | undefined,
+      ...args: any[]
+    ) => Promise<any> | undefined),
+  options: UseReverificationResultOptions
+): UseReverificationResult<Fetcher, ParametersAfterResult<Fetcher>>;
+export function useReverification<
   Fetcher extends (...args: any[]) => Promise<any> | undefined
 >(
   fetcher: Fetcher,
   options?: UseReverificationOptions
-): UseReverificationResult<Fetcher> => {
+): UseReverificationResult<Fetcher>;
+// Overloads rather than @clerk/shared's conditional `Options` generic, so an
+// explicit `useReverification<Fetcher>(...)` still drops the leading result.
+// The opt-in fetcher must accept `undefined` first, as the first call passes
+// it. That check is on the parameter, not on `Fetcher`'s constraint, so
+// `useReverification<typeof fetcher>` and `typeof useReverification<...>`
+// still instantiate for any fetcher, as in 4.4.0. `UseReverificationOptions` does not allow the flag, so options that set
+// it, inline or stored, cannot reach the second overload and skip that check.
+export function useReverification(
+  fetcher: (...args: any[]) => Promise<any> | undefined,
+  options?: UseReverificationOptions | UseReverificationResultOptions
+) {
   useAssertWrappedByClerkProvider('useReverification');
   const clerk = useIsomorphicClerkContext();
 
   recordTelemetryOnce(clerk, () =>
     eventMethodCalled('useReverification', {
-      onNeedsReverification: Boolean(options?.onNeedsReverification)
+      onNeedsReverification: Boolean(options?.onNeedsReverification),
+      passReverificationResult: Boolean(options?.passReverificationResult)
     })
   );
 
-  return (async (...args: Parameters<Fetcher>) => {
-    let result = await resolveResult(fetcher(...args));
+  const passResult = options?.passReverificationResult === true;
+  const callFetcher = (
+    reverification: ReverificationResult | undefined,
+    args: unknown[]
+  ) => (passResult ? fetcher(reverification, ...args) : fetcher(...args));
+
+  return async (...args: unknown[]) => {
+    let result = await resolveResult(callFetcher(undefined, args));
 
     if (isReverificationHint(result)) {
-      let resolve!: () => void;
+      let resolve!: (result: ReverificationResult | undefined) => void;
       let reject!: (error: unknown) => void;
-      const verified = new Promise<void>((res, rej) => {
-        resolve = res;
-        reject = rej;
-      });
+      const verified = new Promise<ReverificationResult | undefined>(
+        (res, rej) => {
+          resolve = res;
+          reject = rej;
+        }
+      );
 
       const config = validateReverificationConfig(
         result.clerk_error.metadata?.reverification
@@ -113,7 +210,10 @@ export const useReverification = <
             code: 'reverification_cancelled'
           })
         );
-      const complete = () => resolve();
+      // Without the option the value is ignored, as before it existed, so a
+      // promise handed to `complete` cannot hold up or reject the retry.
+      const complete = (reverificationResult?: ReverificationResult) =>
+        resolve(passResult ? reverificationResult : undefined);
 
       if (options?.onNeedsReverification === undefined) {
         untrack(clerk).__internal_openReverification({
@@ -125,10 +225,9 @@ export const useReverification = <
         options.onNeedsReverification({ cancel, complete, level });
       }
 
-      await verified;
-      result = await resolveResult(fetcher(...args));
+      result = await resolveResult(callFetcher(await verified, args));
     }
 
     return result;
-  }) as UseReverificationResult<Fetcher>;
-};
+  };
+}
