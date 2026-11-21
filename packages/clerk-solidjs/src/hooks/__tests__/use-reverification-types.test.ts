@@ -107,6 +107,21 @@ describe('useReverification types without the flag, as in 4.4.0', () => {
     expectTypeOf(explicit).returns.parameters.toEqualTypeOf<[userId: string]>();
   });
 
+  it('specializes for any fetcher, in values and type queries', () => {
+    // Instantiation expressions check the type argument against every
+    // overload, so the opt-in check must not be a constraint on Fetcher.
+    const useUserReverification = useReverification<typeof loadUser>;
+    type Wrapped = ReturnType<typeof useReverification<typeof loadUser>>;
+    const specialized = () => useUserReverification(loadUser);
+    expectTypeOf(specialized).returns.toEqualTypeOf<Wrapped>();
+    expectTypeOf<Parameters<Wrapped>>().toEqualTypeOf<[userId: string]>();
+    expectTypeOf<ReturnType<Wrapped>>().toEqualTypeOf<Promise<string>>();
+    const optIn = () =>
+      // @ts-expect-error Specialized for a fetcher that cannot opt in.
+      useUserReverification(loadUser, { passReverificationResult: true });
+    expect(optIn).toBeTypeOf('function');
+  });
+
   it('keeps the options extendable and complete a plain callback', () => {
     interface DialogOptions extends UseReverificationOptions {
       title: string;
