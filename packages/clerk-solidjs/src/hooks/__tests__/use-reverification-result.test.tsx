@@ -119,26 +119,31 @@ describe('useReverification with passReverificationResult', () => {
       userId: string,
       params: { newPassword: string }
     ) => Promise<{ id: string }>;
-    type WithResult = ReturnType<
-      typeof useReverification<Fetcher, { passReverificationResult: true }>
-    >;
-    type WithoutResult = ReturnType<typeof useReverification<Fetcher>>;
+    const fetcher = {} as Fetcher;
+    const rest = [] as unknown as [
+      userId: string,
+      params: { newPassword: string }
+    ];
+    const inferred = () =>
+      useReverification(fetcher, { passReverificationResult: true });
+    // An explicit fetcher type must not lose the opt-in.
+    const explicit = () =>
+      useReverification<Fetcher>(fetcher, { passReverificationResult: true });
+    const withHandler = () =>
+      useReverification(fetcher, {
+        passReverificationResult: true,
+        onNeedsReverification: ({ complete }) => complete()
+      });
+    const without = () => useReverification(fetcher);
 
-    expectTypeOf<Parameters<WithResult>>().toEqualTypeOf<
-      [userId: string, params: { newPassword: string }]
-    >();
-    expectTypeOf<ReturnType<WithResult>>().toEqualTypeOf<
+    expectTypeOf(inferred).returns.parameters.toEqualTypeOf(rest);
+    expectTypeOf(explicit).returns.parameters.toEqualTypeOf(rest);
+    expectTypeOf(withHandler).returns.parameters.toEqualTypeOf(rest);
+    expectTypeOf(explicit).returns.returns.toEqualTypeOf<
       Promise<{ id: string }>
     >();
-    expectTypeOf<Parameters<WithoutResult>>().toEqualTypeOf<
+    expectTypeOf(without).returns.parameters.toEqualTypeOf<
       Parameters<Fetcher>
-    >();
-
-    // An inline options object infers the literal `true`.
-    const inline = () =>
-      useReverification({} as Fetcher, { passReverificationResult: true });
-    expectTypeOf(inline).returns.parameters.toEqualTypeOf<
-      [userId: string, params: { newPassword: string }]
     >();
   });
 });

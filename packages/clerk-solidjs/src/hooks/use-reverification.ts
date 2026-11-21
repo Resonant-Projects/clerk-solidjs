@@ -114,15 +114,24 @@ type ParametersAfterResult<
  *   user()!.update({ primaryEmailAddressId: emailAddressId })
  * );
  */
-export const useReverification = <
-  Fetcher extends (...args: any[]) => Promise<any> | undefined,
-  Options extends UseReverificationOptions = UseReverificationOptions
+export function useReverification<
+  Fetcher extends (...args: any[]) => Promise<any> | undefined
 >(
   fetcher: Fetcher,
-  options?: Options
-): Options extends { passReverificationResult: true }
-  ? UseReverificationResult<Fetcher, ParametersAfterResult<Fetcher>>
-  : UseReverificationResult<Fetcher> => {
+  options: UseReverificationOptions & { passReverificationResult: true }
+): UseReverificationResult<Fetcher, ParametersAfterResult<Fetcher>>;
+export function useReverification<
+  Fetcher extends (...args: any[]) => Promise<any> | undefined
+>(
+  fetcher: Fetcher,
+  options?: UseReverificationOptions
+): UseReverificationResult<Fetcher>;
+// Overloads rather than @clerk/shared's conditional `Options` generic, so an
+// explicit `useReverification<Fetcher>(...)` still drops the leading result.
+export function useReverification(
+  fetcher: (...args: any[]) => Promise<any> | undefined,
+  options?: UseReverificationOptions
+) {
   useAssertWrappedByClerkProvider('useReverification');
   const clerk = useIsomorphicClerkContext();
 
@@ -141,7 +150,7 @@ export const useReverification = <
       ? fetcher(reverification, ...args)
       : fetcher(...args);
 
-  return (async (...args: unknown[]) => {
+  return async (...args: unknown[]) => {
     let result = await resolveResult(callFetcher(undefined, args));
 
     if (isReverificationHint(result)) {
@@ -182,5 +191,5 @@ export const useReverification = <
     }
 
     return result;
-  }) as any;
-};
+  };
+}
