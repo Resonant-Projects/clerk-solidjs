@@ -49,8 +49,9 @@ export type NeedsReverificationParameters = {
   cancel: () => void;
   /**
    * Runs the fetcher again. Pass what the reverification did, if anything;
-   * with `passReverificationResult` the fetcher receives it. It can still be
-   * called with no arguments, or passed where any value is ignored.
+   * with `passReverificationResult` the fetcher receives it. Without that
+   * option it can also be passed where any value is ignored, as in
+   * `verify().then(complete)`.
    */
   complete: {
     (): void;
@@ -95,6 +96,22 @@ export type UseReverificationResult<
   Args extends any[] = Parameters<Fetcher>
 > = (...args: Args) => Promise<ExcludeClerkError<Awaited<ReturnType<Fetcher>>>>;
 
+/**
+ * Options that turn on `passReverificationResult`. Here `complete` takes only
+ * a `ReverificationResult`, since whatever it is given reaches the fetcher.
+ */
+type PassReverificationResultOptions = Omit<
+  UseReverificationOptions,
+  'onNeedsReverification' | 'passReverificationResult'
+> & {
+  onNeedsReverification?: (
+    properties: Omit<NeedsReverificationParameters, 'complete'> & {
+      complete: (result?: ReverificationResult) => void;
+    }
+  ) => void;
+  passReverificationResult: true;
+};
+
 /** The fetcher's parameters after the leading `ReverificationResult`. */
 type ParametersAfterResult<
   Fetcher extends (...args: any[]) => Promise<any> | undefined
@@ -125,11 +142,14 @@ export function useReverification<
   ) => Promise<any> | undefined
 >(
   fetcher: Fetcher,
-  options: UseReverificationOptions & { passReverificationResult: true }
+  options: PassReverificationResultOptions
 ): UseReverificationResult<Fetcher, ParametersAfterResult<Fetcher>>;
 export function useReverification<
   Fetcher extends (...args: any[]) => Promise<any> | undefined,
-  Options extends UseReverificationOptions = UseReverificationOptions
+  Options extends UseReverificationOptions = Omit<
+    UseReverificationOptions,
+    'passReverificationResult'
+  >
 >(
   fetcher: Fetcher,
   options?: Options &
@@ -139,8 +159,10 @@ export function useReverification<
 // explicit `useReverification<Fetcher>(...)` still drops the leading result.
 // The opt-in fetcher must accept `undefined` first, as the first call passes
 // it. The second overload rejects options whose flag is known to be `true`,
-// inline or stored, so they cannot fall through and skip that check. Options
-// typed as `UseReverificationOptions` still match it, as before the flag.
+// inline or stored, so they cannot fall through and skip that check; its
+// default omits the flag, so an inline flag also fails with an explicit
+// `Fetcher`. Options typed as `UseReverificationOptions` still match it, as
+// before the flag.
 export function useReverification(
   fetcher: (...args: any[]) => Promise<any> | undefined,
   options?: UseReverificationOptions

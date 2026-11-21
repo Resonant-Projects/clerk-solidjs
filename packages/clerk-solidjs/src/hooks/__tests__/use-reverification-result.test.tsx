@@ -158,6 +158,11 @@ describe('useReverification with passReverificationResult', () => {
       passReverificationResult: true,
       onNeedsReverification: () => {}
     } as const;
+    const explicit = () =>
+      useReverification<typeof needsResult>(needsResult, {
+        // @ts-expect-error The flag cannot fall through to the plain overload.
+        passReverificationResult: true
+      });
     const fromStored = () =>
       // @ts-expect-error Stored options known to opt in need the same fetcher.
       useReverification(async (userId: string) => userId, stored);
@@ -173,7 +178,7 @@ describe('useReverification with passReverificationResult', () => {
     expectTypeOf(explicitWidened).returns.parameters.toEqualTypeOf<
       [userId: string]
     >();
-    expect([inferred, fromStored]).toHaveLength(2);
+    expect([inferred, explicit, fromStored]).toHaveLength(3);
   });
 
   it('keeps complete callable with no arguments, or with any ignored value', () => {
@@ -183,6 +188,23 @@ describe('useReverification with passReverificationResult', () => {
         onNeedsReverification: ({ complete }) => {
           void verify().then(complete);
           complete();
+        }
+      });
+    expectTypeOf(wrapped).returns.parameters.toEqualTypeOf<[]>();
+  });
+
+  it('only lets an opted-in complete take a ReverificationResult', () => {
+    const verify = async () => null;
+    const fetcher = async (result: ReverificationResult | undefined) =>
+      result?.passwordReset;
+    const wrapped = () =>
+      useReverification(fetcher, {
+        passReverificationResult: true,
+        onNeedsReverification: ({ complete }) => {
+          // @ts-expect-error The resolved null would reach the fetcher.
+          void verify().then(complete);
+          void verify().then(() => complete());
+          complete(passwordReset);
         }
       });
     expectTypeOf(wrapped).returns.parameters.toEqualTypeOf<[]>();
