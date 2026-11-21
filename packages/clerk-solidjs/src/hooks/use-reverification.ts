@@ -49,9 +49,13 @@ export type NeedsReverificationParameters = {
   cancel: () => void;
   /**
    * Runs the fetcher again. Pass what the reverification did, if anything;
-   * with `passReverificationResult` the fetcher receives it.
+   * with `passReverificationResult` the fetcher receives it. It can still be
+   * called with no arguments, or passed where any value is ignored.
    */
-  complete: (result?: ReverificationResult) => void;
+  complete: {
+    (): void;
+    (result: ReverificationResult | undefined): void;
+  };
   level: SessionVerificationLevel | undefined;
 };
 
@@ -124,16 +128,19 @@ export function useReverification<
   options: UseReverificationOptions & { passReverificationResult: true }
 ): UseReverificationResult<Fetcher, ParametersAfterResult<Fetcher>>;
 export function useReverification<
-  Fetcher extends (...args: any[]) => Promise<any> | undefined
+  Fetcher extends (...args: any[]) => Promise<any> | undefined,
+  Options extends UseReverificationOptions = UseReverificationOptions
 >(
   fetcher: Fetcher,
-  options?: Omit<UseReverificationOptions, 'passReverificationResult'>
+  options?: Options &
+    (Options extends { passReverificationResult: true } ? never : unknown)
 ): UseReverificationResult<Fetcher>;
 // Overloads rather than @clerk/shared's conditional `Options` generic, so an
 // explicit `useReverification<Fetcher>(...)` still drops the leading result.
 // The opt-in fetcher must accept `undefined` first, as the first call passes
-// it. The second overload omits the flag, so an options literal that sets it
-// cannot fall through to it and skip that check.
+// it. The second overload rejects options whose flag is known to be `true`,
+// inline or stored, so they cannot fall through and skip that check. Options
+// typed as `UseReverificationOptions` still match it, as before the flag.
 export function useReverification(
   fetcher: (...args: any[]) => Promise<any> | undefined,
   options?: UseReverificationOptions

@@ -154,20 +154,38 @@ describe('useReverification with passReverificationResult', () => {
     const inferred = () =>
       // @ts-expect-error The first parameter must accept undefined.
       useReverification(needsResult, { passReverificationResult: true });
-    const explicit = () =>
-      useReverification<typeof needsResult>(
-        needsResult,
-        // @ts-expect-error The flag cannot fall through to the plain overload.
-        { passReverificationResult: true }
-      );
+    const stored = {
+      passReverificationResult: true,
+      onNeedsReverification: () => {}
+    } as const;
+    const fromStored = () =>
+      // @ts-expect-error Stored options known to opt in need the same fetcher.
+      useReverification(async (userId: string) => userId, stored);
     // Options typed without the literal flag keep the plain signature.
     const options: UseReverificationOptions = {
       onNeedsReverification: () => {}
     };
-    const widened = () =>
-      useReverification(async (userId: string) => userId, options);
+    const userFetcher = async (userId: string) => userId;
+    const widened = () => useReverification(userFetcher, options);
+    const explicitWidened = () =>
+      useReverification<typeof userFetcher>(userFetcher, options);
     expectTypeOf(widened).returns.parameters.toEqualTypeOf<[userId: string]>();
-    expect([inferred, explicit]).toHaveLength(2);
+    expectTypeOf(explicitWidened).returns.parameters.toEqualTypeOf<
+      [userId: string]
+    >();
+    expect([inferred, fromStored]).toHaveLength(2);
+  });
+
+  it('keeps complete callable with no arguments, or with any ignored value', () => {
+    const verify = async () => ({ verified: true as const });
+    const wrapped = () =>
+      useReverification(async () => 'saved', {
+        onNeedsReverification: ({ complete }) => {
+          void verify().then(complete);
+          complete();
+        }
+      });
+    expectTypeOf(wrapped).returns.parameters.toEqualTypeOf<[]>();
   });
 });
 
