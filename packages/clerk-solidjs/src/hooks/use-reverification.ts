@@ -115,7 +115,10 @@ type ParametersAfterResult<
  * );
  */
 export function useReverification<
-  Fetcher extends (...args: any[]) => Promise<any> | undefined
+  Fetcher extends (
+    reverification: ReverificationResult | undefined,
+    ...args: any[]
+  ) => Promise<any> | undefined
 >(
   fetcher: Fetcher,
   options: UseReverificationOptions & { passReverificationResult: true }
@@ -124,10 +127,13 @@ export function useReverification<
   Fetcher extends (...args: any[]) => Promise<any> | undefined
 >(
   fetcher: Fetcher,
-  options?: UseReverificationOptions
+  options?: Omit<UseReverificationOptions, 'passReverificationResult'>
 ): UseReverificationResult<Fetcher>;
 // Overloads rather than @clerk/shared's conditional `Options` generic, so an
 // explicit `useReverification<Fetcher>(...)` still drops the leading result.
+// The opt-in fetcher must accept `undefined` first, as the first call passes
+// it. The second overload omits the flag, so an options literal that sets it
+// cannot fall through to it and skip that check.
 export function useReverification(
   fetcher: (...args: any[]) => Promise<any> | undefined,
   options?: UseReverificationOptions

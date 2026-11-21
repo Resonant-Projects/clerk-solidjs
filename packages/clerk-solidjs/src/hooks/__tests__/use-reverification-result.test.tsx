@@ -146,6 +146,29 @@ describe('useReverification with passReverificationResult', () => {
       Parameters<Fetcher>
     >();
   });
+
+  it('requires an opted-in fetcher to accept undefined first', () => {
+    const needsResult = async (result: ReverificationResult) =>
+      result.passwordReset;
+    // The first call passes undefined, so this fetcher would throw.
+    const inferred = () =>
+      // @ts-expect-error The first parameter must accept undefined.
+      useReverification(needsResult, { passReverificationResult: true });
+    const explicit = () =>
+      useReverification<typeof needsResult>(
+        needsResult,
+        // @ts-expect-error The flag cannot fall through to the plain overload.
+        { passReverificationResult: true }
+      );
+    // Options typed without the literal flag keep the plain signature.
+    const options: UseReverificationOptions = {
+      onNeedsReverification: () => {}
+    };
+    const widened = () =>
+      useReverification(async (userId: string) => userId, options);
+    expectTypeOf(widened).returns.parameters.toEqualTypeOf<[userId: string]>();
+    expect([inferred, explicit]).toHaveLength(2);
+  });
 });
 
 // Custom flows can build the same reset with the session's first factor.
