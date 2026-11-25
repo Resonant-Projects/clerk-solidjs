@@ -18,7 +18,6 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { chromium } from "playwright";
 import { check, redact, results } from "./smoke-example/report.mjs";
-import { gotoWithDiagnostics } from "./smoke-example/network-diag.mjs";
 import { runSignedInChecks } from "./smoke-example/signed-in.mjs";
 
 const repoRoot = path.resolve(
@@ -255,7 +254,10 @@ async function runChecks(baseUrl) {
         errors.push(`console.error: ${message.text()}`);
     });
 
-    await gotoWithDiagnostics(page, baseUrl);
+    // Not "networkidle": when the instance has Clerk Protect, clerk-js loads its
+    // bootstrap script, which probes ports that a CI runner may never answer on,
+    // so the network never goes idle. Each page waits for what it checks instead.
+    await page.goto(baseUrl, { waitUntil: "load" });
     const loaded = await page
       .waitForFunction(() => window.Clerk?.loaded === true, null, {
         timeout: 30_000,
@@ -297,9 +299,12 @@ async function runChecks(baseUrl) {
     );
 
     // The page's "use server" query throws auth().redirectToSignIn().
-    await page.goto(new URL("/protected", baseUrl).href, {
-      waitUntil: "networkidle",
-    });
+    await page.goto(new URL("/protected", baseUrl).href, { waitUntil: "load" });
+    await page
+      .waitForURL((url) => url.pathname.startsWith("/sign-in"), {
+        timeout: 30_000,
+      })
+      .catch(() => {});
     const afterProtected = new URL(page.url());
     check(
       "a query throwing redirectToSignIn() sends a signed-out visitor to sign-in and back",
@@ -327,9 +332,7 @@ async function runChecks(baseUrl) {
 
     // A form on the Core 3 useSignIn(), against the real Frontend API. An
     // unknown email address comes back as an identifier error.
-    await page.goto(new URL("/custom-sign-in", baseUrl).href, {
-      waitUntil: "networkidle",
-    });
+    await page.goto(new URL("/custom-sign-in", baseUrl).href, { waitUntil: "load" });
     const customSignInLoaded = await page
       .waitForFunction(() => window.Clerk?.loaded === true, null, {
         timeout: 30_000,
@@ -359,9 +362,7 @@ async function runChecks(baseUrl) {
       ),
     );
 
-    await page.goto(new URL("/waitlist", baseUrl).href, {
-      waitUntil: "networkidle",
-    });
+    await page.goto(new URL("/waitlist", baseUrl).href, { waitUntil: "load" });
     const waitlistRendered = await page
       .waitForFunction(
         () =>

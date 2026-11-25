@@ -91,7 +91,15 @@ export async function runSignedInChecks(browser, baseUrl) {
       .catch(() => false);
     check("a sign-in token signs the test user in", signedIn);
 
-    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    // See runChecks for why this does not wait for "networkidle".
+    await page.goto(baseUrl, { waitUntil: "load" });
+    await page
+      .waitForFunction(
+        () => window.Clerk?.loaded === true && !!window.Clerk.user,
+        null,
+        { timeout: 30_000 },
+      )
+      .catch(() => {});
     const openButton = page.getByRole("button", { name: "Open preferences" });
     const modal = page.locator(".cl-modalContent .cl-userProfile-root");
     const preferences = modal.getByTestId("preferences-page");
