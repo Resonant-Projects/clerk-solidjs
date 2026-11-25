@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import * as errors from '../errors';
 
 // @clerk/react's `/errors` entry point, which re-exports each of these from
-// @clerk/shared/error. Unchanged from 6.18.6 through 6.18.9.
+// @clerk/shared/error. Unchanged from 6.18.6 through 6.19.4.
 const reactErrorsExports = [
   'ClerkAPIResponseError',
   'ClerkOfflineError',
