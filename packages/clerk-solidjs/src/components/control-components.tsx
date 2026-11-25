@@ -223,9 +223,12 @@ export const AuthenticateWithRedirectCallback = withClerk(
   (props: WithClerkProp<HandleOAuthCallbackParams>) => {
     const [local, handleRedirectCallbackParams] = splitProps(props, ['clerk']);
     onMount(() => {
-      void local
+      // handleRedirectCallback rejects when clerk-js does; nothing here can
+      // act on it, so keep it from surfacing as an unhandled rejection.
+      local
         .clerk()
-        .handleRedirectCallback({ ...handleRedirectCallbackParams });
+        .handleRedirectCallback({ ...handleRedirectCallbackParams })
+        .catch(() => {});
     });
 
     return null;
