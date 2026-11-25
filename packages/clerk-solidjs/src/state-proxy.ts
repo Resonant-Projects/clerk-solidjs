@@ -103,7 +103,8 @@ const defaultSignUpVerificationResource = (): SignUpVerificationResource => ({
 });
 
 /**
- * Ported from @clerk/react 6.17.8 (`src/stateProxy.ts`).
+ * Ported from @clerk/react 6.17.8 (`src/stateProxy.ts`), with `clientTrustState`
+ * from 6.19.0.
  *
  * `IsomorphicClerk.__internal_state` returns this until clerk-js has loaded,
  * and always on the server. Its properties read as defaults until then, and
@@ -194,6 +195,9 @@ export class StateProxy implements State {
               );
             }
           });
+        },
+        get clientTrustState() {
+          return gateProperty(target, 'clientTrustState', undefined);
         },
         get identifier() {
           return gateProperty(target, 'identifier', null);
