@@ -198,6 +198,7 @@ describe('IsomorphicClerk handleGoogleOneTapCallback', () => {
     const call = isomorphicClerk.handleGoogleOneTapCallback(signIn, params);
 
     expect(await isSettled(call)).toBe(false);
+    expect(clerkJS.handleGoogleOneTapCallback).not.toHaveBeenCalled();
     await load();
     await expect(call).resolves.toBe('done');
     expect(clerkJS.handleGoogleOneTapCallback).toHaveBeenCalledOnce();
