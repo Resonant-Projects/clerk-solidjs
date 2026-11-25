@@ -203,3 +203,33 @@ describe('IsomorphicClerk handleGoogleOneTapCallback', () => {
     expect(clerkJS.handleGoogleOneTapCallback).toHaveBeenCalledOnce();
   });
 });
+
+// emitLoaded() runs listeners from an array it clears only afterwards, so a
+// handler that queued another listener once loaded re-ran the caller's own.
+describe('IsomorphicClerk callbacks called from a loaded listener', () => {
+  it('handleRedirectCallback calls clerk-js once', async () => {
+    const { clerkJS, isomorphicClerk } = await loadedClerk();
+    clerkJS.handleRedirectCallback.mockResolvedValue('done');
+    let call: Promise<unknown> | undefined;
+
+    isomorphicClerk.addOnLoaded(() => {
+      call = isomorphicClerk.handleRedirectCallback(params);
+    });
+
+    await expect(call).resolves.toBe('done');
+    expect(clerkJS.handleRedirectCallback).toHaveBeenCalledOnce();
+  });
+
+  it('handleGoogleOneTapCallback calls clerk-js once', async () => {
+    const { clerkJS, isomorphicClerk } = await loadedClerk();
+    clerkJS.handleGoogleOneTapCallback.mockResolvedValue('done');
+    let call: Promise<unknown> | undefined;
+
+    isomorphicClerk.addOnLoaded(() => {
+      call = isomorphicClerk.handleGoogleOneTapCallback(signIn, params);
+    });
+
+    await expect(call).resolves.toBe('done');
+    expect(clerkJS.handleGoogleOneTapCallback).toHaveBeenCalledOnce();
+  });
+});

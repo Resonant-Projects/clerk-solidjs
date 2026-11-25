@@ -275,6 +275,11 @@ export abstract class IsomorphicClerkCore extends IsomorphicClerkQueue {
   }
 
   protected waitForClerkJS(): Promise<HeadlessBrowserClerk | BrowserClerk> {
+    // Once loaded, resolve here: addOnLoaded would run emitLoaded() again,
+    // re-entering the loaded listener that called this, if one did.
+    if (this.clerkjs && this.loaded) {
+      return Promise.resolve(this.clerkjs);
+    }
     return new Promise<HeadlessBrowserClerk | BrowserClerk>((resolve) => {
       this.addOnLoaded(() => resolve(this.clerkjs!));
     });
