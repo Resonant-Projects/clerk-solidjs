@@ -81,6 +81,8 @@ export class IsomorphicClerk
   /** The providers using `#instance`: separate roots can share it. */
   static #instanceUsers = 0;
 
+  #redirectCallbackInFlight: Promise<unknown> | undefined;
+
   static getOrCreateInstance(options: IsomorphicClerkOptions) {
     // During SSR: a new instance should be created for every request
     // During CSR: use the cached instance for the whole lifetime of the app
@@ -309,44 +311,26 @@ export class IsomorphicClerk
     return;
   };
 
-  handleRedirectCallback = async (
-    params: HandleOAuthCallbackParams
-  ): Promise<void> => {
-    const callback = () => this.clerkjs?.handleRedirectCallback(params);
-    if (this.clerkjs && this.loaded) {
-      void callback()?.catch(() => {
-        // This error is caused when the host app is using React18
-        // and strictMode is enabled. This useEffects runs twice because
-        // the clerk-react ui components mounts, unmounts and mounts again
-        // so the clerk-js component loses its state because of the custom
-        // unmount callback we're using.
-        // This needs to be solved by tweaking the logic in uiComponents.tsx
-        // or by making handleRedirectCallback idempotent
+  /**
+   * Waits for clerk-js to load, then returns its result, rejecting when it
+   * does. Calls made while one is in flight share it, so clerk-js handles the
+   * callback once, as @clerk/react 6.19.4 does.
+   */
+  handleRedirectCallback: Clerk['handleRedirectCallback'] = (...args) => {
+    this.#redirectCallbackInFlight ??= this.waitForClerkJS()
+      .then((clerkjs) => clerkjs.handleRedirectCallback(...args))
+      .finally(() => {
+        this.#redirectCallbackInFlight = undefined;
       });
-    } else {
-      this.premountMethodCalls.set('handleRedirectCallback', callback);
-    }
+    return this.#redirectCallbackInFlight;
   };
 
-  handleGoogleOneTapCallback = async (
-    signInOrUp: SignInResource | SignUpResource,
-    params: HandleOAuthCallbackParams
-  ): Promise<void> => {
-    const callback = () =>
-      this.clerkjs?.handleGoogleOneTapCallback(signInOrUp, params);
-    if (this.clerkjs && this.loaded) {
-      void callback()?.catch(() => {
-        // This error is caused when the host app is using React18
-        // and strictMode is enabled. This useEffects runs twice because
-        // the clerk-react ui components mounts, unmounts and mounts again
-        // so the clerk-js component loses its state because of the custom
-        // unmount callback we're using.
-        // This needs to be solved by tweaking the logic in uiComponents.tsx
-        // or by making handleRedirectCallback idempotent
-      });
-    } else {
-      this.premountMethodCalls.set('handleGoogleOneTapCallback', callback);
-    }
+  /** Waits for clerk-js to load, then returns its result or rejection. */
+  handleGoogleOneTapCallback: Clerk['handleGoogleOneTapCallback'] = async (
+    ...args
+  ) => {
+    const clerkjs = await this.waitForClerkJS();
+    return clerkjs.handleGoogleOneTapCallback(...args);
   };
 
   handleEmailLinkVerification = async (
