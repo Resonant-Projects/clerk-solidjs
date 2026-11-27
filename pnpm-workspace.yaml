@@ -7,3 +7,9 @@ allowBuilds:
   browser-tabs-lock: false
   core-js: true
   esbuild: true
+# Second layer behind the package proxy's 24-hour release-age gate: resolve
+# only versions published at least a day ago (1440 minutes). Setting it
+# explicitly keeps minimumReleaseAgeStrict on, and versions without publish
+# time metadata are refused rather than allowed.
+minimumReleaseAge: 1440
+minimumReleaseAgeIgnoreMissingTime: false
