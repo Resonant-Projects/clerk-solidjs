@@ -80,6 +80,7 @@ describe('Clerk buttons', () => {
     });
     renderInProvider(clerkJS, () => (
       <SignOutButton onClick={() => order.push('button onClick')}>
+        {/* eslint-disable-next-line @typescript-eslint/no-misused-promises -- The test needs the child to return its promise. */}
         <button onClick={save}>Save and leave</button>
       </SignOutButton>
     ));

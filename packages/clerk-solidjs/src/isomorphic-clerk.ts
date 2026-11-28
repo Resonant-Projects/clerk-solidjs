@@ -242,6 +242,7 @@ export class IsomorphicClerk
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Returns a Promise, unlike the other redirects; dropping `async` would change the return type.
   redirectToWaitlist = async () => {
     const callback = () => this.clerkjs?.redirectToWaitlist();
     if (this.clerkjs && this.loaded) {

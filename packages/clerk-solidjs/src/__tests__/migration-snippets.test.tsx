@@ -29,6 +29,7 @@ const SignInForm = (props: {
   };
 
   return (
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Kept as MIGRATION.md writes it.
     <button disabled={state.fetchStatus === 'fetching'} onClick={submit}>
       {errors.fields.identifier?.message ?? 'Sign in'}
     </button>

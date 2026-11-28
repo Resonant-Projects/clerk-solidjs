@@ -71,7 +71,7 @@ export const loadOptions = (
   }
 
   if (isSatellite && !proxyUrl && !domain) {
-    throw errorThrower.throw(
+    return errorThrower.throw(
       'Clerk: satellite mode requires a proxy URL or domain'
     );
   }
@@ -81,7 +81,7 @@ export const loadOptions = (
     !isHttpOrHttps(signInUrl) &&
     isDevelopmentFromSecretKey(secretKey)
   ) {
-    throw errorThrower.throw(
+    return errorThrower.throw(
       'Clerk: satellite mode requires a sign-in URL in production'
     );
   }

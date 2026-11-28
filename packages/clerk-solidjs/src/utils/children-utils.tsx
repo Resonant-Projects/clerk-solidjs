@@ -165,6 +165,7 @@ export const ClerkButton = (props: {
     <Show
       when={text() === undefined}
       fallback={
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises -- composeClickHandler awaits the promise when this button is another button component's child.
         <button {...props.attributes} onClick={handleClick}>
           {text()}
         </button>
