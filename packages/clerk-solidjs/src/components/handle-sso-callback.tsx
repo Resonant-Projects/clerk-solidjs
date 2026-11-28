@@ -44,8 +44,12 @@ export interface HandleSSOCallbackProps {
    */
   navigateToSignIn: () => void;
   /**
-   * Called when the sign-up needs another step, or when it fails, as for
-   * `navigateToSignIn`, with the error on `errors` from `useSignUp()`.
+   * Called when the sign-up needs more information, including when a
+   * sign-in is transferred to a sign-up that needs another step. Also
+   * called when the sign-up failed at the SSO provider, with the error on
+   * `signUp.verifications.externalAccount.error` from `useSignUp()`, and
+   * when it fails as for `navigateToSignIn`, with the error on `errors`
+   * from `useSignUp()`.
    */
   navigateToSignUp: () => void;
 }
@@ -238,9 +242,19 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
       return checkActivated(sessionId, step);
     }
 
-    // A sign-up through SSO that still needs fields, such as a username,
-    // continues on the sign-up page.
-    if (signUp.status === 'missing_requirements') {
+    // A sign-up through SSO that still needs a step, such as a legal
+    // acceptance or a username, or that failed at the provider, continues
+    // on the sign-up page, as `@clerk/react` 6.19.5's does. Only one that
+    // exists (SignUpFuture reports `missing_requirements` without one) and
+    // went through SSO: starting a sign-in does not clear an earlier
+    // password sign-up, which must not take over a sign-in callback. A
+    // callback marked `?intent=signIn` never continues a sign-up.
+    if (
+      flow !== 'signIn' &&
+      signUp.id &&
+      signUp.status === 'missing_requirements' &&
+      signUp.verifications.externalAccount.status
+    ) {
       return handOff('signUp');
     }
   };

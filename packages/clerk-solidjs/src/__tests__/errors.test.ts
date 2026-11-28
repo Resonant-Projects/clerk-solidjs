@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import * as errors from '../errors';
 
 // @clerk/react's `/errors` entry point, which re-exports each of these from
-// @clerk/shared/error. Unchanged from 6.18.6 through 6.19.4.
+// @clerk/shared/error. Unchanged from 6.18.6 through 6.19.6.
 const reactErrorsExports = [
   'ClerkAPIResponseError',
   'ClerkOfflineError',
@@ -106,5 +106,26 @@ describe('@resonant-projects/clerk-solidjs/errors', () => {
     expectTypeOf<
       NonNullable<ClerkAPIErrorShape['meta']>['providerError']
     >().toEqualTypeOf<string | undefined>();
+  });
+
+  // @clerk/shared 4.49.0 added meta.remainingAttempts, parsed from the API's
+  // meta.remaining_attempts, for a wrong current password; 0 means the
+  // session has ended.
+  it('carries the remaining password attempts on ClerkAPIResponseError', () => {
+    const error = new errors.ClerkAPIResponseError('incorrect password', {
+      status: 422,
+      data: [
+        {
+          code: 'form_password_incorrect',
+          message: 'incorrect password',
+          meta: { remaining_attempts: 2 }
+        }
+      ]
+    });
+
+    expect(error.errors[0]?.meta?.remainingAttempts).toBe(2);
+    expectTypeOf<
+      NonNullable<ClerkAPIErrorShape['meta']>['remainingAttempts']
+    >().toEqualTypeOf<number | undefined>();
   });
 });
