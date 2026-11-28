@@ -6,7 +6,8 @@ import { clerkClient, createClerkClient } from '../index';
 
 // clerkClient() and createClerkClient() hand back @clerk/backend's client, so
 // Backend API methods Clerk adds reach SolidStart apps without changes here.
-// These pin the ones @clerk/backend 3.28.0, 3.29.0 and 3.30.0 added.
+// These pin the ones @clerk/backend 3.28.0, 3.29.0, 3.30.0, 3.32.0 and
+// 3.33.0 added.
 describe('Backend API methods on clerkClient()', () => {
   const client = clerkClient({ secretKey: 'sk_test_fake' });
 
@@ -18,6 +19,8 @@ describe('Backend API methods on clerkClient()', () => {
     ['sessions', 'updateSession'],
     ['users', 'mergeUser'],
     ['users', 'getUserList'],
+    ['users', 'getUserListWithoutCount'],
+    ['users', 'searchUsers'],
     ['artifacts', 'getPoppyJson'],
     ['oauthApplications', '__experimental_exchangeToken'],
     ['organizations', 'updateOrganization']
@@ -45,6 +48,32 @@ describe('Backend API methods on clerkClient()', () => {
     expectTypeOf<Parameters<typeof client.users.getUserList>[0]>().toExtend<
       { startingAfter?: string } | undefined
     >();
+    // 3.32.0: a page of users without the count, and a cursor search.
+    expectTypeOf(client.users.getUserListWithoutCount).returns.toEqualTypeOf<
+      Promise<{ data: User[] }>
+    >();
+    expectTypeOf<Awaited<ReturnType<typeof client.users.searchUsers>>>()
+      .toHaveProperty('cursor')
+      .toHaveProperty('startingAfter')
+      .toEqualTypeOf<string | null>();
+    // 3.33.0: forget the user's devices when revoking or changing password.
+    // toExtend allows extra properties, so pin the property itself as well.
+    expectTypeOf<
+      NonNullable<Parameters<typeof client.sessions.revokeSession>[1]>
+    >()
+      .toHaveProperty('resetDeviceTrust')
+      .toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<NonNullable<Parameters<typeof client.users.updateUser>[1]>>()
+      .toHaveProperty('resetDeviceTrust')
+      .toEqualTypeOf<boolean | undefined>();
+    expectTypeOf({ resetDeviceTrust: true }).toExtend<
+      NonNullable<Parameters<typeof client.sessions.revokeSession>[1]>
+    >();
+    expectTypeOf({
+      password: 'new-password',
+      signOutOfOtherSessions: true,
+      resetDeviceTrust: true
+    }).toExtend<Parameters<typeof client.users.updateUser>[1]>();
     expectTypeOf({
       selfServeSsoEnabled: true,
       selfServeDirectorySyncEnabled: false
