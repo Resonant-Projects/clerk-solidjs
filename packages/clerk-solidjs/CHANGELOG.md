@@ -1,5 +1,17 @@
 # clerk-solidjs
 
+## 4.7.0
+
+### Minor Changes
+
+- 59eb0e4: Update Clerk dependencies to the Nov 24 releases: `@clerk/backend` 3.33.0 and `@clerk/shared` 4.49.0.
+
+  **`<HandleSSOCallback />` continues only an SSO sign-up on the sign-up page.** As in `@clerk/react` 6.19.5, it calls `navigateToSignUp()` for a sign-up that went through SSO and still needs another step, such as a legal acceptance, a username or an unverified email address, or that failed at the provider. The provider's error is on `signUp.verifications.externalAccount.error` from `useSignUp()`. Before, any `missing_requirements` sign-up was sent there. That included a callback with no sign-up at all, because the sign-up reports `missing_requirements` when none exists, and an unfinished password or email sign-up left on the client from an earlier attempt. A callback marked `?intent=signIn` no longer resumes a sign-up that is already on the client. A sign-in with an external account no user has is still transferred to a sign-up, and goes to `navigateToSignUp()` if that sign-up needs another step. A callback that matches no step now stays on the callback page, as upstream's does. Examples are a sign-in that needs client trust, or one that needs a first factor with only enterprise SSO factors.
+
+  **Passed through from Clerk.** `clerkClient()` gains `users.searchUsers()`, a cursor-paged user search that can filter on metadata, external accounts and banned or deprovisioned users, and `users.getUserListWithoutCount()`, which returns `{ data }` without counting users. `sessions.revokeSession()` and `users.updateUser()` accept `resetDeviceTrust`, which makes Clerk forget the affected devices. `updateUser()` accepts it only with a new password and `signOutOfOtherSessions: true`. `auth().debug()` trims `machineSecretKey` to a short prefix, as it does `secretKey`. `ClerkAPIResponseError` errors carry `meta.remainingAttempts`, the password confirmation attempts left in the current session. `0` means the session has ended.
+
+  clerk-js 6.47.0 and `@clerk/ui` 1.45.0 show how many attempts remain after a wrong current password, when a user changes their password or reverifies. Once the attempts run out, Clerk ends the session in every tab. The next prebuilt sign-in form explains why the session ended. The messages are customizable with the new `unstable__errors.password_confirmation_*` localization keys. By default apps load clerk-js and `@clerk/ui` from the CDN by major version, so they get these from Clerk. Apps that pin a script version, bundle `@clerk/ui` or pass their own `Clerk` must update those themselves.
+
 ## 4.6.1
 
 ### Patch Changes
