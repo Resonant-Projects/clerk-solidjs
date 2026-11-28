@@ -343,7 +343,7 @@ export const buildCustomPages = (
     }
 
     if (token.kind === options.linkKind) {
-      const props = token.props as UserProfileLinkProps;
+      const props = token.props;
       if (
         props.url &&
         isRenderable(token.icon()) &&

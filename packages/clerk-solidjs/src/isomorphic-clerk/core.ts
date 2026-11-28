@@ -219,7 +219,7 @@ export abstract class IsomorphicClerkCore extends IsomorphicClerkQueue {
         ? new this.Clerk(this.#publishableKey, {
             proxyUrl: this.proxyUrl,
             domain: this.domain
-          } as DomainOrProxyUrl)
+          })
         : this.Clerk;
 
       if (!clerk) {
@@ -363,7 +363,7 @@ export abstract class IsomorphicClerkCore extends IsomorphicClerkQueue {
         ? new this.Clerk(this.#publishableKey, {
             proxyUrl: this.proxyUrl,
             domain: this.domain
-          } as DomainOrProxyUrl)
+          })
         : this.Clerk;
     }
 

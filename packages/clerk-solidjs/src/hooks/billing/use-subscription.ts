@@ -88,7 +88,7 @@ export function useSubscription(
   });
 
   return {
-    data: () => query().data as BillingSubscriptionResource | undefined | null,
+    data: () => query().data,
     error: () => (query().error ?? undefined) as Error | undefined,
     isLoading: () => query().isLoading,
     isFetching: () => query().isFetching,

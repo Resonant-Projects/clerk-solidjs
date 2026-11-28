@@ -177,16 +177,14 @@ export const PaymentElementProvider = (
     refetchOnWindowFocus: false
   }));
 
-  const initializedPaymentMethod = () =>
-    (initialized().data ?? undefined) as
-      BillingInitializedPaymentMethodResource | undefined;
+  const initializedPaymentMethod = () => initialized().data ?? undefined;
 
   const stripePublishableKey = () =>
     clerk().__internal_environment?.commerceSettings.billing
       .stripePublishableKey ?? undefined;
 
   const stripeQuery = createClerkQuery(() => {
-    const libs = stripeLibs().data as { loadStripe: LoadStripe } | undefined;
+    const libs = stripeLibs().data;
     const externalGatewayId = initializedPaymentMethod()?.externalGatewayId;
     const publishableKey = stripePublishableKey();
     return {
@@ -208,7 +206,7 @@ export const PaymentElementProvider = (
     };
   });
 
-  const loadedStripe = () => stripeQuery().data as Stripe | null | undefined;
+  const loadedStripe = () => stripeQuery().data;
   // Memos, so a refetch that changes only the query's state recreates
   // nothing: createClerkQuery publishes every result.
   const hasStripe = createMemo(() => !!loadedStripe());

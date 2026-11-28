@@ -78,8 +78,7 @@ export function useOrganizationCreationDefaults(
   });
 
   return {
-    data: () =>
-      query().data as OrganizationCreationDefaultsResource | undefined | null,
+    data: () => query().data,
     error: () => (query().error ?? null) as ClerkAPIResponseError | null,
     isLoading: () => query().isLoading,
     isFetching: () => query().isFetching

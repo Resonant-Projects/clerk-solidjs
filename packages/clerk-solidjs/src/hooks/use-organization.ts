@@ -63,7 +63,7 @@ export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
     keepPreviousData: false,
     infinite: false,
     enrollmentMode: undefined
-  } as PaginatedHookConfig<GetDomainsParams>);
+  });
 
   const membershipRequestSafeValues = createSafeValues(
     listParams('membershipRequests'),
@@ -73,7 +73,7 @@ export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
       status: 'pending',
       keepPreviousData: false,
       infinite: false
-    } as PaginatedHookConfig<GetMembershipRequestParams>
+    }
   );
 
   const membersSafeValues = createSafeValues(listParams('memberships'), {
@@ -83,7 +83,7 @@ export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
     keepPreviousData: false,
     infinite: false,
     query: undefined
-  } as PaginatedHookConfig<GetMembersParams>);
+  });
 
   const invitationsSafeValues = createSafeValues(listParams('invitations'), {
     initialPage: 1,
@@ -91,7 +91,7 @@ export const useOrganization = (params?: Accessor<UseOrganizationParams>) => {
     status: ['pending'],
     keepPreviousData: false,
     infinite: false
-  } as PaginatedHookConfig<GetInvitationsParams>);
+  });
 
   const domainParams = createMemo((): GetDomainsParams | undefined =>
     listParams('domains')() === undefined

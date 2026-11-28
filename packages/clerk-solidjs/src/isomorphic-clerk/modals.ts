@@ -232,7 +232,7 @@ export abstract class IsomorphicClerkModals extends IsomorphicClerkResources {
     const callback = () =>
       this.clerkjs?.__internal_attemptToEnableEnvironmentSetting?.(options);
     if (this.clerkjs && this.loaded) {
-      return callback() as __internal_AttemptToEnableEnvironmentSettingResult;
+      return callback();
     } else {
       this.premountMethodCalls.set(
         '__internal_attemptToEnableEnvironmentSetting',

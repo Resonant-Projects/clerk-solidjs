@@ -118,7 +118,7 @@ export function createBillingPaginatedHook<
 
     return usePagesOrInfinite<TParams, TResource>(() => ({
       fetcher: fetcher({
-        clerk: clerk() as unknown as IsomorphicClerk,
+        clerk: clerk(),
         loaded: loaded(),
         payer: payer(),
         user: user(),

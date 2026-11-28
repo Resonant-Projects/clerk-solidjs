@@ -124,5 +124,5 @@ export const useCheckout = (
     get fetchStatus() {
       return value().fetchStatus;
     }
-  } as CheckoutSignalValue;
+  };
 };

@@ -64,7 +64,7 @@ export const useOrganizationList = (
       pageSize: 10,
       keepPreviousData: false,
       infinite: false
-    } as PaginatedHookConfig<GetUserOrganizationMembershipParams>
+    }
   );
 
   const userInvitationsSafeValues = createSafeValues(
@@ -75,7 +75,7 @@ export const useOrganizationList = (
       status: 'pending',
       keepPreviousData: false,
       infinite: false
-    } as PaginatedHookConfig<GetUserOrganizationInvitationsParams>
+    }
   );
 
   const userSuggestionsSafeValues = createSafeValues(
@@ -86,7 +86,7 @@ export const useOrganizationList = (
       status: 'pending',
       keepPreviousData: false,
       infinite: false
-    } as PaginatedHookConfig<GetUserOrganizationSuggestionsParams>
+    }
   );
 
   const userMembershipsParams = createMemo(
