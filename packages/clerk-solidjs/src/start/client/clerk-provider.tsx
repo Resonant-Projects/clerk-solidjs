@@ -46,9 +46,8 @@ export function ClerkProvider(
     useAssets(() => (
       <script
         nonce={nonce}
-        // htmlSafeJson escapes the state for a script element. Text children
-        // would be HTML-escaped, which corrupts script source.
-        // eslint-disable-next-line solid/no-innerhtml
+        // Text children would be HTML-escaped, which corrupts script source.
+        // eslint-disable-next-line solid/no-innerhtml -- htmlSafeJson escapes the state for a script element.
         innerHTML={`window.__clerk_init_state = ${htmlSafeJson(clerkInitState)};`}
       />
     ));

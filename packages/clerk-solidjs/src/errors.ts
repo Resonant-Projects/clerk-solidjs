@@ -1,4 +1,4 @@
-// Mirrors @clerk/react's `/errors` entry point export for export.
+// Mirrors @clerk/react's `/errors` entry point, export for export.
 export {
   ClerkAPIResponseError,
   ClerkOfflineError,

@@ -111,9 +111,9 @@ const useClerkSignal = <K extends keyof SignalValues>(
 
   // The views read `value()` lazily, in whatever scope reads them.
   return {
-    // eslint-disable-next-line solid/reactivity
+    // eslint-disable-next-line solid/reactivity -- liveView reads lazily, in the reader's scope.
     [name]: liveView(resource),
-    // eslint-disable-next-line solid/reactivity
+    // eslint-disable-next-line solid/reactivity -- liveView reads lazily, in the reader's scope.
     errors: liveView(() => value().errors),
     get fetchStatus() {
       return value().fetchStatus;

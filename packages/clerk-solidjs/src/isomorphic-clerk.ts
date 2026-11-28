@@ -87,7 +87,7 @@ export class IsomorphicClerk
     // During SSR: a new instance should be created for every request
     // During CSR: use the cached instance for the whole lifetime of the app
     // Also will recreate the instance if the provided Clerk instance changes
-    // This method should be idempotent in both scenarios
+    // Each call counts one more user of the instance; see releaseInstance().
     if (
       !inBrowser() ||
       !this.#instance ||
