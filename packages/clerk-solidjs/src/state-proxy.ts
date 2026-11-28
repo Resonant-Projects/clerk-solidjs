@@ -531,8 +531,7 @@ export class StateProxy implements State {
   }
 
   private get checkout(): Clerk['__experimental_checkout'] {
-    const c = this.isomorphicClerk
-      .__experimental_checkout as Clerk['__experimental_checkout'];
+    const c = this.isomorphicClerk.__experimental_checkout;
     if (!c) {
       throw new Error('Clerk checkout not ready');
     }

@@ -95,7 +95,7 @@ export function useOAuthConsent(
   });
 
   return {
-    data: () => query().data as OAuthConsentInfo | undefined,
+    data: () => query().data,
     error: () => (query().error ?? null) as ClerkAPIResponseError | null,
     isLoading: () => query().isLoading,
     isFetching: () => query().isFetching
