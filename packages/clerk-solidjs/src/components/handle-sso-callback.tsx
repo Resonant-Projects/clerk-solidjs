@@ -247,8 +247,10 @@ export function HandleSSOCallback(props: HandleSSOCallbackProps): JSX.Element {
     // on the sign-up page, as `@clerk/react` 6.19.5's does. Only one that
     // exists (SignUpFuture reports `missing_requirements` without one) and
     // went through SSO: starting a sign-in does not clear an earlier
-    // password sign-up, which must not take over a sign-in callback. A
-    // callback marked `?intent=signIn` never continues a sign-up.
+    // password sign-up, which must not take over a sign-in callback. On a
+    // callback marked `?intent=signIn`, this fallback does not resume an
+    // existing incomplete sign-up; a sign-in transferred to a sign-up
+    // above still goes to the sign-up page.
     if (
       flow !== 'signIn' &&
       signUp.id &&
