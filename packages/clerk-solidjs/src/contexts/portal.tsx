@@ -19,8 +19,7 @@ export const UNSAFE_PortalProvider = (props: {
   getContainer: GetContainer;
   children?: JSX.Element;
 }): JSX.Element => (
-  // A function, read at call time, so a changed `getContainer` prop is used.
-  // eslint-disable-next-line solid/reactivity
+  // eslint-disable-next-line solid/reactivity -- A function, read at call time, so a changed `getContainer` prop is used.
   <PortalContext.Provider value={() => props.getContainer()}>
     {props.children}
   </PortalContext.Provider>

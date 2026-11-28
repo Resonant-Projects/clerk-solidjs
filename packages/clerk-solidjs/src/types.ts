@@ -280,7 +280,7 @@ export type PaginatedResources<T = unknown, Infinite = false> = {
   revalidate: () => Promise<void>;
 };
 
-// Utility type to convert PaginatedDataAPI to properties as undefined, except booleans set to false
+// PaginatedResources with every property undefined, except booleans, which are false.
 export type PaginatedResourcesWithDefault<T> = {
   [K in keyof PaginatedResources<T>]: PaginatedResources<T>[K] extends boolean
     ? false

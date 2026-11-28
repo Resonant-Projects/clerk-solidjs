@@ -260,7 +260,7 @@ export abstract class IsomorphicClerkCore extends IsomorphicClerkQueue {
 
   get isSatellite() {
     // This getter can run in environments where window is not available.
-    // In those cases we should expect and use domain as a string
+    // There it is false, and a function value throws.
     if (typeof window !== 'undefined' && window.location) {
       return handleValueOrFn(
         this.options.isSatellite,

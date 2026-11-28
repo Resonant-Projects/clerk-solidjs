@@ -182,7 +182,6 @@ export abstract class IsomorphicClerkResources extends IsomorphicClerkCore {
   get client(): ClientResource | undefined {
     if (this.clerkjs) {
       return this.clerkjs.client;
-      // TODO: add ssr condition
     } else {
       return undefined;
     }
