@@ -320,6 +320,7 @@ export abstract class IsomorphicClerkResources extends IsomorphicClerkCore {
     if (this.clerkjs) {
       return this.clerkjs.setActive(params);
     } else {
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- Rejects with undefined today; an Error would change what callers catch.
       return Promise.reject();
     }
   };

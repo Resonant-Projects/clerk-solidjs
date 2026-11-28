@@ -43,7 +43,7 @@ describe('<SignInWithMetamaskButton/>', () => {
   it('calls clerk.authenticateWithMetamask when clicked', async () => {
     render(() => <SignInWithMetamaskButton />);
     const btn = screen.getByText('Sign in with Metamask');
-    userEvent.click(btn);
+    await userEvent.click(btn);
     await waitFor(() => {
       expect(mockAuthenticatewithMetamask).toHaveBeenCalled();
     });

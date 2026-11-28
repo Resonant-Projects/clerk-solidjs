@@ -44,7 +44,7 @@ describe('<SignOutButton />', () => {
   it('calls clerk.signOutOne when clicked', async () => {
     render(() => <SignOutButton />);
     const btn = screen.getByText('Sign out');
-    userEvent.click(btn);
+    await userEvent.click(btn);
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalled();
     });

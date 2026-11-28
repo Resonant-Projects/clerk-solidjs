@@ -282,7 +282,7 @@ export const clerkMiddleware = (
         };
       }
       if (requestState.status === AuthStatus.Handshake) {
-        throw errorThrower.throw('Clerk: handshake status without redirect');
+        return errorThrower.throw('Clerk: handshake status without redirect');
       }
 
       const authenticateFn = createAuthenticate(clerkRequest, requestState);
@@ -352,7 +352,7 @@ export const clerkMiddleware = (
       (getRequestEvent() as FetchEvent | undefined) ??
       (h3Event.context?.solidFetchEvent as FetchEvent | undefined);
     if (!fetchEvent) {
-      throw errorThrower.throw(
+      return errorThrower.throw(
         'clerkMiddleware() needs SolidStart: register it with createMiddleware() from @solidjs/start/middleware.'
       );
     }

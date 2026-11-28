@@ -176,7 +176,7 @@ describe('useEmailLink', () => {
     vi.stubEnv('NODE_ENV', 'development');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { resource: signIn, flows } = resource();
-    createRoot(async (dispose) => {
+    void createRoot(async (dispose) => {
       const link = useEmailLink(() => signIn);
       await link.startEmailLinkFlow()({
         emailAddressId: 'idn_1',
