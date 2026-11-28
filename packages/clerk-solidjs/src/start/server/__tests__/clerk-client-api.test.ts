@@ -57,6 +57,15 @@ describe('Backend API methods on clerkClient()', () => {
       .toHaveProperty('startingAfter')
       .toEqualTypeOf<string | null>();
     // 3.33.0: forget the user's devices when revoking or changing password.
+    // toExtend allows extra properties, so pin the property itself as well.
+    expectTypeOf<
+      NonNullable<Parameters<typeof client.sessions.revokeSession>[1]>
+    >()
+      .toHaveProperty('resetDeviceTrust')
+      .toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<NonNullable<Parameters<typeof client.users.updateUser>[1]>>()
+      .toHaveProperty('resetDeviceTrust')
+      .toEqualTypeOf<boolean | undefined>();
     expectTypeOf({ resetDeviceTrust: true }).toExtend<
       NonNullable<Parameters<typeof client.sessions.revokeSession>[1]>
     >();
